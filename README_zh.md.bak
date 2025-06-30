@@ -1,0 +1,198 @@
+# GTPlanner: A PRD Generation Tool for Vibe Coding
+
+
+<p align="center">
+  <img src="./assets/banner.png" width="800"/>
+</p>
+
+---
+本项目分为两部分,后端部分和MCP部分
+
+---
+
+## ✨ 核心特性
+- **自然语言与 Markdown 支持**：可输入需求描述和/或 Markdown 文档
+- **异步处理**：全流程异步，响应迅速
+- **多轮交互优化**：支持用户反馈，自动迭代完善文档
+- **结构化输出**：输出标准化、可定制的技术文档
+- **可扩展节点式架构**：每步处理均为独立异步节点，易于扩展
+
+---
+
+## 🚀 安装与配置
+
+1. 克隆仓库：
+   ```bash
+   git clone https://github.com/The-Agent-Builder/GTPlanner.git
+   ```
+2. 安装依赖：
+   ```bash
+   uv sync
+   ```
+3. 配置 LLM 服务（推荐使用 Dynaconf）：
+   - 编辑 `settings.toml`，配置你的 LLM API 地址、Key、模型名：
+     ```toml
+     [default.llm]
+     base_url = "<your_llm_api_url>"  # 请替换为你自己的API地址
+     api_key = "<your_llm_api_key>"   # 请替换为你自己的API Key
+     model = "<your_model_name>"
+     ```
+   - 示例（请勿直接使用示例API Key，建议自行申请）：
+     ```toml
+     [default.llm]
+     base_url = "https://gateway.chat.sensedeal.vip/v1"
+     api_key = "your-own-api-key"
+     model = "qwen3-235b-a22b"
+     ```
+
+
+---
+
+## 🛠️ 用法
+
+### 交互模式（推荐）
+```bash
+uv run python main.py
+```
+或
+```bash
+uv run python cli.py
+```
+- 按提示输入需求描述，可选择附加 Markdown 文件（main.py 支持多文件，cli.py 仅自然语言）
+- 支持多轮反馈与文档优化
+
+### 命令行参数模式
+```bash
+uv run python main.py --input "你的需求描述" --files 文件1.md 文件2.md --output output.md
+```
+- `--interactive` 进入交互模式
+- `--input` 指定需求描述
+- `--files` 指定 Markdown 文件（可选）
+- `--output` 指定输出文件名（可选）
+
+---
+
+## 🧩 系统架构与流程
+
+本项目采用异步节点流（AsyncFlow）架构，主要节点如下：
+
+1. **AsyncInputProcessingNode**：处理用户输入（自然语言/Markdown）
+2. **AsyncRequirementsAnalysisNode**：分析并提取需求
+3. **AsyncDesignOptimizationNode**：提出设计优化建议并合成文档
+4. **AsyncDocumentationGenerationNode**：生成最终技术文档
+5. **AsyncFeedbackProcessingNode**：处理用户反馈，支持多轮优化
+
+流程图如下：
+
+```mermaid
+flowchart TD
+    inputNode[Async Input Processing] --> analysisNode[Async Requirements Analysis]
+    analysisNode --> optimizationNode[Async Design Optimization]
+    optimizationNode --> docGenNode[Async Documentation Generation]
+    docGenNode --> feedbackNode[Async Feedback Processing]
+    feedbackNode -->|new_iteration| analysisNode
+    feedbackNode -->|complete| endNode[End Process]
+```
+
+---
+
+## 🧰 主要工具函数（`utils/`）
+- `call_llm.py`：异步/同步调用 LLM，支持 JSON 修复
+- `parse_markdown.py`：异步解析 Markdown，结构化提取标题/段落/代码块等
+- `format_documentation.py`：异步格式化输出为标准技术文档
+- `store_conversation.py`：异步管理会话历史，支持保存/加载
+
+---
+
+## 📦 项目结构
+```
+GTPlanner/
+├── main.py                # 入口，命令行与交互逻辑
+├── cli.py                 # 交互/命令行入口（简化版）
+├── cli_flow.py            # CLI流程定义
+├── filename_flow.py       # 自动生成输出文件名
+├── short_planner_flow.py  # 简要流程生成与优化
+├── nodes.py               # 主要异步节点实现
+├── utils/                 # 工具函数
+│   ├── call_llm.py
+│   ├── parse_markdown.py
+│   ├── format_documentation.py
+│   └── store_conversation.py
+├── output/                # 输出文档目录
+│   └── doc.md             # 示例输出
+├── requirements.txt       # 依赖列表
+├── settings.toml          # Dynaconf 配置
+├── pyproject.toml         # 构建/元数据
+├── fastapi_main.py        # FastAPI后端服务（可选）
+├── mcp/                   # MCP服务相关
+│   └── mcp_service.py
+├── api/                   # API接口实现
+│   └── v1/
+│       └── planning.py
+└── docs/                  # 设计文档
+    └── design.md
+```
+
+---
+
+## 📝 示例：
+```bash
+uv run python main.py
+```
+运行后，输入一句话需求描述："Youtube AI字幕总结"
+
+- 输出:
+  - 终端显示结构化技术文档
+  - 自动保存到 `output/` 目录下（如 `output/doc.md`）
+
+---
+
+## 📄 依赖
+- Python >= 3.10
+- openai >= 1.0.0
+- pyyaml >= 6.0
+- pocketflow == 0.1.0
+- dynaconf >= 3.1.12
+- aiohttp >= 3.8.0
+- json-repair >= 0.6.0
+
+---
+
+## 🧑‍💻 API/MCP 启动
+- 启动后端的API服务
+```
+uv run fastapi_main.py
+```
+- 启动MCP
+```
+cd mcp
+uv sync
+uv run python mcp_service.py
+```
+默认以StreamableHTTP形式提供服务。
+
+在任何一个支持MCP的client中填入以下内容即可使用MCP服务。
+```
+{
+  "mcpServers": {
+    "mcp-server-1": {
+      "url": "http://127.0.0.1:8001/mcp"
+    }
+  }
+}
+```
+
+---
+
+## 📚 设计与参考
+- 详细设计文档见 [docs/design.md](./docs/design.md)
+- 参考项目：[Pocket Flow](https://github.com/The-Pocket/PocketFlow)
+- 配置管理：[Dynaconf](https://www.dynaconf.com/)
+
+---
+
+本项目是基于 [Pocket Flow](https://github.com/The-Pocket/PocketFlow) 的智能需求分析与文档生成引擎，支持自然语言与 Markdown 输入，异步多轮优化，自动生成结构化技术文档。
+
+## License
+
+如需 License，请自行添加 LICENSE 文件。

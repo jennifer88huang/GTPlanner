@@ -1,0 +1,17 @@
+[default]
+debug = false
+
+[default.llm]
+base_url = "https://gateway.chat.sensedeal.vip/v1"
+api_key = "@format {env[LLM_API_KEY]}"
+model = "qwen3-235b-a22b"
+
+[default.multilingual]
+# Default language for the system (en, zh, es, fr, ja)
+default_language = "en"
+# Enable automatic language detection from user input
+auto_detect = true
+# Fallback to default language when requested language is not supported
+fallback_enabled = true
+# Supported languages (can be customized to enable/disable specific languages)
+supported_languages = ["en", "zh", "es", "fr", "ja"]
