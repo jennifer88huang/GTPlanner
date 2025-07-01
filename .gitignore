@@ -97,3 +97,4 @@ coverage/
 input/*
 output/*
 doc.pdf
+*.bak
