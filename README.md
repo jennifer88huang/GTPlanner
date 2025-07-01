@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>An intelligent Product Requirements Document (PRD) generation tool that transforms natural language descriptions into comprehensive technical documentation</strong>
+  <strong>An intelligent Product Requirement Document (PRD) generation tool that transforms natural language description into structured PRD for Vibe coding</strong>
 </p>
 
 <p align="center">
@@ -14,8 +14,6 @@
   <a href="#-installation">Installation</a> •
   <a href="#️-usage">Usage</a> •
   <a href="#️-architecture">Architecture</a> •
-  <a href="#-multilingual-support">Multilingual</a> •
-  <a href="#-configuration">Configuration</a> •
   <a href="#-contributing">Contributing</a>
 </p>
 
@@ -37,26 +35,27 @@ The project consists of three main components:
 - **FastAPI Backend**: REST API service for programmatic access
 - **MCP Service**: Model Context Protocol integration for seamless AI assistant integration
 
+The following examples show the implmentation process in Cherry Studio and Cursor.
+
+- In Cherry Studio:
+  - ![MCP usage in Cherry Studio](assets/Cherry_Studio_2025-06-24_01-05-49.png)
+- In Cursor:
+  - ![MCP usage in Cursor](assets/Cursor_2025-06-24_01-12-05.png)
+
 ## ✨ Features
 
-- **🗣️ Natural Language Processing**: Convert plain English requirements into structured PRDs
-- **🌍 Multilingual Support**: Full support for English, Chinese, Spanish, French, and Japanese with automatic language detection
-- **📝 Markdown Support**: Process and integrate existing Markdown documentation
+- **🗣️ Natural Language Processing**: Convert your requirements into structured PRDs
+- **🌍 Multilingual Support**: Full support for English, Chinese, Spanish, French, and Japanese with automatic language detection. For details, see the [Multilingual Guide](docs/multilingual-guide.md).
+- **📝 Markdown Support**: Process and integrate the existing Markdown documents
 - **⚡ Asynchronous Processing**: Full async pipeline for responsive performance
 - **🔄 Multi-turn Optimization**: Interactive feedback loop for iterative document refinement
 - **📊 Structured Output**: Generate standardized, customizable technical documentation
 - **🧩 Extensible Architecture**: Modular node-based design for easy customization
 - **🌐 Multiple Interfaces**: CLI, FastAPI, and MCP protocol support
 - **🔧 LLM Agnostic**: Compatible with various language models via configurable endpoints
-- **📁 Auto File Management**: Automatic filename generation and output organization
-- **🎯 Smart Language Detection**: Automatically detects user language and provides culturally appropriate responses
+- **📁 Auto File Management**: Generate filename and output directory automatically
+- **🎯 Smart Language Detection**: Detect user language automatically and provide appropriate responses 
 
-## Screenshots
-
-- In Cherry Studio:
-  - ![MCP usage in Cherry Studio](assets/Cherry_Studio_2025-06-24_01-05-49.png)
-- In Cursor:
-  - ![MCP usage in Cursor](assets/Cursor_2025-06-24_01-12-05.png)
 ---
 
 ## 📋 Prerequisites
@@ -67,14 +66,14 @@ The project consists of three main components:
 
 ## 🚀 Installation
 
-### 1. Clone the Repository
+1. Clone the repository
 
 ```bash
-git clone https://github.com/your-org/GTPlanner.git
+git clone https://github.com/OpenSQZ/GTPlanner.git
 cd GTPlanner
 ```
 
-### 2. Install Dependencies
+2. Install dependencies
 
 Using uv (recommended):
 ```bash
@@ -86,17 +85,13 @@ Using pip:
 pip install -r requirements.txt
 ```
 
-### 3. Configuration
+3. Configure
 
-Set your API key:
+GTPlanner supports any OpenAI-compatible API. You can figure your LLM, API key, enviornment variables, and language in the `settings.toml` file. The default lanugage is English.
 
 ```bash
 export LLM_API_KEY="your-api-key-here"
 ```
-
-For detailed configuration options, see the [Configuration](#-configuration) section.
-
----
 
 ## 🛠️ Usage
 
@@ -118,8 +113,8 @@ start_cli.bat
 
 **Example workflow:**
 1. Enter your project requirements in natural language
-2. Optionally provide existing Markdown documentation
-3. Review generated documentation
+2. Optionally provide the existing Markdown document
+3. Review the generated document
 4. Provide feedback for iterative refinement
 5. Type 'q' to save and exit
 
@@ -141,7 +136,7 @@ The service runs on `http://0.0.0.0:11211` by default. Visit `http://0.0.0.0:112
 
 The MCP service provides seamless integration with AI assistants and supports direct function calls.
 
-1. Start the MCP service:
+1. Start the MCP service.
 
 ```bash
 cd mcp
@@ -149,7 +144,7 @@ uv sync
 uv run python mcp_service.py
 ```
 
-2. Configure your MCP client:
+2. Configure your MCP client.
 
 ```json
 {
@@ -161,9 +156,9 @@ uv run python mcp_service.py
 }
 ```
 
-**Available MCP tools:**
-- `generate_flow` - Generate planning flows from requirements
-- `generate_design_doc` - Create detailed design documentation
+The following MCP tools are available:  
+- `generate_flow`: Generate planning flows from requirements
+- `generate_design_doc`: Create detailed PRDs
 
 ---
 
@@ -204,9 +199,9 @@ flowchart TD
 ### Utility Functions (`utils/`)
 
 - **`call_llm.py`**: Async/sync LLM communication with JSON repair
-- **`parse_markdown.py`**: Markdown document processing and structure extraction
+- **`parse_markdown.py`**: Processes Markdown document and extracts structure
 - **`format_documentation.py`**: Standardized documentation formatting
-- **`store_conversation.py`**: Conversation history management with persistence
+- **`store_conversation.py`**: Manages the conversation history
 
 ---
 
@@ -246,90 +241,6 @@ GTPlanner/
 
 ---
 
-## 🌍 Multilingual Support
-
-GTPlanner provides comprehensive multilingual functionality with automatic language detection and culturally appropriate responses.
-
-### Supported Languages
-
-| Language | Code | Native Name | Status |
-|----------|------|-------------|---------|
-| English  | `en` | English     | ✅ Full Support |
-| Chinese  | `zh` | 中文        | ✅ Full Support |
-| Spanish  | `es` | Español     | ✅ Full Support |
-| French   | `fr` | Français    | ✅ Full Support |
-| Japanese | `ja` | 日本語      | ✅ Full Support |
-
-### Key Features
-
-- **🔍 Automatic Language Detection**: Detects user language from input text
-- **🎯 Smart Fallback**: Falls back to default language when needed
-- **🌐 Cultural Adaptation**: Prompts adapted for each language's cultural context
-- **⚙️ Configurable**: Easy to configure default language and preferences
-
-### Quick Usage
-
-```python
-# API with explicit language
-response = requests.post("/planning/short", json={
-    "requirement": "Create a web application",
-    "language": "en"
-})
-
-# Auto-detection (Chinese example)
-response = requests.post("/planning/short", json={
-    "requirement": "创建一个网站应用"
-})
-```
-
-For detailed multilingual configuration and usage, see the [Multilingual Guide](docs/multilingual-guide.md).
-
----
-
-## 🔧 Configuration
-
-### LLM Configuration
-
-GTPlanner supports any OpenAI-compatible API. Configure in `settings.toml`:
-
-```toml
-[default]
-debug = false
-
-[default.llm]
-base_url = "https://api.openai.com/v1"
-api_key = "@format {env[LLM_API_KEY]}"
-model = "gpt-4"
-```
-
-### Environment Variables
-
-```bash
-# Required
-LLM_API_KEY=your-api-key-here
-
-# Optional (defaults to OpenAI)
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4
-```
-
-### Multilingual Configuration
-
-```toml
-[default.multilingual]
-default_language = "en"
-auto_detect = true
-supported_languages = ["en", "zh", "es", "fr", "ja"]
-```
-
-```bash
-# Environment variables
-GTPLANNER_DEFAULT_LANGUAGE=en
-GTPLANNER_AUTO_DETECT=true
-```
-
----
-
 ## 📚 Dependencies
 
 ### Core Dependencies
@@ -353,22 +264,14 @@ GTPLANNER_AUTO_DETECT=true
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions and collaborations are welcome and highly appreciated. Check out the [contributing guide](CONTRIBUTING.md) and get involved.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. For details, see the [LICENSE](LICENSE.md) file.
 
 ## 🙏 Acknowledgments
 
 - Built on [PocketFlow](https://github.com/The-Pocket/PocketFlow) async workflow engine
 - Configuration powered by [Dynaconf](https://www.dynaconf.com/)
 - Designed for seamless integration with AI assistants via MCP protocol
-
----
-
-**GTPlanner** - Transform your ideas into structured technical documentation with the power of AI.
