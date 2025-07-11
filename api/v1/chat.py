@@ -213,9 +213,13 @@ async def handle_action(action_content: str, original_message: str, current_plan
                     yield chunk
 
     except Exception as e:
-        print(f"Error in handle_action: {e}")
+        # 记录详细错误信息用于调试
+        import logging
+        logging.error(f"Error in handle_action: {str(e)}", exc_info=True)
+
+        # 向用户返回通用错误信息，不暴露内部细节
         yield stream_data("[ERROR_START]")
-        yield stream_data(f"❌ 处理操作时出现错误: {str(e)}")
+        yield stream_data("❌ 处理操作时出现内部错误，请稍后重试")
         yield stream_data_block("[ERROR_END]")
 
 
@@ -423,10 +427,13 @@ Choose the appropriate tag based on user intent. For project requirements, reply
         yield stream_data_block("")  # 空行表示结束
 
     except Exception as e:
-        print(f"Error in generate_stream_response: {e}")
-        error_msg = f"处理请求时出现错误: {str(e)}"
+        # 记录详细错误信息用于调试
+        import logging
+        logging.error(f"Error in generate_stream_response: {str(e)}", exc_info=True)
+
+        # 向用户返回通用错误信息，不暴露内部细节
         yield stream_data("[ERROR_START]")
-        yield stream_data(f"❌ {error_msg}")
+        yield stream_data("❌ 生成回复时出现内部错误，请稍后重试")
         yield stream_data_block("[ERROR_END]")
 
 
@@ -504,10 +511,13 @@ async def generate_direct_action_response(
             yield stream_data_block("[ERROR_END]")
 
     except Exception as e:
-        print(f"Error in generate_direct_action_response: {e}")
-        error_msg = f"处理操作时出现错误: {str(e)}"
+        # 记录详细错误信息用于调试
+        import logging
+        logging.error(f"Error in generate_direct_action_response: {str(e)}", exc_info=True)
+
+        # 向用户返回通用错误信息，不暴露内部细节
         yield stream_data("[ERROR_START]")
-        yield stream_data(f"❌ {error_msg}")
+        yield stream_data("❌ 处理操作时出现内部错误，请稍后重试")
         yield stream_data_block("[ERROR_END]")
 
 

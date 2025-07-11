@@ -231,8 +231,13 @@ async def short_planning_stream(body: ShortPlanningRequest):
             yield "data: [SHORT_PLAN_END]\n\n"
 
     except Exception as e:
+        # 记录详细错误信息用于调试
+        import logging
+        logging.error(f"Error in short_planning_stream: {str(e)}", exc_info=True)
+
+        # 向用户返回通用错误信息，不暴露内部细节
         yield "data: [ERROR_START]\n"
-        yield f"data: ❌ 生成规划时出现错误: {str(e)}\n"
+        yield "data: ❌ 生成规划时出现内部错误，请稍后重试\n"
         yield "data: [ERROR_END]\n\n"
 
 
@@ -325,8 +330,13 @@ async def long_planning_stream(body: LongPlanningRequest):
         yield "data: [LONG_DOC_END]\n\n"
 
     except Exception as e:
+        # 记录详细错误信息用于调试
+        import logging
+        logging.error(f"Error in long_planning_stream: {str(e)}", exc_info=True)
+
+        # 向用户返回通用错误信息，不暴露内部细节
         yield "data: [ERROR_START]\n"
-        yield f"data: ❌ 生成文档时出现错误: {str(e)}\n"
+        yield "data: ❌ 生成文档时出现内部错误，请稍后重试\n"
         yield "data: [ERROR_END]\n\n"
 
 
