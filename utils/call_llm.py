@@ -19,7 +19,7 @@ settings = Dynaconf(
 
 async def _request_llm_async(
     prompt,
-    model="deepseek-v3",
+    model="doubao-pro-32k",
     # model="qwen2.5-72b-instruct",
     is_json=False,
 ):
@@ -57,6 +57,63 @@ async def _request_llm_async(
 
 async def call_llm_async(prompt, is_json=False):
     return await _request_llm_async(prompt, model=settings.llm.model, is_json=is_json)
+
+
+async def _request_llm_stream_async(
+    prompt,
+    model="doubao-pro-32k",
+):
+    """流式LLM请求"""
+    url = f"{settings.llm.base_url}/chat/completions"
+    payload = json.dumps(
+        {
+            "messages": [{"role": "user", "content": prompt}],
+            "model": model,
+            "stream": True,
+            "temperature": 0,
+            "top_p": 1,
+        },
+        ensure_ascii=False
+    )
+    headers = {
+        "Authorization": f"Bearer {settings.llm.api_key}",
+        "Content-Type": "application/json; charset=utf-8",
+    }
+
+    async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=100000)
+        async with session.post(
+            url, headers=headers, data=payload.encode('utf-8'), timeout=timeout
+        ) as response:
+            buffer = b""
+            async for chunk in response.content.iter_chunked(1024):
+                buffer += chunk
+                while b'\n' in buffer:
+                    line_bytes, buffer = buffer.split(b'\n', 1)
+                    try:
+                        line_str = line_bytes.decode('utf-8').strip()
+                        if line_str.startswith('data: '):
+                            data_str = line_str[6:]  # 移除 "data: " 前缀
+                            if data_str == '[DONE]':
+                                return
+                            try:
+                                data = json.loads(data_str)
+                                if 'choices' in data and len(data['choices']) > 0:
+                                    delta = data['choices'][0].get('delta', {})
+                                    if 'content' in delta:
+                                        content = delta['content']
+                                        # 确保换行符被正确传递
+                                        yield content
+                            except json.JSONDecodeError:
+                                continue
+                    except UnicodeDecodeError:
+                        continue
+
+
+async def call_llm_stream_async(prompt):
+    """流式调用LLM"""
+    async for chunk in _request_llm_stream_async(prompt, model=settings.llm.model):
+        yield chunk
 
 
 # Synchronous version for backward compatibility
