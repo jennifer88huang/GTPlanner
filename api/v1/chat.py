@@ -219,7 +219,7 @@ async def handle_action(action_content: str, original_message: str, current_plan
 
         # 向用户返回通用错误信息，不暴露内部细节
         yield stream_data("[ERROR_START]")
-        yield stream_data("❌ 处理操作时出现内部错误，请稍后重试")
+        yield stream_data("❌ An internal error occurred while processing the action. Please try again later.")
         yield stream_data_block("[ERROR_END]")
 
 
@@ -433,7 +433,7 @@ Choose the appropriate tag based on user intent. For project requirements, reply
 
         # 向用户返回通用错误信息，不暴露内部细节
         yield stream_data("[ERROR_START]")
-        yield stream_data("❌ 生成回复时出现内部错误，请稍后重试")
+        yield stream_data("❌ An internal error occurred while generating response. Please try again later.")
         yield stream_data_block("[ERROR_END]")
 
 
@@ -461,7 +461,7 @@ async def generate_direct_action_response(
             # 直接调用长文档生成
             if not current_plan:
                 yield stream_data("[ERROR_START]")
-                yield stream_data("❌ 没有找到当前规划，无法生成文档")
+                yield stream_data("❌ No current plan found. Cannot generate document.")
                 yield stream_data_block("[ERROR_END]")
                 return
 
@@ -485,7 +485,7 @@ async def generate_direct_action_response(
             # 直接调用规划优化
             if not current_plan:
                 yield stream_data("[ERROR_START]")
-                yield stream_data("❌ 没有找到当前规划，无法进行优化")
+                yield stream_data("❌ No current plan found. Cannot optimize plan.")
                 yield stream_data_block("[ERROR_END]")
                 return
 
@@ -507,7 +507,7 @@ async def generate_direct_action_response(
 
         else:
             yield stream_data("[ERROR_START]")
-            yield stream_data(f"❌ 不支持的操作类型: {action}")
+            yield stream_data(f"❌ Unsupported action type: {action}")
             yield stream_data_block("[ERROR_END]")
 
     except Exception as e:
@@ -517,7 +517,7 @@ async def generate_direct_action_response(
 
         # 向用户返回通用错误信息，不暴露内部细节
         yield stream_data("[ERROR_START]")
-        yield stream_data("❌ 处理操作时出现内部错误，请稍后重试")
+        yield stream_data("❌ An internal error occurred while processing the operation. Please try again later.")
         yield stream_data_block("[ERROR_END]")
 
 

@@ -237,7 +237,7 @@ async def short_planning_stream(body: ShortPlanningRequest):
 
         # 向用户返回通用错误信息，不暴露内部细节
         yield "data: [ERROR_START]\n"
-        yield "data: ❌ 生成规划时出现内部错误，请稍后重试\n"
+        yield "data: ❌ An internal error occurred while generating planning. Please try again later.\n"
         yield "data: [ERROR_END]\n\n"
 
 
@@ -336,7 +336,7 @@ async def long_planning_stream(body: LongPlanningRequest):
 
         # 向用户返回通用错误信息，不暴露内部细节
         yield "data: [ERROR_START]\n"
-        yield "data: ❌ 生成文档时出现内部错误，请稍后重试\n"
+        yield "data: ❌ An internal error occurred while generating document. Please try again later.\n"
         yield "data: [ERROR_END]\n\n"
 
 
