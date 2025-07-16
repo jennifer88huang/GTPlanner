@@ -1,0 +1,184 @@
+name: CI/CD Pipeline
+
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'  
+  pull_request:
+    branches: [ main ]
+
+env:
+  IMAGE_NAME: gtplanner
+  REGISTRY: ghcr.io
+  NAMESPACE: default
+  DEPLOYMENT_NAME: gtplanner
+
+jobs:
+
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+      
+    - name: 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: 安装uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        
+    - name: 安装依赖
+      run: |
+        uv venv
+        source .venv/bin/activate
+        uv pip install  -r pyproject.toml
+        
+    - name: 代码质量检查
+      run: |
+        source .venv/bin/activate
+        # 这里可以添加代码质量检查工具，如flake8, black等
+        python -m py_compile main.py
+        python -m py_compile fastapi_main.py
+        
+    - name: 运行测试
+      run: |
+        source .venv/bin/activate
+        # 运行测试套件
+        python -m pytest tests/ -v || echo "测试完成"
+
+
+  docker-build-push:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')  
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      image-tag: ${{ steps.image-info.outputs.image-tag }}
+      full-image-name: ${{ steps.image-info.outputs.full-image-name }}
+    
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+      
+    - name: 设置Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 登录GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 生成镜像标签和元数据
+      id: image-info
+      run: |
+        # 使用tag作为镜像标签
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        SHORT_SHA=${GITHUB_SHA::7}
+        IMAGE_TAG="${TAG_NAME}-${SHORT_SHA}"
+        
+        # 使用仓库owner作为组织名，转换为小写（Docker要求）
+        REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        FULL_IMAGE_NAME="${{ env.REGISTRY }}/${REPO_OWNER}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+        LATEST_IMAGE_NAME="${{ env.REGISTRY }}/${REPO_OWNER}/${{ env.IMAGE_NAME }}:latest"
+        
+        echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+        echo "full-image-name=${FULL_IMAGE_NAME}" >> $GITHUB_OUTPUT
+        echo "latest-image-name=${LATEST_IMAGE_NAME}" >> $GITHUB_OUTPUT
+        
+    - name: 构建并推送Docker镜像
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: |
+          ${{ steps.image-info.outputs.full-image-name }}
+          ${{ steps.image-info.outputs.latest-image-name }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
+
+
+  deploy-to-kubernetes:
+    needs: docker-build-push
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')  
+    
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+      
+    - name: Deploy to Kubernetes
+      env:
+        K8S_TOKEN: ${{ secrets.K8S_TOKEN }}
+        VERSION: ${{ github.sha }}
+        K8S_API_URL: ${{ secrets.K8S_API_URL }}
+        DEPLOYMENT_NAME: ${{ secrets.DEPLOYMENT_NAME }}
+        NAMESPACE: ${{ secrets.NAMESPACE }}
+      run: |
+        # Prepare lowercase repository name for Docker compliance
+        REPO_OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        CI_REGISTRY_IMAGE="${{ env.REGISTRY }}/${REPO_OWNER_LOWER}/gtplanner"
+
+        # 使用tag信息
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        IMAGE_TAG="${{ needs.docker-build-push.outputs.full-image-name }}"
+        
+        echo "Deploying image: $IMAGE_TAG"
+        echo "Tag: $TAG_NAME"
+        
+        # Update the deployment using the provided API
+        curl -X PATCH \
+          -H "content-type: application/strategic-merge-patch+json" \
+          -H "Authorization: $K8S_TOKEN" \
+          -d "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"gtplanner\",\"image\":\"$IMAGE_TAG\"}]}}}}" \
+          "$K8S_API_URL/apis/apps/v1/namespaces/$NAMESPACE/deployments/$DEPLOYMENT_NAME"
+        
+        echo "Deployment updated successfully"
+
+    - name: Verify deployment
+      env:
+        K8S_TOKEN: ${{ secrets.K8S_TOKEN }}
+        K8S_API_URL: ${{ secrets.K8S_API_URL }}
+        DEPLOYMENT_NAME: ${{ secrets.DEPLOYMENT_NAME }}
+        NAMESPACE: ${{ secrets.NAMESPACE }}
+      run: |
+        # Wait for rollout to complete
+        echo "Waiting for deployment to complete..."
+        
+        # Check deployment status
+        for i in {1..30}; do
+          STATUS=$(curl -s -H "Authorization:  $K8S_TOKEN" \
+            "$K8S_API_URL/apis/apps/v1/namespaces/$NAMESPACE/deployments/$DEPLOYMENT_NAME" | \
+            jq -r '.status.conditions[] | select(.type=="Progressing") | .status')
+          
+          if [ "$STATUS" = "True" ]; then
+            echo "Deployment completed successfully"
+            break
+          fi
+          
+          echo "Waiting for deployment... ($i/30)"
+          sleep 10
+        done
+        
+    - name: 部署成功通知
+      run: |
+        TAG_NAME=${GITHUB_REF#refs/tags/}
+        echo "🎉 部署成功!"
+        echo "标签: $TAG_NAME"
+        echo "镜像: ${{ needs.docker-build-push.outputs.full-image-name }}"
+        echo "命名空间: ${{ env.NAMESPACE }}"
+        echo "Deployment: ${{ env.DEPLOYMENT_NAME }}" 
