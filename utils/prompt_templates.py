@@ -505,9 +505,9 @@ You must carefully analyze all inputs and output a **comprehensive, optimized Ma
     *   **Accurate Terminology and Principle Usage:** All design descriptions must accurately use the core abstract concepts, terminology, and working principles defined in the "Core Design Pattern" (e.g., Node lifecycle & three-phase responsibilities, Flow graph orchestration & Action-driven mechanism, different parameter passing & execution in `BatchNode` vs. `BatchFlow`, impact of Async/Parallel on execution models, distinct roles of `Shared Store` vs. `Params` in communication).
 
 6.  **No Additional Dialogue:** Your output should **contain solely and exclusively** the optimized, complete Markdown document content.
-​​
-7. Example Output:​
-```markdown
+
+7. **Example Output Format:**
+
 # Explain Youtube Podcast To Me Like I'm 5
 ## Project Requirements
 This project takes a YouTube podcast URL, extracts the transcript, identifies key topics and Q&A pairs, simplifies them for children, and generates an HTML report with the results.
@@ -542,7 +542,7 @@ flowchart TD
     videoProcess[Process YouTube URL] --> topicsQuestions[Extract Topics & Questions]
     topicsQuestions --> contentBatch[Content Processing]
     contentBatch --> htmlGen[Generate HTML]
-    
+
     subgraph contentBatch[Content Processing]
         topicProcess[Process Topic]
     end
@@ -585,7 +585,7 @@ shared = {{
 ### 1. ProcessYouTubeURL
 - **Purpose**: Process YouTube URL to extract video information
 - **Design**: Regular Node (no batch/async)
-- **Data Access**: 
+- **Data Access**:
   - Read: URL from shared store
   - Write: Video information to shared store
 
@@ -613,7 +613,6 @@ shared = {{
 - **Data Access**:
   - Read: Processed content from shared store
   - Write: HTML output to shared store
-```
 ---
 **[Previous Markdown Document]:**
 {parsed_documents}
@@ -673,8 +672,8 @@ shared = {{
 
 6.  **无额外对话：** 你的输出应该**只有且仅有**优化后的完整 Markdown 文档内容。
 
-7.  **示例输出：**
-```markdown
+7.  **示例输出格式：**
+
 # YouTube播客儿童版解释器
 ## 项目需求
 本项目接收一个YouTube播客URL，提取其文字记录（transcript），识别关键主题和问答对，并将其简化为儿童可理解的内容，然后生成包含结果的HTML报告。
@@ -709,7 +708,7 @@ flowchart TD
     videoProcess[处理YouTube URL] --> topicsQuestions[提取主题和问题]
     topicsQuestions --> contentBatch[内容处理]
     contentBatch --> htmlGen[生成HTML]
-    
+
     subgraph contentBatch[内容处理]
         topicProcess[处理主题]
     end
@@ -752,7 +751,7 @@ shared = {{
 ### 1. ProcessYouTubeURL
 - **目的**：处理YouTube URL提取视频信息
 - **设计**：常规Node（非批量/异步）
-- **数据访问**： 
+- **数据访问**：
   - 读取：共享存储中的URL
   - 写入：视频信息到共享存储
 
@@ -780,7 +779,6 @@ shared = {{
 - **数据访问**：
   - 读取：共享存储中处理后的内容
   - 写入：HTML输出到共享存储
-```
 ---
 **【之前的Markdown文档】:**
 {parsed_documents}
@@ -838,9 +836,9 @@ Debes analizar cuidadosamente todas las entradas y generar un **documento Markdo
     *   **Uso Precisa de Terminología y Principios:** Todas las descripciones de diseño deben usar con precisión los conceptos abstractos centrales, la terminología y los principios de funcionamiento definidos en el "Patrón de Diseño Central" (por ejemplo, ciclo de vida del Nodo y responsabilidades de las tres fases, orquestación del grafo de Flujo y mecanismo impulsado por Acciones, diferentes pasajes de parámetros y ejecución en `BatchNode` vs. `BatchFlow`, impacto de Asíncrono/Paralelo en modelos de ejecución, roles distintos de `Shared Store` vs. `Params` en la comunicación).
 
 6.  **Sin Diálogo Adicional:** Tu salida debe **contener única y exclusivamente** el contenido optimizado del documento Markdown completo.
-​​
-7. Ejemplo de Salida:​
-```markdown
+
+7. **Formato de Ejemplo de Salida:**
+
 # ExplícameElPodcastDeYoutubeComoSiTuviera5
 ## Requerimientos del Proyecto
 Este proyecto toma una URL de un podcast de YouTube, extrae la transcripción, identifica temas clave y pares de preguntas y respuestas, los simplifica para niños y genera un informe HTML con los resultados.
@@ -875,7 +873,7 @@ flowchart TD
     videoProcess[Procesar URL YouTube] --> topicsQuestions[Extraer Temas y Preguntas]
     topicsQuestions --> contentBatch[Procesamiento de Contenido]
     contentBatch --> htmlGen[Generar HTML]
-    
+
     subgraph contentBatch[Procesamiento de Contenido]
         topicProcess[Procesar Tema]
     end
@@ -918,7 +916,7 @@ shared = {{
 ### 1. ProcesarURLYouTube
 - **Propósito**: Procesar URL de YouTube para extraer información del video
 - **Diseño**: Nodo Regular (sin lote/asíncrono)
-- **Acceso a Datos**: 
+- **Acceso a Datos**:
   - Lectura: URL del almacenamiento compartido
   - Escritura: Información del video al almacenamiento compartido
 
@@ -946,7 +944,6 @@ shared = {{
 - **Acceso a Datos**:
   - Lectura: Contenido procesado del almacenamiento compartido
   - Escritura: Salida HTML al almacenamiento compartido
-```
 ---
 **[Documento Markdown Anterior]:**
 {parsed_documents}
@@ -1004,8 +1001,8 @@ Vous devez analyser minutieusement toutes les entrées et produire un **document
 
 6.  **Aucun Dialogue Supplémentaire :** Votre sortie doit **contenir uniquement et exclusivement** le contenu optimisé et complet du document Markdown.
 
-7. Exemple de Sortie :
-```markdown
+7. **Format d'Exemple de Sortie :**
+
 # Explain Youtube Podcast To Me Like I'm 5 (Expliquer un podcast YouTube comme à un enfant de 5 ans)
 ## Exigences du Projet
 Ce projet prend une URL de podcast YouTube, extrait la transcription, identifie les sujets clés et les paires Q&R, les simplifie pour les enfants et génère un rapport HTML avec les résultats.
@@ -1040,7 +1037,7 @@ flowchart TD
     videoProcess[Traiter URL YouTube] --> topicsQuestions[Extraire Sujets & Questions]
     topicsQuestions --> contentBatch[Traitement du Contenu]
     contentBatch --> htmlGen[Générer HTML]
-    
+
     subgraph contentBatch[Traitement du Contenu]
         topicProcess[Traiter un Sujet]
     end
@@ -1111,7 +1108,6 @@ shared = {{
 - **Accès aux Données**:
   - Lecture: Contenu traité du stockage partagé
   - Écriture: Sortie HTML dans le stockage partagé
-```
 ---
 **[Document Markdown Précédent]:**
 {parsed_documents}
@@ -1190,8 +1186,8 @@ shared = {{
 
 ---
 
-## 出力例
-```markdown
+## **出力例フォーマット:**
+
 # 5歳児向けYouTubeポッドキャスト解説システム
 
 ## プロジェクト要件
@@ -1220,7 +1216,7 @@ flowchart TD
     videoProcess[YouTube処理] --> topicsQuestions[トピック/質問抽出]
     topicsQuestions --> contentBatch[コンテンツ加工]
     contentBatch --> htmlGen[HTML生成]
-    
+
     subgraph contentBatch[コンテンツ加工]
         topicProcess[トピック処理]
     end
@@ -1239,7 +1235,7 @@ shared = {{
     "topics": [{{
         "title": str,           # 原トピック
         "rephrased_title": str, # 再構築トピック
-        "questions": [{{ 
+        "questions": [{{
             "original": str,    # 原質問
             "rephrased": str,   # 再構築質問
             "answer": str       # ELI5回答
@@ -1281,7 +1277,6 @@ shared = {{
 - **データアクセス**:
   - 読取: 加工済コンテンツ（共有領域）
   - 書込: HTML出力（共有領域）
-```
 ---
 **[以前のMarkdown文書]:**
 {parsed_documents}
