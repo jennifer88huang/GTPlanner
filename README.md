@@ -10,11 +10,19 @@
 
 <p align="center">
   <a href="#-overview">Overview</a> •
-  <a href="#-web-ui-recommended">Web UI</a> •
+  <a href="#-web-ui-recommended">Web UI (Recommended)</a> •
+  <a href="#mcp-integration">MCP Integration</a> •
   <a href="#-features">Features</a> •
+  <a href="#-requirements-backend-and-cli">Requirements</a> •
+  <a href="#-installation-backend-and-cli">Installation</a> •
   <a href="#️-usage">Usage</a> •
   <a href="#️-architecture">Architecture</a> •
-  <a href="#-contributing">Contributing</a>
+  <a href="#-project-structure">Project Structure</a> •
+  <a href="#-dependencies">Dependencies</a> •
+  <a href="#-multilingual-support">Multilingual Support</a> •
+  <a href="#-contributing">Contributing</a> •
+  <a href="#-license">License</a> •
+  <a href="#-acknowledgments">Acknowledgments</a>
 </p>
 
 <p align="center">
@@ -301,6 +309,68 @@ GTPlanner/
 
 ### MCP Dependencies
 - **fastmcp** - Model Context Protocol (MCP) implementation
+
+---
+
+## 🌍 Multilingual Support
+
+GTPlanner provides comprehensive multilingual support, enabling developers worldwide to use their native language for project planning.
+
+### Supported Languages
+
+| Language | Code | Native Name |
+|----------|------|-------------|
+| English  | `en` | English     |
+| Chinese  | `zh` | 中文        |
+| Spanish  | `es` | Español     |
+| French   | `fr` | Français    |
+| Japanese | `ja` | 日本語      |
+
+### Core Features
+
+- **🔍 Automatic Language Detection**: Intelligently identifies the language of user input
+- **🎯 Language Priority System**: Automatically selects the most appropriate language based on user preferences and requests
+- **📝 Localized Prompt Templates**: Provides culturally adapted prompt templates for each language
+- **🔄 Smart Fallback Mechanism**: Automatically falls back to default language when requested language is unavailable
+
+### Usage
+
+#### CLI Mode
+```bash
+# Specify language
+uv run python main.py --lang en --input "Create an e-commerce website"
+
+# Auto-detection (Chinese input will be automatically recognized)
+uv run python main.py --input "创建一个电商网站"
+```
+
+#### API Mode
+```python
+# Explicit language specification
+response = requests.post("/planning/short", json={
+    "requirement": "Create a web application",
+    "language": "en"
+})
+
+# Auto-detection
+response = requests.post("/planning/short", json={
+    "requirement": "创建一个网站应用"
+})
+```
+
+### Configuration
+
+Configure multilingual settings in `settings.toml`:
+
+```toml
+[default.multilingual]
+default_language = "en"
+auto_detect = true
+fallback_enabled = true
+supported_languages = ["en", "zh", "es", "fr", "ja"]
+```
+
+For detailed multilingual functionality and configuration guide, please refer to the [Multilingual Guide](docs/multilingual-guide.md).
 
 ---
 

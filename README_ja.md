@@ -10,11 +10,19 @@
 
 <p align="center">
   <a href="#-概要">概要</a> •
-  <a href="#-web-ui-推奨">Web UI</a> •
+  <a href="#-web-ui-推奨">Web UI </a> •
+  <a href="#mcp統合">MCP統合</a> •
   <a href="#-機能">機能</a> •
+  <a href="#-環境要件-バックエンドとcli">環境要件</a> •
+  <a href="#-インストール-バックエンドとcli">インストール</a> •
   <a href="#️-使用方法">使用方法</a> •
   <a href="#️-アーキテクチャ">アーキテクチャ</a> •
-  <a href="#-貢献">貢献</a>
+  <a href="#-プロジェクト構造">プロジェクト構造</a> •
+  <a href="#-依存関係">依存関係</a> •
+  <a href="#-多言語サポート">多言語サポート</a> •
+  <a href="#-貢献">貢献</a> •
+  <a href="#-ライセンス">ライセンス</a> •
+  <a href="#-謝辞">謝辞</a>
 </p>
 
 <p align="center">
@@ -303,6 +311,68 @@ GTPlanner/
 
 ### MCPの依存関係
 - **fastmcp** - モデルコンテキストプロトコル（MCP）の実装
+
+---
+
+## 🌍 多言語サポート
+
+GTPlanner は包括的な多言語サポートを提供し、世界中の開発者が母国語でプロジェクト計画を立てることができます。
+
+### サポートされている言語
+
+| 言語 | コード | 現地名 |
+|------|--------|--------|
+| 英語 | `en` | English |
+| 中国語 | `zh` | 中文 |
+| スペイン語 | `es` | Español |
+| フランス語 | `fr` | Français |
+| 日本語 | `ja` | 日本語 |
+
+### 主要機能
+
+- **🔍 自動言語検出**: ユーザー入力の言語を自動的に識別
+- **🎯 言語優先システム**: ユーザーの設定とリクエストに基づいて最適な言語を自動選択
+- **📝 ローカライズされたプロンプトテンプレート**: 各言語に文化的に適応したプロンプトテンプレートを提供
+- **🔄 スマートフォールバック機能**: 要求された言語が利用できない場合、自動的にデフォルト言語にフォールバック
+
+### 使用方法
+
+#### CLIモード
+```bash
+# 言語を指定
+uv run python main.py --lang ja --input "ECサイトを作成する"
+
+# 自動検出（日本語入力は自動的に認識されます）
+uv run python main.py --input "ECサイトを作成する"
+```
+
+#### APIモード
+```python
+# 明示的な言語指定
+response = requests.post("/planning/short", json={
+    "requirement": "Webアプリケーションを作成する",
+    "language": "ja"
+})
+
+# 自動検出
+response = requests.post("/planning/short", json={
+    "requirement": "Webアプリケーションを作成する"
+})
+```
+
+### 設定
+
+`settings.toml` で多言語設定を構成：
+
+```toml
+[default.multilingual]
+default_language = "en"
+auto_detect = true
+fallback_enabled = true
+supported_languages = ["en", "zh", "es", "fr", "ja"]
+```
+
+詳細な多言語機能と設定ガイドについては、[多言語ガイド](docs/multilingual-guide.md)をご参照ください。
 
 ---
 
