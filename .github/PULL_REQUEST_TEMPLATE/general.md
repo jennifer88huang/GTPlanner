@@ -1,15 +1,6 @@
-# Pull Request
+# General Contribution
 
-## Choose the Right Template
-
-For better organization and review process, please use the appropriate specialized template:
-
-- **🔧 API Tool Contribution**: [Use API Tool Template](?template=api_tool.md)
-- **📦 Python Package Tool**: [Use Python Package Template](?template=python_package_tool.md)
-- **📚 Documentation Changes**: [Use Documentation Template](?template=documentation.md)
-- **🛠️ General Changes**: [Use General Template](?template=general.md)
-
----
+Thank you for contributing to GTPlanner! Please fill out this template to help us understand and review your changes.
 
 ## Description
 

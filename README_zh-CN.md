@@ -241,6 +241,13 @@ GTPlanner/
 ├── mcp/                      # MCP服务
 │   ├── mcp_service.py       # MCP服务器实现
 │   └── pyproject.toml       # MCP特定依赖
+├── tools/                    # 工具推荐系统
+│   ├── apis/                # API类型工具定义
+│   │   ├── example_openweather.yml
+│   │   └── ...
+│   └── python_packages/     # Python包类型工具定义
+│       ├── example_yt_dlp.yml
+│       └── ...
 ├── utils/                    # 工具函数
 │   ├── call_llm.py          # LLM通信
 │   ├── parse_markdown.py    # Markdown处理
@@ -362,6 +369,115 @@ GTPLANNER_AUTO_DETECT=true
 ---
 
 ## 🤝 贡献
+
+我们欢迎并高度赞赏贡献和协作。请查看[贡献指南](CONTRIBUTING.md)并参与其中。
+
+### 🔧 贡献工具
+
+GTPlanner包含一个智能工具推荐系统，支持社区贡献的工具。我们欢迎在两个类别中贡献高质量的工具：
+
+#### 支持的工具类型
+
+**🌐 API工具 (APIS)**
+- Web API和REST服务
+- 基于云的处理工具
+- 外部服务集成
+- 实时数据处理API
+
+**📦 Python包工具 (PYTHON_PACKAGE)**
+- PyPI包和库
+- 本地处理工具
+- 数据分析包
+- 实用程序库
+
+#### 如何贡献工具
+
+1. **选择正确的模板**：使用我们的专门PR模板以获得更好的组织：
+   - [API工具模板](.github/PULL_REQUEST_TEMPLATE/api_tool.md) - 用于Web API和服务
+   - [Python包模板](.github/PULL_REQUEST_TEMPLATE/python_package_tool.md) - 用于PyPI包
+
+2. **质量标准**：所有贡献的工具必须满足我们的质量标准：
+   - ✅ 公开可访问且文档完善
+   - ✅ 稳定且积极维护
+   - ✅ 清晰的使用示例和集成指南
+   - ✅ 适当的错误处理和安全实践
+   - ✅ 与现有工具无重复功能
+
+3. **工具信息格式**：每个工具需要：
+   - 唯一标识符（例如，`org.tool-name`）
+   - 全面的描述和用例
+   - 完整的API规范或包详细信息
+   - 工作示例和集成代码
+   - 测试和验证结果
+
+4. **审查流程**：所有工具贡献都经过：
+   - 技术准确性审查
+   - 质量和安全评估
+   - 文档完整性检查
+   - 社区反馈整合
+
+#### 🛠️ 工具定义格式
+
+所有工具都使用YAML格式定义，包含以下核心字段：
+
+**通用字段：**
+- **id**: 工具的唯一标识符
+- **type**: 工具类型（"APIS" 或 "PYTHON_PACKAGE"）
+- **summary**: 一句话功能概述
+- **description**: 详细功能描述
+- **examples**: 使用示例
+
+**APIS类型额外字段：**
+- **base_url**: API的基础URL地址
+- **endpoints**: API端点定义数组
+  - **summary**: 端点功能描述
+  - **method**: HTTP方法（GET、POST、PUT、DELETE等）
+  - **path**: 端点路径
+  - **inputs**: 输入参数定义（JSON Schema格式）
+  - **outputs**: 输出结果定义（JSON Schema格式）
+
+**PYTHON_PACKAGE类型额外字段：**
+- **requirement**: PyPI包安装要求（如："package-name==1.0.0"）
+
+#### 示例工具
+
+**API工具示例**
+查看 `tools/apis/example_openweather.yml` 了解如何定义一个API工具。
+
+**Python包示例**
+查看 `tools/python_packages/example_yt_dlp.yml` 了解如何定义一个Python包工具。
+
+#### 工具格式示例
+
+**API工具示例：**
+```yaml
+id: "public.weather-api"
+type: "APIS"
+summary: "获取全球城市的实时天气信息。"
+description: |
+  通过公开天气API，可以查询指定城市的当前天气、温度、湿度、
+  风速等详细气象数据。完全免费使用，无需注册或API密钥。
+base_url: "https://api.open-meteo.com/v1"
+endpoints:
+  - method: "GET"
+    path: "/forecast"
+    summary: "根据经纬度坐标获取当前天气数据"
+```
+
+**Python包示例：**
+```yaml
+id: "pypi.yt-dlp"
+type: "PYTHON_PACKAGE"
+summary: "功能强大的视频下载工具，支持数千个视频网站。"
+description: |
+  yt-dlp是youtube-dl的功能增强分支，支持从YouTube、Bilibili、抖音等
+  数千个视频网站下载视频和音频。
+requirement: "yt-dlp"
+```
+
+有关详细的贡献指南，请参阅我们的[工具贡献模板](.github/PULL_REQUEST_TEMPLATE/)。
+
+### 一般贡献流程
 
 1. Fork仓库
 2. 创建功能分支（`git checkout -b feature/amazing-feature`）

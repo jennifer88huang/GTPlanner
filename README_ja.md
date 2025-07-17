@@ -241,6 +241,13 @@ GTPlanner/
 ├── mcp/                      # MCPサービス
 │   ├── mcp_service.py       # MCPサーバー実装
 │   └── pyproject.toml       # MCP固有の依存関係
+├── tools/                    # ツール推奨システム
+│   ├── apis/                # APIタイプツール定義
+│   │   ├── example_openweather.yml
+│   │   └── ...
+│   └── python_packages/     # Pythonパッケージタイプツール定義
+│       ├── example_yt_dlp.yml
+│       └── ...
 ├── utils/                    # ユーティリティ関数
 │   ├── call_llm.py          # LLM通信
 │   ├── parse_markdown.py    # Markdown処理
@@ -362,6 +369,115 @@ GTPLANNER_AUTO_DETECT=true
 ---
 
 ## 🤝 貢献
+
+貢献とコラボレーションを歓迎し、高く評価しています。[貢献ガイド](CONTRIBUTING.md)をチェックして参加してください。
+
+### 🔧 ツールの貢献
+
+GTPlannerには、コミュニティが貢献したツールをサポートするインテリジェントツール推奨システムが含まれています。2つのカテゴリで高品質なツールの貢献を歓迎します：
+
+#### サポートされているツールタイプ
+
+**🌐 APIツール (APIS)**
+- Web APIとRESTサービス
+- クラウドベースの処理ツール
+- 外部サービス統合
+- リアルタイムデータ処理API
+
+**📦 Pythonパッケージツール (PYTHON_PACKAGE)**
+- PyPIパッケージとライブラリ
+- ローカル処理ツール
+- データ分析パッケージ
+- ユーティリティライブラリ
+
+#### ツールの貢献方法
+
+1. **適切なテンプレートを選択**：より良い組織化のために専用PRテンプレートを使用：
+   - [APIツールテンプレート](.github/PULL_REQUEST_TEMPLATE/api_tool.md) - Web APIとサービス用
+   - [Pythonパッケージテンプレート](.github/PULL_REQUEST_TEMPLATE/python_package_tool.md) - PyPIパッケージ用
+
+2. **品質基準**：貢献されるすべてのツールは品質基準を満たす必要があります：
+   - ✅ 公開アクセス可能で十分に文書化されている
+   - ✅ 安定しており積極的にメンテナンスされている
+   - ✅ 明確な使用例と統合ガイド
+   - ✅ 適切なエラーハンドリングとセキュリティ実践
+   - ✅ 既存ツールとの機能重複なし
+
+3. **ツール情報形式**：各ツールには以下が必要：
+   - 一意の識別子（例：`org.tool-name`）
+   - 包括的な説明とユースケース
+   - 完全なAPI仕様またはパッケージ詳細
+   - 動作する例と統合コード
+   - テストと検証結果
+
+4. **レビュープロセス**：すべてのツール貢献は以下を経ます：
+   - 技術的正確性レビュー
+   - 品質とセキュリティ評価
+   - ドキュメント完全性チェック
+   - コミュニティフィードバック統合
+
+#### 🛠️ ツール定義形式
+
+すべてのツールは以下のコアフィールドを含むYAML形式で定義されます：
+
+**共通フィールド：**
+- **id**: ツールの一意識別子
+- **type**: ツールタイプ（"APIS" または "PYTHON_PACKAGE"）
+- **summary**: 一行での機能概要
+- **description**: 詳細な機能説明
+- **examples**: 使用例
+
+**APISタイプ追加フィールド：**
+- **base_url**: APIのベースURL
+- **endpoints**: APIエンドポイント定義の配列
+  - **summary**: エンドポイント機能の説明
+  - **method**: HTTPメソッド（GET、POST、PUT、DELETE等）
+  - **path**: エンドポイントパス
+  - **inputs**: 入力パラメータ定義（JSON Schema形式）
+  - **outputs**: 出力結果定義（JSON Schema形式）
+
+**PYTHON_PACKAGEタイプ追加フィールド：**
+- **requirement**: PyPIパッケージインストール要件（例："package-name==1.0.0"）
+
+#### サンプルツール
+
+**APIツールの例**
+APIツールの定義方法については `tools/apis/example_openweather.yml` を参照してください。
+
+**Pythonパッケージの例**
+Pythonパッケージツールの定義方法については `tools/python_packages/example_yt_dlp.yml` を参照してください。
+
+#### ツール形式の例
+
+**APIツールの例：**
+```yaml
+id: "public.weather-api"
+type: "APIS"
+summary: "世界の都市のリアルタイム天気情報を取得。"
+description: |
+  公開天気APIを通じて、指定された都市の現在の天気、温度、湿度、
+  風速などの詳細な気象データを照会できます。完全無料で使用でき、登録やAPIキーは不要です。
+base_url: "https://api.open-meteo.com/v1"
+endpoints:
+  - method: "GET"
+    path: "/forecast"
+    summary: "経緯度座標による現在の天気データを取得"
+```
+
+**Pythonパッケージの例：**
+```yaml
+id: "pypi.yt-dlp"
+type: "PYTHON_PACKAGE"
+summary: "数千の動画サイトをサポートする強力な動画ダウンローダー。"
+description: |
+  yt-dlpはyoutube-dlの機能強化版で、YouTube、Bilibili、TikTokなど
+  数千の動画サイトから動画と音声をダウンロードできます。
+requirement: "yt-dlp"
+```
+
+詳細な貢献ガイドラインについては、[ツール貢献テンプレート](.github/PULL_REQUEST_TEMPLATE/)を参照してください。
+
+### 一般的な貢献フロー
 
 1. リポジトリをフォーク
 2. 機能ブランチを作成（`git checkout -b feature/amazing-feature`）

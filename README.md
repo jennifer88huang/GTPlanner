@@ -226,6 +226,13 @@ GTPlanner/
 ├── mcp/                      # MCP service
 │   ├── mcp_service.py       # MCP server implementation
 │   └── pyproject.toml       # MCP-specific dependencies
+├── tools/                    # Tool recommendation system
+│   ├── apis/                # API type tool definitions
+│   │   ├── example_openweather.yml
+│   │   └── ...
+│   └── python_packages/     # Python package type tool definitions
+│       ├── example_yt_dlp.yml
+│       └── ...
 ├── utils/                    # Utility functions
 │   ├── call_llm.py          # LLM communication
 │   ├── parse_markdown.py    # Markdown processing
@@ -265,6 +272,112 @@ GTPlanner/
 ## 🤝 Contributing
 
 Contributions and collaborations are welcome and highly appreciated. Check out the [contributing guide](CONTRIBUTING.md) and get involved.
+
+### 🔧 Contributing Tools
+
+GTPlanner includes an intelligent tool recommendation system that supports community-contributed tools. We welcome contributions of high-quality tools in two categories:
+
+#### Supported Tool Types
+
+**🌐 API Tools (APIS)**
+- Web APIs and REST services
+- Cloud-based processing tools
+- External service integrations
+- Real-time data processing APIs
+
+**📦 Python Package Tools (PYTHON_PACKAGE)**
+- PyPI packages and libraries
+- Local processing tools
+- Data analysis packages
+- Utility libraries
+
+#### How to Contribute Tools
+
+1. **Choose the Right Template**: Use our specialized PR templates for better organization:
+   - [API Tool Template](.github/PULL_REQUEST_TEMPLATE/api_tool.md) - For web APIs and services
+   - [Python Package Template](.github/PULL_REQUEST_TEMPLATE/python_package_tool.md) - For PyPI packages
+
+2. **Quality Standards**: All contributed tools must meet our quality criteria:
+   - ✅ Publicly accessible and well-documented
+   - ✅ Stable and actively maintained
+   - ✅ Clear usage examples and integration guides
+   - ✅ Proper error handling and security practices
+   - ✅ No duplicate functionality with existing tools
+
+3. **Tool Information Format**: Each tool requires:
+   - Unique identifier (e.g., `org.tool-name`)
+   - Comprehensive description and use cases
+   - Complete API specification or package details
+   - Working examples and integration code
+   - Testing and validation results
+
+4. **Review Process**: All tool contributions go through:
+   - Technical accuracy review
+   - Quality and security assessment
+   - Documentation completeness check
+   - Community feedback integration
+
+#### 🛠️ Tool Definition Format
+
+All tools are defined using YAML format with the following core fields:
+
+**Common Fields:**
+- **id**: Unique tool identifier
+- **type**: Tool type ("APIS" or "PYTHON_PACKAGE")
+- **summary**: One-line functionality overview
+- **description**: Detailed functionality description
+- **examples**: Usage examples
+
+**APIS Type Additional Fields:**
+- **base_url**: Base URL address of the API
+- **endpoints**: Array of API endpoint definitions
+  - **summary**: Endpoint functionality description
+  - **method**: HTTP method (GET, POST, PUT, DELETE, etc.)
+  - **path**: Endpoint path
+  - **inputs**: Input parameter definitions (JSON Schema format)
+  - **outputs**: Output result definitions (JSON Schema format)
+
+**PYTHON_PACKAGE Type Additional Fields:**
+- **requirement**: PyPI package installation requirement (e.g., "package-name==1.0.0")
+
+#### Example Tools
+
+**API Tool Example**
+See `tools/apis/example_openweather.yml` for how to define an API tool.
+
+**Python Package Example**
+See `tools/python_packages/example_yt_dlp.yml` for how to define a Python package tool.
+
+#### Example Tool Formats
+
+**API Tool Example:**
+```yaml
+id: "public.weather-api"
+type: "APIS"
+summary: "Get real-time weather information for global cities."
+description: |
+  Query current weather, temperature, humidity, wind speed and other detailed
+  meteorological data through public weather API. Completely free to use,
+  no registration or API key required.
+base_url: "https://api.open-meteo.com/v1"
+endpoints:
+  - method: "GET"
+    path: "/forecast"
+    summary: "Get current weather data by coordinates"
+```
+
+**Python Package Example:**
+```yaml
+id: "pypi.yt-dlp"
+type: "PYTHON_PACKAGE"
+summary: "Powerful video downloader supporting thousands of video sites."
+description: |
+  yt-dlp is a feature-rich fork of youtube-dl that supports downloading videos and audio
+  from YouTube, Bilibili, TikTok and thousands of other video sites.
+requirement: "yt-dlp"
+```
+
+For detailed contribution guidelines, see our [tool contribution templates](.github/PULL_REQUEST_TEMPLATE/).
 
 ## 📄 License
 
