@@ -259,8 +259,10 @@ class AsyncRequirementsAnalysisStreamNode(AsyncNode):
     async def post_async(self, shared, prep_res, exec_res):
         """Store analyzed requirements in shared store."""
         shared["requirements"] = exec_res
-        # Store the detected language for future use
-        shared["language"] = prep_res["language"]
+        # 保持语言设置，但不覆盖明确的request_language
+        # 只有在没有明确request_language时才更新语言设置
+        if not shared.get("request_language"):
+            shared["language"] = prep_res["language"]
         # Add to conversation history
 
         return "default"
@@ -271,15 +273,14 @@ class AsyncDesignOptimizationStreamNode(AsyncNode):
 
     async def prep_async(self, shared):
         """Prepare data for design optimization."""
-        # Get stored language or detect from user input
-        stored_language = shared.get("language")
-        if not stored_language:
-            # Fallback: detect from user input if language not stored
-            user_input = shared["user_input"]["processed_natural_language"]
-            user_preference = shared.get("user_language_preference")
-            request_language = shared.get("request_language")
-            stored_language = determine_language(user_input, user_preference, request_language)
-            shared["language"] = stored_language  # Store for future use
+        # 优先使用明确的request_language，而不是之前检测存储的语言
+        user_input = shared["user_input"]["processed_natural_language"]
+        user_preference = shared.get("user_language_preference")
+        request_language = shared.get("request_language")
+
+        # 重新确定语言，确保request_language优先级最高
+        language = determine_language(user_input, user_preference, request_language)
+        shared["language"] = language  # 更新存储的语言
 
         return {
             "requirements": shared["requirements"],
@@ -287,7 +288,7 @@ class AsyncDesignOptimizationStreamNode(AsyncNode):
             "parsed_documents": shared["user_input"]["processed_documents"],
             "user_instructions": shared["user_input"]["processed_natural_language"],
             "short_flow_steps": shared.get("short_flow_steps", ""),
-            "language": stored_language,
+            "language": language,
         }
 
     async def exec_async_stream(self, input_data):

@@ -62,9 +62,12 @@ class MultilingualManager:
             The determined language code
         """
         # Priority 1: Explicit request language
-        if request_language and is_supported_language(request_language):
-            logger.info(f"Using explicit request language: {request_language}")
-            return request_language.lower()
+        if request_language:
+            if is_supported_language(request_language):
+                logger.info(f"Using explicit request language: {request_language}")
+                return request_language.lower()
+            else:
+                logger.warning(f"Request language {request_language} is not supported")
         
         # Priority 2: User preference
         if user_preference and is_supported_language(user_preference):
@@ -100,13 +103,13 @@ class MultilingualManager:
         try:
             # Get the template
             template = get_prompt_template_by_code(prompt_type, language_code)
-            
+
             # Format the template with provided variables
             if kwargs:
                 formatted_prompt = template.format(**kwargs)
             else:
                 formatted_prompt = template
-            
+
             logger.info(f"Retrieved {prompt_type} prompt in {language_code}")
             return formatted_prompt
             

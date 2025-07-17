@@ -547,6 +547,66 @@ flowchart TD
         topicProcess[Process Topic]
     end
 ```
+#### **Mermaid Syntax Generation Guidelines (Strictly Enforced)**
+
+When generating `mermaid` flowcharts, adhere to the following core rules to ensure 100% valid syntax:
+
+1.  **Node ID Specifications**:
+    *   **Unique IDs**: The identifier before the brackets (e.g., `nodeId`) must be unique across the entire diagram.
+    *   **Naming Convention**: IDs must only contain **letters and numbers**. **Strictly prohibit** spaces, special characters, or quotes in IDs.
+    *   **Correct Example**: `dataCollection[Data Collection]` (The ID is `dataCollection`)
+    *   **Incorrect Example**: `[Data Collection]` (No ID), `data-collection[Data Collection]` (ID contains a special character)
+
+2.  **Edge and Label Syntax**:
+    *   **Standard Edge**: Use `-->` for a solid line with an arrowhead.
+    *   **Labeled Edge**: The label must be enclosed in double quotes between two hyphens. The format **must be** `A -- "Label Text" --> B`.
+    *   **Prohibited Syntax**: Absolutely forbid non-standard formats like `A - "label" >> B` or `A --> "label" B`. This is a primary cause of parsing errors.
+
+3.  **Subgraph Usage Rules**:
+    *   **No ID Reuse**: If an ID (e.g., `strategyGenerate`) is used for a `subgraph`, it cannot also be used as a standalone node for connections.
+    *   **Connect to Nodes Inside**: Any links to the process block must point to a specific node *inside* the subgraph, not to the subgraph ID itself.
+
+**Correction Example (Based on the provided error)**:
+*   **Incorrect Code**:
+    ```mermaid
+    flowchart TD
+        collectInput[Collect Input] --> swotAnalysis[SWOT Analyze]
+        swotAnalysis --> strategyGenerate[Generate Strategy]
+        strategyGenerate --> docAssemble[Assemble Document]
+        docAssemble --> exportDoc[Export Document]
+
+        subgraph strategyGenerate[Generate Strategy]
+            marketPositioning[Generate Market Positioning]
+            marketingDirection[Generate Marketing Direction]
+            budgetAllocation[Generate Budget Allocation]
+        end
+
+        exportDoc --> finish[(Finish)]
+        swotAnalysis - "retry" >> collectInput
+    ```
+*   **Analysis**:
+    1.  `swotAnalysis - "retry" >> collectInput` is an invalid syntax for a labeled edge.
+    2.  `strategyGenerate` is used as both a node ID and a subgraph ID, which causes a conflict.
+
+*   **Correct Code**:
+    ```mermaid
+    flowchart TD
+        collectInput[Collect Input] --> swotAnalysis[SWOT Analyze]
+        swotAnalysis -- "Success" --> marketPositioning
+        swotAnalysis -- "Needs Retry" --> collectInput
+
+        subgraph Generate Strategy
+            marketPositioning[Generate Market Positioning]
+            marketingDirection[Generate Marketing Direction]
+            budgetAllocation[Generate Budget Allocation]
+        end
+
+        marketPositioning --> marketingDirection
+        marketingDirection --> budgetAllocation
+        budgetAllocation --> docAssemble[Assemble Document]
+        docAssemble --> exportDoc[Export Document]
+        exportDoc --> finish[(Finish)]
+    ```
 
 ## Data Structure
 
@@ -626,7 +686,13 @@ shared = {{
 **[User's Overall Requirements Flow]:**
 {short_flow_steps}
 
-**[Output: Optimized Markdown Document]:**
+**[CRITICAL OUTPUT FORMAT REQUIREMENT]:**
+**You MUST output the optimized Markdown document directly without any code block wrappers.**
+**DO NOT use ```markdown...``` or any other code block syntax to enclose your output.**
+**Start your response immediately with the document title (e.g., # Project Title).**
+**Any use of code blocks around the entire document will be considered a formatting error.**
+
+**[Output: Direct Markdown Document Content]:**
 """
 
     def _get_design_optimization_zh(self) -> str:
@@ -714,6 +780,60 @@ flowchart TD
     end
 ```
 
+#### **Mermaid语法生成注意事项 (必须严格遵守)**
+
+当生成`mermaid`格式的流程图时，请遵循以下核心规则，以确保语法绝对正确：
+
+1.  **节点ID规范**:
+    *   **ID必须唯一**：每个节点的ID（方括号前的标识符）在整个图表中必须是独一无二的。
+    *   **ID命名规则**：ID只能使用**字母和数字**，**严禁**包含空格、特殊字符或引号。
+    *   **正确示例**: `dataCollection[数据收集]` (ID是 `dataCollection`)
+    *   **错误示例**: `[data collection]` (没有ID), `data-collection[数据收集]` (ID包含特殊字符)
+
+2.  **连线与标签语法**:
+    *   **标准连线**: 使用 `-->` 表示带箭头的实线。
+    *   **带标签的连线**: 标签必须放在两个连字符中间，并用双引号包裹。**必须使用** `A -- "标签文字" --> B` 的格式。
+    *   **严禁错误语法**: 绝对禁止使用 `A - "标签" >> B` 或 `A --> "标签" B` 等任何非标准格式。这个错误是导致解析失败的主要原因。
+
+3.  **子图 (subgraph) 使用规则**:
+    *   **ID不能重复**: 如果一个ID（如 `strategyGenerate`）被用作`subgraph`的标识符，它就不能再被当做一个独立的节点来连接。
+    *   **连接到子图内部**: 所有指向该流程块的连线，都应该连接到子图**内部**的某个具体节点，而不是子图的ID本身。
+
+**修正示例 (针对用户提供的错误)**:
+*   **错误代码**:
+    ```mermaid
+    flowchart TD
+        ...
+        swotAnalysis --> strategyGenerate[Generate Strategy]
+        subgraph strategyGenerate[Generate Strategy]
+            ...
+        end
+        swotAnalysis - "retry" >> collectInput
+    ```
+*   **分析**:
+    1.  `swotAnalysis - "retry" >> collectInput` 是无效的连线语法。
+    2.  `strategyGenerate` 同时被用作节点ID和子图ID，这是冲突的。
+
+*   **正确代码**:
+    ```mermaid
+    flowchart TD
+        collectInput[Collect Input] --> swotAnalysis[SWOT Analyze]
+        swotAnalysis -- "Success" --> marketPositioning
+        swotAnalysis -- "Needs Retry" --> collectInput
+
+        subgraph Generate Strategy
+            marketPositioning[Generate Market Positioning]
+            marketingDirection[Generate Marketing Direction]
+            budgetAllocation[Generate Budget Allocation]
+        end
+
+        marketPositioning --> marketingDirection
+        marketingDirection --> budgetAllocation
+        budgetAllocation --> docAssemble[Assemble Document]
+        docAssemble --> exportDoc[Export Document]
+        exportDoc --> finish[(Finish)]
+    ```
+    
 ## 数据结构
 
 共享内存结构组织如下：
@@ -792,7 +912,7 @@ shared = {{
 **【用户总体需求的流程】:**
 {short_flow_steps}
 
-**【输出：优化后的Markdown文档】:**
+**【输出：优化后的Markdown文档，不要使用```markdown...```代码块包围】:**
 """
 
     def _get_design_optimization_es(self) -> str:
@@ -878,7 +998,61 @@ flowchart TD
         topicProcess[Procesar Tema]
     end
 ```
+#### **Directrices para la Generación de Sintaxis Mermaid (Cumplimiento Estricto)**
 
+Cuando generes diagramas de flujo en formato `mermaid`, adhiérete a las siguientes reglas fundamentales para garantizar una sintaxis 100% válida:
+
+1.  **Especificaciones de ID de Nodo**:
+    *   **IDs Únicos**: El identificador antes de los corchetes (ej. `idNodo`) debe ser único en todo el diagrama.
+    *   **Convención de Nombres**: Los IDs solo deben contener **letras y números**. **Prohíbe estrictamente** el uso de espacios, caracteres especiales o comillas en los IDs.
+    *   **Ejemplo Correcto**: `recoleccionDatos[Recolección de Datos]` (El ID es `recoleccionDatos`)
+    *   **Ejemplo Incorrecto**: `[Recolección de Datos]` (Sin ID), `recoleccion-datos[Recolección de Datos]` (El ID contiene un carácter especial)
+
+2.  **Sintaxis de Conexiones y Etiquetas**:
+    *   **Conexión Estándar**: Usa `-->` para una línea sólida con punta de flecha.
+    *   **Conexión con Etiqueta**: La etiqueta debe estar entre comillas dobles y colocada entre dos guiones. El formato **debe ser** `A -- "Texto de la Etiqueta" --> B`.
+    *   **Sintaxis Prohibida**: Prohíbe absolutamente formatos no estándar como `A - "etiqueta" >> B` o `A --> "etiqueta" B`. Esta es una causa principal de errores de análisis.
+
+3.  **Reglas de Uso de Subgráficos (subgraph)**:
+    *   **No Reutilizar IDs**: Si un ID (ej. `generarEstrategia`) se usa para un `subgraph`, no puede ser usado también como un nodo independiente para conexiones.
+    *   **Conectar a Nodos Internos**: Cualquier conexión dirigida al bloque del proceso debe apuntar a un nodo específico *dentro* del subgráfico, no al ID del subgráfico en sí.
+
+**Ejemplo de Corrección (Basado en el error proporcionado)**:
+*   **Código Incorrecto**:
+    ```mermaid
+    flowchart TD
+        collectInput[Collect Input] --> swotAnalysis[SWOT Analyze]
+        swotAnalysis --> strategyGenerate[Generate Strategy]
+        ...
+        subgraph strategyGenerate[Generate Strategy]
+            ...
+        end
+        ...
+        swotAnalysis - "retry" >> collectInput
+    ```*   **Análisis**:
+    1.  `swotAnalysis - "retry" >> collectInput` es una sintaxis de conexión etiquetada no válida.
+    2.  `strategyGenerate` se utiliza como ID de nodo y como ID de subgráfico, lo que causa un conflicto.
+
+*   **Código Correcto**:
+    ```mermaid
+    flowchart TD
+        collectInput[Collect Input] --> swotAnalysis[SWOT Analyze]
+        swotAnalysis -- "Éxito" --> marketPositioning
+        swotAnalysis -- "Reintentar" --> collectInput
+
+        subgraph Generar Estrategia
+            marketPositioning[Generate Market Positioning]
+            marketingDirection[Generate Marketing Direction]
+            budgetAllocation[Generate Budget Allocation]
+        end
+
+        marketPositioning --> marketingDirection
+        marketingDirection --> budgetAllocation
+        budgetAllocation --> docAssemble[Assemble Document]
+        docAssemble --> exportDoc[Export Document]
+        exportDoc --> finish[(Finish)]
+    ```
+    
 ## Estructura de Datos
 
 La estructura de memoria compartida estará organizada como sigue:
@@ -1042,6 +1216,62 @@ flowchart TD
         topicProcess[Traiter un Sujet]
     end
 ```
+
+#### **Directives de Génération de Syntaxe Mermaid (Application Stricte)**
+
+Lorsque vous générez des diagrammes de flux au format `mermaid`, veuillez adhérer aux règles fondamentales suivantes pour garantir une syntaxe 100% valide :
+
+1.  **Spécifications des ID de Nœud**:
+    *   **ID Uniques**: L'identifiant avant les crochets (ex: `idNœud`) doit être unique dans tout le diagramme.
+    *   **Convention de Nommage**: Les ID ne doivent contenir que des **lettres et des chiffres**. **Interdisez strictement** l'utilisation d'espaces, de caractères spéciaux ou de guillemets dans les ID.
+    *   **Exemple Correct**: `collecteDonnees[Collecte de Données]` (L'ID est `collecteDonnees`)
+    *   **Exemple Incorrect**: `[Collecte de Données]` (Pas d'ID), `collecte-donnees[Collecte de Données]` (L'ID contient un caractère spécial)
+
+2.  **Syntaxe des Liens et des Étiquettes**:
+    *   **Lien Standard**: Utilisez `-->` pour une ligne pleine avec une pointe de flèche.
+    *   **Lien Étiqueté**: L'étiquette doit être placée entre des guillemets doubles et entre deux tirets. Le format **doit être** `A -- "Texte de l'étiquette" --> B`.
+    *   **Syntaxe Interdite**: Interdisez absolument les formats non standard comme `A - "étiquette" >> B` ou `A --> "étiquette" B`. C'est une cause principale des erreurs d'analyse.
+
+3.  **Règles d'Utilisation des Sous-graphes (subgraph)**:
+    *   **Pas de Réutilisation d'ID**: Si un ID (ex: `genererStrategie`) est utilisé pour un `subgraph`, il ne peut pas être également utilisé comme un nœud indépendant pour les connexions.
+    *   **Connecter aux Nœuds Internes**: Toute connexion pointant vers le bloc de processus doit pointer vers un nœud spécifique *à l'intérieur* du sous-graphe, et non vers l'ID du sous-graphe lui-même.
+
+**Exemple de Correction (Basé sur l'erreur fournie)**:
+*   **Code Incorrect**:
+    ```mermaid
+    flowchart TD
+        collectInput[Collect Input] --> swotAnalysis[SWOT Analyze]
+        swotAnalysis --> strategyGenerate[Generate Strategy]
+        ...
+        subgraph strategyGenerate[Generate Strategy]
+            ...
+        end
+        ...
+        swotAnalysis - "retry" >> collectInput
+    ```
+*   **Analyse**:
+    1.  `swotAnalysis - "retry" >> collectInput` est une syntaxe invalide pour un lien étiqueté.
+    2.  `strategyGenerate` est utilisé à la fois comme ID de nœud et comme ID de sous-graphe, ce qui provoque un conflit.
+
+*   **Code Correct**:
+    ```mermaid
+    flowchart TD
+        collectInput[Collect Input] --> swotAnalysis[SWOT Analyze]
+        swotAnalysis -- "Succès" --> marketPositioning
+        swotAnalysis -- "Réessayer" --> collectInput
+
+        subgraph Générer la Stratégie
+            marketPositioning[Generate Market Positioning]
+            marketingDirection[Generate Marketing Direction]
+            budgetAllocation[Generate Budget Allocation]
+        end
+
+        marketPositioning --> marketingDirection
+        marketingDirection --> budgetAllocation
+        budgetAllocation --> docAssemble[Assemble Document]
+        docAssemble --> exportDoc[Export Document]
+        exportDoc --> finish[(Finish)]
+    ```
 
 ## Structure des Données
 
@@ -1221,6 +1451,62 @@ flowchart TD
         topicProcess[トピック処理]
     end
 ```
+#### **Mermaid構文生成ガイドライン（厳守事項）**
+
+`mermaid`形式のフローチャートを生成する際は、100%有効な構文を保証するために、以下の基本ルールを遵守してください。
+
+1.  **ノードIDの仕様**:
+    *   **ユニークなID**: 角括弧の前の識別子（例: `nodeId`）は、ダイアグラム全体でユニークでなければなりません。
+    *   **命名規則**: IDには**英数字のみ**を使用してください。IDにスペース、特殊文字、引用符（""）を使用することは**厳禁**です。
+    *   **正しい例**: `dataCollection[データ収集]` (IDは `dataCollection`)
+    *   **誤った例**: `[データ収集]` (IDがない), `data-collection[データ収集]` (IDに特殊文字が含まれている)
+
+2.  **エッジ（線）とラベルの構文**:
+    *   **標準エッジ**: 矢印付きの実線には `-->` を使用します。
+    *   **ラベル付きエッジ**: ラベルは二重引用符で囲み、2つのハイフンの間に配置する必要があります。フォーマットは **必ず** `A -- "ラベルテキスト" --> B` としてください。
+    *   **禁止される構文**: `A - "ラベル" >> B` や `A --> "ラベル" B` のような非標準フォーマットは絶対に使用しないでください。これは解析エラーの主な原因です。
+
+3.  **サブグラフ（subgraph）の使用ルール**:
+    *   **IDの再利用禁止**: あるID（例: `strategyGenerate`）が `subgraph` の識別子として使用された場合、それを接続のための独立したノードとして再度使用することはできません。
+    *   **サブグラフの内部ノードに接続**: そのプロセスブロックを指す接続は、サブグラフID自体ではなく、サブグラフの*内部*にある特定のノードを指す必要があります。
+
+**修正例（提供されたエラーに基づく）**:
+*   **誤ったコード**:
+    ```mermaid
+    flowchart TD
+        collectInput[Collect Input] --> swotAnalysis[SWOT Analyze]
+        swotAnalysis --> strategyGenerate[Generate Strategy]
+        ...
+        subgraph strategyGenerate[Generate Strategy]
+            ...
+        end
+        ...
+        swotAnalysis - "retry" >> collectInput
+    ```
+*   **分析**:
+    1.  `swotAnalysis - "retry" >> collectInput` は、無効なラベル付きエッジの構文です。
+    2.  `strategyGenerate` はノードIDとサブグラフIDの両方として使用されており、競合が発生します。
+
+*   **正しいコード**:
+    ```mermaid
+    flowchart TD
+        collectInput[Collect Input] --> swotAnalysis[SWOT Analyze]
+        swotAnalysis -- "成功" --> marketPositioning
+        swotAnalysis -- "再試行" --> collectInput
+
+        subgraph 戦略生成
+            marketPositioning[Generate Market Positioning]
+            marketingDirection[Generate Marketing Direction]
+            budgetAllocation[Generate Budget Allocation]
+        end
+
+        marketPositioning --> marketingDirection
+        marketingDirection --> budgetAllocation
+        budgetAllocation --> docAssemble[Assemble Document]
+        docAssemble --> exportDoc[Export Document]
+        exportDoc --> finish[(Finish)]
+    ```
+        
 
 ## データ構造
 ```python
