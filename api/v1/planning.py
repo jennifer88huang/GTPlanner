@@ -249,11 +249,7 @@ async def long_planning_stream(body: LongPlanningRequest):
     language = body.language
     user_id = body.user_id
 
-    # 调试信息
-    print(f"[DEBUG] long_planning_stream called with:")
-    print(f"  requirement: {requirement[:100] if requirement else 'None'}...")
-    print(f"  language: {language}")
-    print(f"  user_id: {user_id}")
+
 
     if not requirement:
         yield "data: [ERROR_START]\n"

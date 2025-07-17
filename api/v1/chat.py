@@ -548,12 +548,7 @@ async def generate_direct_action_response(
     """
     根据明确的action直接生成响应，跳过AI意图识别
     """
-    # 调试信息
-    print(f"[DEBUG] generate_direct_action_response called with:")
-    print(f"  action: {action}")
-    print(f"  message: {message[:100] if message else 'None'}...")
-    print(f"  language: {language}")
-    print(f"  session_id: {session_id}")
+   
 
     try:
         # 发送状态信息 - 根据语言本地化
@@ -634,13 +629,7 @@ async def unified_conversation(body: ConversationRequest):
     action = body.action
     context = body.context or {}
 
-    # 调试信息
-    print(f"[DEBUG] unified_conversation called with:")
-    print(f"  message: {message[:100] if message else 'None'}...")
-    print(f"  language: {language}")
-    print(f"  action: {action}")
-    print(f"  session_id: {session_id}")
-
+    
     if not message:
         async def error_stream():
             yield stream_data("[ERROR_START]")
