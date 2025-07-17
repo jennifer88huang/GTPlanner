@@ -389,3 +389,7 @@ supported_languages = ["en", "zh", "es", "fr", "ja"]
 - [PocketFlow](https://github.com/The-Pocket/PocketFlow)非同期ワークフローエンジンをベースに構築
 - 設定管理は[Dynaconf](https://www.dynaconf.com/)によって提供
 - MCPプロトコルを介してAIアシスタントとシームレスに統合することを目指して設計
+
+---
+
+**GTPlanner** - AIの力で、あなたのアイデアを構造化された技術文書に変換します。

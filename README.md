@@ -387,3 +387,8 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE.md) fi
 - Built on the [PocketFlow](https://github.com/The-Pocket/PocketFlow) asynchronous workflow engine
 - Configuration management powered by [Dynaconf](https://www.dynaconf.com/)
 - Designed for seamless integration with AI assistants via the MCP protocol
+
+
+---
+
+**GTPlanner** - Use the power of AI to transform your ideas into structured technical documents.

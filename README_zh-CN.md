@@ -391,3 +391,7 @@ supported_languages = ["en", "zh", "es", "fr", "ja"]
 - 基于 [PocketFlow](https://github.com/The-Pocket/PocketFlow) 异步工作流引擎构建
 - 配置管理由 [Dynaconf](https://www.dynaconf.com/) 提供支持
 - 旨在通过 MCP 协议与 AI 助手无缝集成
+
+---
+
+**GTPlanner** - 用AI的力量将您的想法转换为结构化的技术文档。
