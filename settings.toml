@@ -4,7 +4,7 @@ debug = false
 [default.llm]
 base_url = "https://gateway.chat.sensedeal.vip/v1"
 api_key = "@format {env[LLM_API_KEY]}"
-model = "qwen3-235b-a22b"
+model = "doubao-seed-1.6"
 
 [default.multilingual]
 # Default language for the system (en, zh, es, fr, ja)

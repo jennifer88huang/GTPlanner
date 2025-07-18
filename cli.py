@@ -1,159 +1,244 @@
-import argparse
 import asyncio
+import datetime
 import os
+import re
 
-from cli_flow import requirement_engine_flow
-from filename_flow import create_filename_flow
-from short_planner_flow import create_short_planner_flow
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.prompt import Prompt
+
+from api.v1.planning import ShortPlanningRequest, LongPlanningRequest, short_planning_stream, long_planning_stream
+
+# 创建全局console对象
+console = Console()
 
 
-async def process_input(natural_language="", markdown_files=None):
+async def process_input_stream(natural_language="", language="en"):
     """
-    Process user input to generate requirements documentation.
+    Process user input to generate requirements documentation using streaming.
 
     Args:
         natural_language (str): Natural language description of requirements
-        markdown_files (list): List of paths to markdown files to include
+        language (str): Language preference ("en" or "zh")
 
     Returns:
-        dict: Final state of the shared memory
+        dict: Final state with generated documentation
     """
-    # First, run short_planner_flow
-    shared_short_planner = {
-        "history": [],
-        "version": 1,
-        "requirement": natural_language,
+    # Step 1: Generate short planning flow
+    step1_title = "🚀 生成步骤化流程" if language == "zh" else "🚀 Generating Step-by-Step Flow"
+    console.print(Panel(step1_title, style="bold blue"))
+
+    short_request = ShortPlanningRequest(
+        requirement=natural_language,
+        language=language
+    )
+
+    short_flow_content = ""
+    # 不使用status，直接显示内容
+    async for chunk in short_planning_stream(short_request):
+        if chunk.startswith("data: "):
+            content = chunk[6:].strip()
+            if content.startswith("[") and content.endswith("]"):
+                # Skip control messages
+                continue
+            # Replace protected newlines back to actual newlines
+            content = content.replace('<|newline|>', '\n')
+            console.print(content, end='')
+            short_flow_content += content
+
+    console.print()
+
+    # Step 2: Generate detailed documentation
+    step2_title = "📝 生成详细文档" if language == "zh" else "📝 Generating Detailed Documentation"
+    console.print(Panel(step2_title, style="bold green"))
+
+    long_request = LongPlanningRequest(
+        requirement=natural_language,
+        previous_flow=short_flow_content,
+        language=language
+    )
+
+    documentation = ""
+    # 处理流式内容并美化状态显示
+    async for chunk in long_planning_stream(long_request):
+        if chunk.startswith("data: "):
+            content = chunk[6:].strip()
+            if content.startswith("[") and content.endswith("]"):
+                # Skip control messages like [STATUS_START], [LONG_DOC_START], etc.
+                continue
+
+            # 检查是否是状态信息并美化显示
+            if content.startswith("🔍 正在分析需求") or content.startswith("🔍 Analyzing requirements"):
+                if language == "zh":
+                    console.print(Panel(
+                        "🔍 [bold blue]需求分析中[/bold blue] [dim]Analyzing Requirements[/dim]",
+                        style="blue",
+                        border_style="blue"
+                    ))
+                else:
+                    console.print(Panel(
+                        "🔍 [bold blue]Analyzing Requirements[/bold blue] [dim]需求分析中[/dim]",
+                        style="blue",
+                        border_style="blue"
+                    ))
+                continue
+            elif content.startswith("📝 开始生成设计文档") or content.startswith("📝 Generating design document"):
+                if language == "zh":
+                    console.print(Panel(
+                        "📝 [bold green]生成设计文档[/bold green] [dim]Generating Design Document[/dim]",
+                        style="green",
+                        border_style="green"
+                    ))
+                else:
+                    console.print(Panel(
+                        "📝 [bold green]Generating Design Document[/bold green] [dim]生成设计文档[/dim]",
+                        style="green",
+                        border_style="green"
+                    ))
+                continue
+
+            # Replace protected newlines back to actual newlines
+            content = content.replace('<|newline|>', '\n')
+            console.print(content, end='')
+            documentation += content
+
+    console.print()
+
+    return {
+        "short_flow_steps": short_flow_content,
+        "documentation": documentation,
+        "language": language
     }
-    short_planner_instance = create_short_planner_flow()
-    await short_planner_instance.run_async(shared_short_planner)
 
-    short_flow_steps = shared_short_planner.get("final_steps", "")
 
-    # Initialize shared memory structure for requirement_engine_flow
-    shared = {
-        "user_input": {"natural_language": natural_language, "markdown_documents": []},
-        "short_flow_steps": short_flow_steps,
-        "conversation_history": [],
-        "requirements": {"functional": [], "non_functional": [], "constraints": []},
-        "optimizations": [],
-        "documentation": "",
-        "feedback": "",
-        "current_iteration": 1,
-    }
-
-    # Load markdown documents if provided
-    if markdown_files:
-        for file_path in markdown_files:
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    shared["user_input"]["markdown_documents"].append(f.read())
-            except Exception as e:
-                print(f"Error reading file {file_path}: {e}")
-
-    # Run the main flow
-    await requirement_engine_flow.run_async(shared)
-
-    # Return the final state
-    return shared
+def render_logo():
+    """
+    Render the ASCII logo from ASCII.txt file.
+    """
+    try:
+        with open("ASCII.txt", "r", encoding="utf-8") as f:
+            logo = f.read()
+        console.print(logo, style="bold cyan")
+    except FileNotFoundError:
+        # Fallback if ASCII.txt is not found
+        console.print("GTPlanner", style="bold cyan", justify="center")
+    console.print()
 
 
 async def interactive_mode():
     """
     Run the application in interactive mode, allowing for iterative feedback.
     """
-    print("=== Requirements Generation Engine ===")
-    print(
-        "This tool will help you analyze requirements and generate technical documentation."
-    )
+    # 显示ASCII logo
+    render_logo()
 
-    # Get initial input
-    natural_language = input("Please describe your project requirements: ")
+    # 显示欢迎界面
+    welcome_text = Text("GTPlanner", style="bold magenta")
+    welcome_text.append(" - Requirements Generation Engine", style="bold blue")
 
-    # # Ask for markdown files (optional, all at once)
-    # print(
-    #     "(Optional) Enter markdown file paths, one per line. Press Enter on empty line to finish:"
-    # )
-    # markdown_files = []
-    # while True:
-    #     file_path = input("")
-    #     if not file_path:
-    #         break
-    #     if os.path.exists(file_path):
-    #         markdown_files.append(file_path)
-    #     else:
-    #         print(f"File not found: {file_path}")
+    console.print(Panel(
+        welcome_text,
+        subtitle="Generate technical documentation from natural language requirements",
+        style="bold",
+        border_style="blue"
+    ))
 
-    # Process initial input (which now includes running short_planner_flow first)
-    shared = await process_input(natural_language, None)
+    console.print("This tool will help you analyze requirements and generate technical documentation.", style="dim")
+    console.print()
 
-    # Display the documentation
-    print("\n=== Generated Documentation ===\n")
-    print(shared["documentation"])
+    # Ask for language preference
+    console.print("🌍 [bold]Language / 语言:[/bold]")
+    console.print("  [green]1.[/green] English (default)")
+    console.print("  [green]2.[/green] 中文")
 
-    # Simplified feedback loop
-    while True:
-        feedback = input("\nPlease provide feedback for refinement ('q' to quit): ")
-        if feedback.strip().lower() == "q":
-            print("Process complete. Final documentation has been generated.")
-            # 自动生成文件名并保存到 ./output/{filename}
-            filename_flow = create_filename_flow()
-            filename_flow.run(shared)
-            filename = shared.get("generated_filename", "documentation.md")
-            output_dir = "output"
-            output_path = os.path.join(output_dir, filename)
-            os.makedirs(output_dir, exist_ok=True)
-            try:
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(shared["documentation"])
-                print(f"Documentation automatically saved to {output_path}")
-            except Exception as e:
-                print(f"Error saving documentation: {e}")
-            break
-        # Process feedback
-        shared["feedback"] = feedback
-        await requirement_engine_flow.run_async(shared)
-        # Display updated documentation
-        print("\n=== Updated Documentation ===\n")
-        print(shared["documentation"])
+    lang_choice = Prompt.ask("Choose language", choices=["1", "2"], default="1")
 
-
-def main():
-    """
-    Main entry point with command-line argument handling.
-    """
-    parser = argparse.ArgumentParser(
-        description="Requirements Generation and Optimization Engine"
-    )
-    parser.add_argument(
-        "--interactive", action="store_true", help="Run in interactive mode"
-    )
-    parser.add_argument("--input", type=str, help="Natural language input string")
-    parser.add_argument("--files", nargs="*", help="Markdown files to process")
-    parser.add_argument("--output", type=str, help="Output file for documentation")
-
-    args = parser.parse_args()
-
-    if args.interactive:
-        asyncio.run(interactive_mode())
-    elif args.input:
-        # Process input and files (which now includes running short_planner_flow first)
-        shared = asyncio.run(process_input(args.input, args.files))
-
-        # Output results
-        if args.output:
-            try:
-                with open(args.output, "w", encoding="utf-8") as f:
-                    f.write(shared["documentation"])
-                print(f"Documentation saved to {args.output}")
-            except Exception as e:
-                print(f"Error saving documentation: {e}")
-                print(shared["documentation"])
-        else:
-            print(shared["documentation"])
+    if lang_choice == "2":
+        language = "zh"
+        natural_language = Prompt.ask("\n[bold blue]请描述您的项目需求[/bold blue]")
+        default_output_dir = "PRD"
+        output_dir = Prompt.ask(f"[dim](可选) 输入输出目录[/dim]", default=default_output_dir)
     else:
-        # Default to interactive mode if no arguments provided
-        asyncio.run(interactive_mode())
+        language = "en"
+        natural_language = Prompt.ask("\n[bold blue]Please describe your project requirements[/bold blue]")
+        default_output_dir = "PRD"
+        output_dir = Prompt.ask(f"[dim](Optional) Enter output directory[/dim]", default=default_output_dir)
+
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    console.print(f"✅ Output directory: [green]{output_dir}[/green]")
+
+    # Process initial input using streaming
+    shared = await process_input_stream(natural_language, language)
+    shared["output_directory"] = output_dir  # Store output directory in shared state
+
+    # Auto-save the documentation
+    await save_documentation(shared, natural_language, language)
 
 
-if __name__ == "__main__":
-    main()
+async def save_documentation(shared, natural_language, language):
+    """
+    Save the generated documentation with beautiful UI feedback.
+    """
+    save_title = "💾 保存文档" if language == "zh" else "💾 Saving Documentation"
+    console.print(Panel(save_title, style="bold yellow"))
+
+    # 自动生成文件名
+    filename = generate_filename(natural_language)
+
+    # 使用用户指定的输出目录或默认目录
+    output_dir = shared.get("output_directory", "PRD")
+    output_path = os.path.join(output_dir, filename)
+    os.makedirs(output_dir, exist_ok=True)
+
+    with console.status("[bold green]正在保存..." if language == "zh" else "[bold green]Saving...", spinner="dots"):
+        try:
+            with open(output_path, "w", encoding="utf-8") as f:
+                f.write(shared["documentation"])
+
+            # 美化完成提示
+            if language == "zh":
+                console.print(Panel(
+                    f"✅ [bold green]文档生成完成！[/bold green]\n\n📁 保存位置: [cyan]{output_path}[/cyan]\n\n🚀 [dim]感谢使用 GTPlanner！[/dim]",
+                    title="🎉 完成",
+                    style="green",
+                    border_style="green"
+                ))
+                # 添加结束横幅
+                console.print()
+                console.print("=" * 80, style="dim")
+                console.print("🎯 [bold blue]GTPlanner[/bold blue] - 让需求分析更简单！", justify="center", style="bold")
+                console.print("💡 [dim]如有问题或建议，欢迎反馈[/dim]", justify="center")
+                console.print("=" * 80, style="dim")
+            else:
+                console.print(Panel(
+                    f"✅ [bold green]Documentation Generated Successfully![/bold green]\n\n📁 Saved to: [cyan]{output_path}[/cyan]\n\n🚀 [dim]Thank you for using GTPlanner![/dim]",
+                    title="🎉 Complete",
+                    style="green",
+                    border_style="green"
+                ))
+                # 添加结束横幅
+                console.print()
+                console.print("=" * 80, style="dim")
+                console.print("🎯 [bold blue]GTPlanner[/bold blue] - Making Requirements Analysis Easier!", justify="center", style="bold")
+                console.print("💡 [dim]Feedback and suggestions are welcome[/dim]", justify="center")
+                console.print("=" * 80, style="dim")
+
+        except Exception as e:
+            error_msg = f"❌ 保存文档时出错: {e}" if language == "zh" else f"❌ Error saving documentation: {e}"
+            console.print(Panel(error_msg, style="red", border_style="red"))
+
+
+def generate_filename(natural_language):
+    """
+    Generate a filename from natural language input.
+    """
+    # 简单 slugify: 只保留中文字符、字母数字和空格，空格转横线，小写
+    slug = re.sub(r"[^a-zA-Z0-9\u4e00-\u9fa5 ]", "", natural_language)
+    slug = slug.strip().lower().replace(" ", "-")[:20]
+    if not slug:
+        slug = "documentation"
+
+    today = datetime.datetime.now().strftime("%Y%m%d")
+    return f"{slug}-{today}.md"

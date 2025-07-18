@@ -249,6 +249,8 @@ async def long_planning_stream(body: LongPlanningRequest):
     language = body.language
     user_id = body.user_id
 
+
+
     if not requirement:
         yield "data: [ERROR_START]\n"
         yield "data: ❌ Missing 'requirement' in request body.\n"
@@ -280,7 +282,10 @@ async def long_planning_stream(body: LongPlanningRequest):
 
         # 流式需求分析阶段
         yield "data: [STATUS_START]\n"
-        yield "data: 🔍 正在分析需求...\n"
+        if language == "zh":
+            yield "data: 🔍 正在分析需求...\n"
+        else:
+            yield "data: 🔍 Analyzing requirements...\n"
         yield "data: [STATUS_END]\n\n"
 
         # 使用流式需求分析节点
@@ -305,7 +310,10 @@ async def long_planning_stream(body: LongPlanningRequest):
 
         # 发送状态更新
         yield "data: [STATUS_START]\n"
-        yield "data: 📝 开始生成设计文档...\n"
+        if language == "zh":
+            yield "data: 📝 开始生成设计文档...\n"
+        else:
+            yield "data: 📝 Generating design document...\n"
         yield "data: [STATUS_END]\n\n"
 
         # 然后手动运行设计优化节点的流式版本

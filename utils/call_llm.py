@@ -19,8 +19,7 @@ settings = Dynaconf(
 
 async def _request_llm_async(
     prompt,
-    model="doubao-pro-32k",
-    # model="qwen2.5-72b-instruct",
+    model,
     is_json=False,
 ):
     url = f"{settings.llm.base_url}/chat/completions"
@@ -61,7 +60,7 @@ async def call_llm_async(prompt, is_json=False):
 
 async def _request_llm_stream_async(
     prompt,
-    model="doubao-pro-32k",
+    model,
 ):
     """流式LLM请求"""
     url = f"{settings.llm.base_url}/chat/completions"
