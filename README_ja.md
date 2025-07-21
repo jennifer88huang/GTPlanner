@@ -38,10 +38,10 @@
 
 GTPlannerは、「vibeコーディング」のために設計された先進的なAIツールで、高レベルのアイデアや要件を、構造が明確で内容が詳細な技術文書に効率的に変換することを目的としています。最新の**Webインターフェース**を通じて、GTPlannerの全機能を体験することをお勧めします。
 
-深い統合やカスタム開発を希望する開発者向けに、[PocketFlow](https://github.com/The-Pocket/PocketFlow)をベースに構築された強力なバックエンドエンジンも提供しています。これは非同期・ノードベースのアーキテクチャを採用し、インタラクティブなCLI、REST API、MCPサービスなど、複数の利用方法をサポートしています。
+深い統合やカスタム開発を希望する開発者向けに、強力なバックエンドエンジンも提供しています。これは非同期・ノードベースのアーキテクチャを採用し、インタラクティブなCLI、REST API、MCPサービスなど、複数の利用方法をサポートしています。
 
 このプロジェクトは、2つの主要な部分から構成されています：
-- **💻 [GTPlanner-frontend (Web UI)](https://github.com/The-Agent-Builder/GTPlanner-frontend)**：機能豊富でインタラクティブなオンラインプランニング体験を提供します。（推奨）[🚀 ライブデモを今すぐ体験！](https://the-agent-builder.com/)
+- **💻 GTPlanner-frontend (Web UI)**：機能豊富でインタラクティブなオンラインプランニング体験を提供します。（推奨）[🚀 ライブデモを今すぐ体験！](https://the-agent-builder.com/)
 - **⚙️ GTPlanner (Backend)**：CLIやAPIなど、多様な統合方法を提供する強力なバックエンドエンジン。
 
 ## 💻 Web UI (推奨)
@@ -340,23 +340,23 @@ GTPlanner は包括的な多言語サポートを提供し、世界中の開発�
 #### CLIモード
 ```bash
 # 言語を指定
-uv run python main.py --lang ja --input "ECサイトを作成する"
+uv run python main.py --lang ja --input "WeChatグループチャットを要約し、メンバーのユーザープロファイルを作成する"
 
 # 自動検出（日本語入力は自動的に認識されます）
-uv run python main.py --input "ECサイトを作成する"
+uv run python main.py --input "WeChatグループチャットを要約し、メンバーのユーザープロファイルを作成する"
 ```
 
 #### APIモード
 ```python
 # 明示的な言語指定
 response = requests.post("/planning/short", json={
-    "requirement": "Webアプリケーションを作成する",
+    "requirement": "WeChatグループチャットを要約し、メンバーのユーザープロファイルを作成する",
     "language": "ja"
 })
 
 # 自動検出
 response = requests.post("/planning/short", json={
-    "requirement": "Webアプリケーションを作成する"
+    "requirement": "WeChatグループチャットを要約し、メンバーのユーザープロファイルを作成する"
 })
 ```
 
