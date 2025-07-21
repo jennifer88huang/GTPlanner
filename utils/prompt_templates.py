@@ -551,20 +551,29 @@ flowchart TD
 
 When generating `mermaid` flowcharts, adhere to the following core rules to ensure 100% valid syntax:
 
-1.  **Node ID Specifications**:
+**CRITICAL: Generate a single complete flowchart only. Absolutely prohibit splitting into multiple separate diagrams.**
+
+1.  **Diagram Structure Requirements**:
+    *   **Single mermaid code block only**: The entire process must be contained within one `flowchart TD`. Strictly prohibit creating multiple independent diagrams.
+    *   **Use subgraph for complex processes**: For complex sub-processes, use `subgraph` for logical grouping within the same diagram.
+    *   **No separate diagram design**: Never create separate "main process" and "sub-process" mermaid diagrams.
+    *   **All nodes in same diagram**: All nodes including nested sub-processes must be defined and connected within the same flowchart.
+
+2.  **Node ID Specifications**:
     *   **Unique IDs**: The identifier before the brackets (e.g., `nodeId`) must be unique across the entire diagram.
     *   **Naming Convention**: IDs must only contain **letters and numbers**. **Strictly prohibit** spaces, special characters, or quotes in IDs.
     *   **Correct Example**: `dataCollection[Data Collection]` (The ID is `dataCollection`)
     *   **Incorrect Example**: `[Data Collection]` (No ID), `data-collection[Data Collection]` (ID contains a special character)
 
-2.  **Edge and Label Syntax**:
+3.  **Edge and Label Syntax**:
     *   **Standard Edge**: Use `-->` for a solid line with an arrowhead.
     *   **Labeled Edge**: The label must be enclosed in double quotes between two hyphens. The format **must be** `A -- "Label Text" --> B`.
     *   **Prohibited Syntax**: Absolutely forbid non-standard formats like `A - "label" >> B` or `A --> "label" B`. This is a primary cause of parsing errors.
 
-3.  **Subgraph Usage Rules**:
+4.  **Subgraph Usage Rules**:
     *   **No ID Reuse**: If an ID (e.g., `strategyGenerate`) is used for a `subgraph`, it cannot also be used as a standalone node for connections.
     *   **Connect to Nodes Inside**: Any links to the process block must point to a specific node *inside* the subgraph, not to the subgraph ID itself.
+    *   **Nested sub-process handling**: For complex nested sub-processes, expand all steps within the same diagram using subgraph for logical grouping, rather than creating independent diagrams.
 
 **Correction Example (Based on the provided error)**:
 *   **Incorrect Code**:
@@ -784,20 +793,30 @@ flowchart TD
 
 当生成`mermaid`格式的流程图时，请遵循以下核心规则，以确保语法绝对正确：
 
-1.  **节点ID规范**:
+**重要：必须生成单个完整的流程图，严禁分割成多个独立的图表**
+
+1.  **图表结构规范**:
+    *   **只生成一个mermaid代码块**：整个流程必须包含在一个 `flowchart TD` 中，严禁创建多个独立的图表。
+    *   **使用subgraph组织复杂流程**：对于复杂的子流程，使用 `subgraph` 在同一个图表内进行逻辑分组。
+    *   **禁止分离式设计**：绝对不要创建"主流程"和"子流程"两个独立的mermaid图表。
+    *   **所有节点必须在同一图表内**：包括嵌套子流程在内的所有节点都必须在同一个flowchart中定义和连接。
+
+2.  **节点ID规范**:
     *   **ID必须唯一**：每个节点的ID（方括号前的标识符）在整个图表中必须是独一无二的。
     *   **ID命名规则**：ID只能使用**字母和数字**，**严禁**包含空格、特殊字符或引号。
     *   **正确示例**: `dataCollection[数据收集]` (ID是 `dataCollection`)
     *   **错误示例**: `[data collection]` (没有ID), `data-collection[数据收集]` (ID包含特殊字符)
 
-2.  **连线与标签语法**:
+3.  **连线与标签语法**:
     *   **标准连线**: 使用 `-->` 表示带箭头的实线。
     *   **带标签的连线**: 标签必须放在两个连字符中间，并用双引号包裹。**必须使用** `A -- "标签文字" --> B` 的格式。
     *   **严禁错误语法**: 绝对禁止使用 `A - "标签" >> B` 或 `A --> "标签" B` 等任何非标准格式。这个错误是导致解析失败的主要原因。
 
-3.  **子图 (subgraph) 使用规则**:
+4.  **子图 (subgraph) 使用规则**:
     *   **ID不能重复**: 如果一个ID（如 `strategyGenerate`）被用作`subgraph`的标识符，它就不能再被当做一个独立的节点来连接。
     *   **连接到子图内部**: 所有指向该流程块的连线，都应该连接到子图**内部**的某个具体节点，而不是子图的ID本身。
+    *   **子图内部连接**: 子图内的节点可以相互连接，也可以连接到子图外的节点，形成完整的流程。
+    *   **嵌套子流程处理**: 对于复杂的嵌套子流程，应该将所有步骤展开在同一个图表中，使用subgraph进行逻辑分组，而不是创建独立的图表。
 
 **修正示例 (针对用户提供的错误)**:
 *   **错误代码**:
@@ -833,7 +852,7 @@ flowchart TD
         docAssemble --> exportDoc[Export Document]
         exportDoc --> finish[(Finish)]
     ```
-    
+
 ## 数据结构
 
 共享内存结构组织如下：
@@ -1002,20 +1021,29 @@ flowchart TD
 
 Cuando generes diagramas de flujo en formato `mermaid`, adhiérete a las siguientes reglas fundamentales para garantizar una sintaxis 100% válida:
 
-1.  **Especificaciones de ID de Nodo**:
+**CRÍTICO: Genera solo un diagrama de flujo completo. Prohíbe absolutamente dividir en múltiples diagramas separados.**
+
+1.  **Requisitos de Estructura del Diagrama**:
+    *   **Solo un bloque de código mermaid**: Todo el proceso debe estar contenido dentro de un `flowchart TD`. Prohíbe estrictamente crear múltiples diagramas independientes.
+    *   **Usa subgraph para procesos complejos**: Para sub-procesos complejos, usa `subgraph` para agrupación lógica dentro del mismo diagrama.
+    *   **Sin diseño de diagramas separados**: Nunca crees diagramas mermaid separados de "proceso principal" y "sub-proceso".
+    *   **Todos los nodos en el mismo diagrama**: Todos los nodos incluyendo sub-procesos anidados deben ser definidos y conectados dentro del mismo flowchart.
+
+2.  **Especificaciones de ID de Nodo**:
     *   **IDs Únicos**: El identificador antes de los corchetes (ej. `idNodo`) debe ser único en todo el diagrama.
     *   **Convención de Nombres**: Los IDs solo deben contener **letras y números**. **Prohíbe estrictamente** el uso de espacios, caracteres especiales o comillas en los IDs.
     *   **Ejemplo Correcto**: `recoleccionDatos[Recolección de Datos]` (El ID es `recoleccionDatos`)
     *   **Ejemplo Incorrecto**: `[Recolección de Datos]` (Sin ID), `recoleccion-datos[Recolección de Datos]` (El ID contiene un carácter especial)
 
-2.  **Sintaxis de Conexiones y Etiquetas**:
+3.  **Sintaxis de Conexiones y Etiquetas**:
     *   **Conexión Estándar**: Usa `-->` para una línea sólida con punta de flecha.
     *   **Conexión con Etiqueta**: La etiqueta debe estar entre comillas dobles y colocada entre dos guiones. El formato **debe ser** `A -- "Texto de la Etiqueta" --> B`.
     *   **Sintaxis Prohibida**: Prohíbe absolutamente formatos no estándar como `A - "etiqueta" >> B` o `A --> "etiqueta" B`. Esta es una causa principal de errores de análisis.
 
-3.  **Reglas de Uso de Subgráficos (subgraph)**:
+4.  **Reglas de Uso de Subgráficos (subgraph)**:
     *   **No Reutilizar IDs**: Si un ID (ej. `generarEstrategia`) se usa para un `subgraph`, no puede ser usado también como un nodo independiente para conexiones.
     *   **Conectar a Nodos Internos**: Cualquier conexión dirigida al bloque del proceso debe apuntar a un nodo específico *dentro* del subgráfico, no al ID del subgráfico en sí.
+    *   **Manejo de sub-procesos anidados**: Para sub-procesos anidados complejos, expande todos los pasos dentro del mismo diagrama usando subgraph para agrupación lógica, en lugar de crear diagramas independientes.
 
 **Ejemplo de Corrección (Basado en el error proporcionado)**:
 *   **Código Incorrecto**:
@@ -1221,20 +1249,29 @@ flowchart TD
 
 Lorsque vous générez des diagrammes de flux au format `mermaid`, veuillez adhérer aux règles fondamentales suivantes pour garantir une syntaxe 100% valide :
 
-1.  **Spécifications des ID de Nœud**:
+**CRITIQUE : Générez un seul diagramme de flux complet. Interdisez absolument la division en plusieurs diagrammes séparés.**
+
+1.  **Exigences de Structure du Diagramme**:
+    *   **Un seul bloc de code mermaid**: L'ensemble du processus doit être contenu dans un `flowchart TD`. Interdisez strictement la création de plusieurs diagrammes indépendants.
+    *   **Utilisez subgraph pour les processus complexes**: Pour les sous-processus complexes, utilisez `subgraph` pour le regroupement logique dans le même diagramme.
+    *   **Pas de conception de diagrammes séparés**: Ne créez jamais de diagrammes mermaid séparés de "processus principal" et "sous-processus".
+    *   **Tous les nœuds dans le même diagramme**: Tous les nœuds y compris les sous-processus imbriqués doivent être définis et connectés dans le même flowchart.
+
+2.  **Spécifications des ID de Nœud**:
     *   **ID Uniques**: L'identifiant avant les crochets (ex: `idNœud`) doit être unique dans tout le diagramme.
     *   **Convention de Nommage**: Les ID ne doivent contenir que des **lettres et des chiffres**. **Interdisez strictement** l'utilisation d'espaces, de caractères spéciaux ou de guillemets dans les ID.
     *   **Exemple Correct**: `collecteDonnees[Collecte de Données]` (L'ID est `collecteDonnees`)
     *   **Exemple Incorrect**: `[Collecte de Données]` (Pas d'ID), `collecte-donnees[Collecte de Données]` (L'ID contient un caractère spécial)
 
-2.  **Syntaxe des Liens et des Étiquettes**:
+3.  **Syntaxe des Liens et des Étiquettes**:
     *   **Lien Standard**: Utilisez `-->` pour une ligne pleine avec une pointe de flèche.
     *   **Lien Étiqueté**: L'étiquette doit être placée entre des guillemets doubles et entre deux tirets. Le format **doit être** `A -- "Texte de l'étiquette" --> B`.
     *   **Syntaxe Interdite**: Interdisez absolument les formats non standard comme `A - "étiquette" >> B` ou `A --> "étiquette" B`. C'est une cause principale des erreurs d'analyse.
 
-3.  **Règles d'Utilisation des Sous-graphes (subgraph)**:
+4.  **Règles d'Utilisation des Sous-graphes (subgraph)**:
     *   **Pas de Réutilisation d'ID**: Si un ID (ex: `genererStrategie`) est utilisé pour un `subgraph`, il ne peut pas être également utilisé comme un nœud indépendant pour les connexions.
     *   **Connecter aux Nœuds Internes**: Toute connexion pointant vers le bloc de processus doit pointer vers un nœud spécifique *à l'intérieur* du sous-graphe, et non vers l'ID du sous-graphe lui-même.
+    *   **Gestion des sous-processus imbriqués**: Pour les sous-processus imbriqués complexes, développez toutes les étapes dans le même diagramme en utilisant subgraph pour le regroupement logique, plutôt que de créer des diagrammes indépendants.
 
 **Exemple de Correction (Basé sur l'erreur fournie)**:
 *   **Code Incorrect**:
@@ -1455,20 +1492,29 @@ flowchart TD
 
 `mermaid`形式のフローチャートを生成する際は、100%有効な構文を保証するために、以下の基本ルールを遵守してください。
 
-1.  **ノードIDの仕様**:
+**重要：単一の完全なフローチャートのみを生成してください。複数の独立したダイアグラムに分割することを絶対に禁止します。**
+
+1.  **ダイアグラム構造要件**:
+    *   **単一のmermaidコードブロックのみ**: プロセス全体は一つの `flowchart TD` 内に含める必要があります。複数の独立したダイアグラムの作成を厳しく禁止します。
+    *   **複雑なプロセスにはsubgraphを使用**: 複雑なサブプロセスには、同じダイアグラム内での論理的グループ化のために `subgraph` を使用してください。
+    *   **分離ダイアグラム設計の禁止**: 「メインプロセス」と「サブプロセス」の独立したmermaidダイアグラムを作成しないでください。
+    *   **すべてのノードを同じダイアグラム内に**: ネストされたサブプロセスを含むすべてのノードは、同じflowchart内で定義・接続する必要があります。
+
+2.  **ノードIDの仕様**:
     *   **ユニークなID**: 角括弧の前の識別子（例: `nodeId`）は、ダイアグラム全体でユニークでなければなりません。
     *   **命名規則**: IDには**英数字のみ**を使用してください。IDにスペース、特殊文字、引用符（""）を使用することは**厳禁**です。
     *   **正しい例**: `dataCollection[データ収集]` (IDは `dataCollection`)
     *   **誤った例**: `[データ収集]` (IDがない), `data-collection[データ収集]` (IDに特殊文字が含まれている)
 
-2.  **エッジ（線）とラベルの構文**:
+3.  **エッジ（線）とラベルの構文**:
     *   **標準エッジ**: 矢印付きの実線には `-->` を使用します。
     *   **ラベル付きエッジ**: ラベルは二重引用符で囲み、2つのハイフンの間に配置する必要があります。フォーマットは **必ず** `A -- "ラベルテキスト" --> B` としてください。
     *   **禁止される構文**: `A - "ラベル" >> B` や `A --> "ラベル" B` のような非標準フォーマットは絶対に使用しないでください。これは解析エラーの主な原因です。
 
-3.  **サブグラフ（subgraph）の使用ルール**:
+4.  **サブグラフ（subgraph）の使用ルール**:
     *   **IDの再利用禁止**: あるID（例: `strategyGenerate`）が `subgraph` の識別子として使用された場合、それを接続のための独立したノードとして再度使用することはできません。
     *   **サブグラフの内部ノードに接続**: そのプロセスブロックを指す接続は、サブグラフID自体ではなく、サブグラフの*内部*にある特定のノードを指す必要があります。
+    *   **ネストされたサブプロセスの処理**: 複雑なネストされたサブプロセスについては、独立したダイアグラムを作成するのではなく、論理的グループ化のためにsubgraphを使用して同じダイアグラム内ですべてのステップを展開してください。
 
 **修正例（提供されたエラーに基づく）**:
 *   **誤ったコード**:

@@ -159,6 +159,8 @@ async def short_planning_stream(body: ShortPlanningRequest):
     language = body.language
     user_id = body.user_id
 
+    print("short_planning_stream called with requirement:", requirement)
+
     if not requirement:
         yield "data: [ERROR_START]\n"
         yield "data: ❌ Missing 'requirement' in request body.\n"
@@ -248,6 +250,9 @@ async def long_planning_stream(body: LongPlanningRequest):
     design_doc = body.design_doc
     language = body.language
     user_id = body.user_id
+
+    print("long_planning_stream called with requirement:", requirement)
+    
 
 
 
