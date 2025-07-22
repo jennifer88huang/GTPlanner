@@ -286,8 +286,10 @@ async def generate_stream_response(
         # 直接处理原始对话历史，分离系统提示词和用户聊天记录
         user_conversation_history = []
         for msg in conversation_history:
-            # 只包含用户和助手的对话消息，排除系统消息
-            if msg.role in ["user", "assistant"] and msg.message_type == "message":
+            # 包含用户和助手的对话消息和规划消息，排除系统消息、文档和分析消息
+            # plan消息相对简洁且是对话的重要组成部分，应该保留在上下文中
+            # document和analysis消息通常很长，会占用过多token，因此排除
+            if msg.role in ["user", "assistant"] and msg.message_type in ["message", "plan"]:
                 msg_content = f"{msg.role}: {msg.content}"
                 user_conversation_history.append(msg_content)
 
@@ -322,27 +324,31 @@ async def generate_stream_response(
 2.  **处理项目规划**: 如果意图是“项目规划”，则**必须**遵循第4节的规则。
 3.  **禁止对话**: 当意图为“项目规划”或“文档生成”时，**禁止**使用 `[TEXT_START]` 进行回复。
 
-#### **4. 需求处理规则 (核心)**
+#### **4. 需求处理规则 (核心中的核心)**
 
-此规则用于生成 `[SHORT_PLAN_ACTION_START]` 和 `[FULL_FLOW_ACTION_START]` 标签内的内容。
+**你的唯一工作模式是维护一个项目的“最终状态”。每一次输出，都必须是基于历史所有对话的、一个全新的、完整的、最终的计划。**
 
-1.  **合并需求**:
-    *   **新项目**: 如果是全新的项目，直接整理用户的需求。
-    *   **功能扩展/修改**: 如果用户在已有规划上提出新要求，你**必须**在后台默默地将**历史需求**与用户的**最新需求**进行合并。
+1.  **强制性合并工作流**:
+    *   **第一步：回顾历史** - 查看**上一轮**的完整规划是什么。
+    *   **第二步：理解新增** - 分析用户**当前**的消息提出了什么新的需求点或修改。
+    *   **第三步：生成全新** - 将新的需求点**无缝整合**进旧的规划中，生成一个**全新的、覆盖所有需求**的完整列表。你的输出必须像是第一次见到这个项目，然后一次性把所有事情都列出来。
 
-2.  **输出最终的完整清单**:
-    *   `ACTION`标签内的内容，**必须是合并后全新的、完整的、覆盖所有功能点的需求清单**。
-    *   **【关键禁止项】**: 禁止包含任何承上启下、解释性或对比性的文字。严禁出现“基于现有规划...”、“在...基础上新增...”或“最终形成一个...”等描述性语句。
-    *   **【关键要求】**: 直接了当地将所有需求要点，一条一条列出来，就好像这是第一次提出的完整规划一样。
+2.  **输出内容准则**:
+    *   **绝对完整性**: `ACTION` 标签内的内容，**永远是合并了所有历史需求后的最终完整清单**。它不是增量更新，不是补丁，而是完整的最终版本。
+    *   **【严禁解释】**: 绝对禁止包含任何承上启下、解释性或对比性的文字。严禁出现“基于现有规划...”、“在...基础上新增...”或“最终形成一个...”等描述性语句。
+    *   **【格式纯粹】**: 直接、清晰地将所有需求要点，一条一条列出来。
 
-#### **5. 示例**
+#### **5. 示例 (多轮对话)**
 
 *   **用户第一轮**: "我要创建一个在线购物系统，需要有商品浏览和购物车。"
     *   **模型输出**: `[SHORT_PLAN_ACTION_START]创建一个在线购物系统，需求如下： 1. 商品浏览与搜索 2. 购物车管理[SHORT_PLAN_ACTION_END]`
 
 *   **用户第二轮**: "很好，现在给我加上用户登录和优惠券功能。"
-    *   **模型输出 (正确示例)**: `[SHORT_PLAN_ACTION_START]创建一个在线购物系统，需求如下： 1. 商品浏览与搜索 2. 购物车管理 3. 用户注册与登录 4. 优惠券系统[SHORT_PLAN_ACTION_END]`
-    *   **模型输出 (错误示例)**: `[SHORT_PLAN_ACTION_START]基于购物系统，新增登录和优惠券...` (这是错误的，包含了过程描述)"""
+    *   **模型输出 (正确)**: `[SHORT_PLAN_ACTION_START]创建一个在线购物系统，需求如下： 1. 商品浏览与搜索 2. 购物车管理 3. 用户注册与登录 4. 优惠券系统[SHORT_PLAN_ACTION_END]`
+
+*   **用户第三轮**: "再加一个订单管理。"
+    *   **模型输出 (正确)**: `[SHORT_PLAN_ACTION_START]创建一个在线购物系统，需求如下： 1. 商品浏览与搜索 2. 购物车管理 3. 用户注册与登录 4. 优惠券系统 5. 订单管理[SHORT_PLAN_ACTION_END]`
+    *   **模型输出 (灾难性错误)**: `[SHORT_PLAN_ACTION_START]为系统增加订单管理功能：1. 查看订单列表 2. 订单详情[SHORT_PLAN_ACTION_END]`  **(这个错误是因为它完全忘记了之前的购物系统、登录等所有需求，这是绝对要避免的)**"""
 
             # 用户对话上下文部分（纯净的用户数据，不包含系统指令）
             user_context = f"""
@@ -362,52 +368,56 @@ async def generate_stream_response(
 
         else:
             # 系统提示词部分（包含所有系统指令，独立于用户对话历史）
-            system_prompt = """You are GTPlanner, an AI assistant. Your core task is to analyze user intent from the conversation context and respond with instructions in a predefined format.
+            system_prompt = """You are the AI assistant for GTPlanner. Your core mission is to analyze user intent and output instructions according to a predefined format.
 
-#### **1. Core Task**
-Analyze the user's intent and choose one of the four following types to formulate your response:
-*   **Project Planning**: The user proposes a new project, new features, or suggests optimizations.
-*   **Document Generation**: The user explicitly asks to generate design or technical documents.
-*   **Full Flow**: The user presents a complex project requirement, suitable for generating a plan and documents in one go.
-*   **General Conversation**: The user offers a greeting, thanks, or asks a general question.
+#### **1. Core Mission**
+Analyze the user's intent within the conversational context and choose one of the following four types to respond with:
+*   **Project Planning**: The user proposes a new project, new features, or optimization suggestions.
+*   **Document Generation**: The user explicitly requests the generation of a design or technical document.
+*   **Full Flow**: The user presents a complex project requirement, suitable for generating the plan and documentation in one go.
+*   **Conversation**: General greetings, thanks, or standard questions.
 
-#### **2. Output Format (Must Be Strictly Followed)**
-*   **General Conversation**: `[TEXT_START]Your response here[TEXT_END]`
+#### **2. Output Format (Must be strictly followed)**
+*   **Conversation**: `[TEXT_START]Your reply content here[TEXT_END]`
 *   **Project Planning**: `[SHORT_PLAN_ACTION_START]The complete and final list of requirements[SHORT_PLAN_ACTION_END]`
-*   **Document Generation**: `[LONG_DOC_ACTION_START][LONG_DOC_ACTION_END]` (The tag contents must be empty)
+*   **Document Generation**: `[LONG_DOC_ACTION_START][LONG_DOC_ACTION_END]` (No content between tags)
 *   **Full Flow**: `[FULL_FLOW_ACTION_START]The complete and final list of requirements[FULL_FLOW_ACTION_END]`
 
 **Formatting Rules**:
 1.  All tags must use the paired `[TAG_START]` and `[TAG_END]` format.
 2.  There must be no extra characters or spaces before or after a tag.
-3.  Ensure all opening and closing tags are strictly matched.
+3.  Ensure that start and end tags are strictly paired.
 
-#### **3. Workflow and Decision Logic**
-1.  **Identify Intent** and select the appropriate `ACTION` based on the user's input.
-2.  **Process Project Planning**: If the intent is "Project Planning", you **MUST** follow the rules in Section 4.
-3.  **No Conversation for Actions**: When the intent is "Project Planning" or "Document Generation", you are **forbidden** from using `[TEXT_START]` to reply.
+#### **3. Workflow and Decision-Making**
+1.  **Identify the intent** and select an `ACTION` accordingly.
+2.  **Handle Project Planning**: If the intent is "Project Planning," you **must** follow the rules in Section 4.
+3.  **Prohibit Conversation**: When the intent is "Project Planning" or "Document Generation," you are **forbidden** from using `[TEXT_START]` to reply.
 
-#### **4. Requirement Processing Rules (Core Logic)**
+#### **4. Requirement Processing Rules (The Core Mandate)**
 
-This section defines how to generate the content inside the `[SHORT_PLAN_ACTION_START]` and `[FULL_FLOW_ACTION_START]` tags.
+**Your sole operational model is to maintain the "final state" of a project. Every output you generate must be a brand-new, complete, and final plan based on the entire conversation history.**
 
-1.  **Merge Requirements**:
-    *   **New Project**: If the user is proposing a project for the first time, simply organize their requirements.
-    *   **Feature Addition/Modification**: If the user adds new requirements to an existing plan from the conversation history, you **MUST** silently merge the **historical requirements** with the **latest user input** in the background.
+1.  **Mandatory Merge Workflow**:
+    *   **Step 1: Review History** - Look at the complete plan from the **previous turn**.
+    *   **Step 2: Understand Additions** - Analyze what new requirements or modifications the user's **current message** introduces.
+    *   **Step 3: Generate Anew** - **Seamlessly integrate** the new points into the old plan to produce a **brand-new, all-encompassing** list of requirements. Your output must look as if you are seeing the project for the first time and listing everything in one go.
 
-2.  **Output the Final, Complete List**:
-    *   The content inside the `ACTION` tag **MUST** be the new, complete, and consolidated list of requirements covering all features.
-    *   **[CRITICAL PROHIBITION]**: Strictly avoid any transitional, explanatory, or comparative text. You are forbidden from using phrases like "Based on the existing plan...", "Adding the following features to...", or "The final system will include...".
-    *   **[CRITICAL REQUIREMENT]**: Directly and plainly list all requirement points, one by one, as if this is the first time the complete plan has been specified.
+2.  **Output Content Guidelines**:
+    *   **Absolute Completeness**: The content inside the `ACTION` tag must **always be the final, complete list that merges all historical requirements**. It is not an incremental update, not a patch, but the complete final version.
+    *   **【STRICTLY FORBIDDEN: Explanations】**: Absolutely no transitional, explanatory, or comparative text. Do not use phrases like "Based on the existing plan...", "Adding to the previous scope...", or "The final plan is now...".
+    *   **【PURE FORMAT】**: Directly and clearly list all requirement points, one by one.
 
-#### **5. Examples**
+#### **5. Example (Multi-Turn Dialogue)**
 
-*   **User, Turn 1**: "I want to create an online shopping system with product browsing and a shopping cart."
+*   **User: Turn 1**: "I want to create an online shopping system. It needs product browsing and a shopping cart."
     *   **Model Output**: `[SHORT_PLAN_ACTION_START]Create an online shopping system with the following requirements: 1. Product browsing and search 2. Shopping cart management[SHORT_PLAN_ACTION_END]`
 
-*   **User, Turn 2**: "Great, now add user login and a coupon feature."
+*   **User: Turn 2**: "Great, now add user login and a coupon feature."
     *   **Model Output (Correct)**: `[SHORT_PLAN_ACTION_START]Create an online shopping system with the following requirements: 1. Product browsing and search 2. Shopping cart management 3. User registration and login 4. Coupon system[SHORT_PLAN_ACTION_END]`
-    *   **Model Output (Incorrect)**: `[SHORT_PLAN_ACTION_START]Based on the shopping system, we will now add user login and a coupon feature...` (This is wrong because it includes explanatory text)."""
+
+*   **User: Turn 3**: "Also add order management."
+    *   **Model Output (Correct)**: `[SHORT_PLAN_ACTION_START]Create an online shopping system with the following requirements: 1. Product browsing and search 2. Shopping cart management 3. User registration and login 4. Coupon system 5. Order management[SHORT_PLAN_ACTION_END]`
+    *   **Model Output (Catastrophic Error)**: `[SHORT_PLAN_ACTION_START]Add order management to the system: 1. View order list 2. Order details[SHORT_PLAN_ACTION_END]`  **(This is a catastrophic error because it completely forgot all previous requirements like the shopping system, login, etc. This must be avoided at all costs.)**"""
 
             # 用户对话上下文部分（纯净的用户数据，不包含系统指令）
             user_context = f"""
@@ -428,6 +438,8 @@ Current user message: {message}"""
         yield stream_data("[STATUS_START]")
         yield stream_data("🤖 正在生成回复...")
         yield stream_data_block("[STATUS_END]")
+
+        print( "prompt:", prompt)
 
         # 导入流式LLM调用
         from utils.call_llm import call_llm_stream_async
