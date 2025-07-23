@@ -159,7 +159,6 @@ async def short_planning_stream(body: ShortPlanningRequest):
     language = body.language
     user_id = body.user_id
 
-    print("short_planning_stream called with requirement:", requirement)
 
     if not requirement:
         yield "data: [ERROR_START]\n"

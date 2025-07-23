@@ -439,7 +439,7 @@ Current user message: {message}"""
         yield stream_data("🤖 正在生成回复...")
         yield stream_data_block("[STATUS_END]")
 
-        print( "prompt:", prompt)
+        
 
         # 导入流式LLM调用
         from utils.call_llm import call_llm_stream_async
