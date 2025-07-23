@@ -38,10 +38,10 @@
 
 GTPlanner 是一款专为 "vibe coding" 设计的先进 AI 工具，旨在将高层次的想法和需求，高效转化为结构清晰、内容详尽的技术文档。我们推荐通过我们现代化的 **Web 界面**来体验 GTPlanner 的全部功能。
 
-对于希望进行深度集成和定制开发的开发者，我们同样提供了强大的后端引擎，它基于 [PocketFlow](https://github.com/The-Pocket/PocketFlow) 构建，采用异步、基于节点的架构，并支持交互式 CLI、REST API 以及 MCP 服务等多种使用方式。
+对于希望进行深度集成和定制开发的开发者，我们同样提供了强大的后端引擎，采用异步、基于节点的架构，并支持交互式 CLI、REST API 以及 MCP 服务等多种使用方式。
 
 该项目包含两个核心部分：
-- **💻 [GTPlanner-frontend (Web UI)](https://github.com/The-Agent-Builder/GTPlanner-frontend)**：提供功能丰富、交互友好的在线规划体验。（推荐）[🚀 立刻体验 Live Demo!](https://the-agent-builder.com/)
+- **💻 GTPlanner-frontend (Web UI)**：提供功能丰富、交互友好的在线规划体验。（推荐）[🚀 立刻体验 Live Demo!](https://the-agent-builder.com/)
 - **⚙️ GTPlanner (Backend)**：强大的后端引擎，提供 CLI、API 等多种集成方式。
 
 ## 💻 Web UI (推荐)
@@ -151,7 +151,7 @@ uv run python main.py --interactive
 
 **用法示例:**
 ```bash
-uv run python main.py --input "Summarize the WeChat group chat and create user profiles for members." --output-dir "wechat_analyzer" --lang "en"
+uv run python main.py --input "总结微信群聊记录并为成员创建用户画像" --output-dir "wechat_analyzer" --lang "zh"
 ```
 
 **常用参数:**
@@ -185,6 +185,8 @@ uv run fastapi_main.py
 *   **标准规划端点**
     *   `POST /planning/short`: 在单次响应中，生成一个完整的高阶计划。
     *   `POST /planning/long`: 在单次响应中，生成一份完整的详细设计文档。
+
+
 
 ### 🔌 MCP 服务 (推荐用于AI集成)
 
@@ -276,10 +278,17 @@ GTPlanner/
 ├── start_cli.bat            # Windows CLI 启动脚本
 ├── api/                      # API 实现
 │   └── v1/
-│       └── planning.py       # 规划相关的端点
-├── mcp/                      # MCP 服务
-│   ├── mcp_service.py       # MCP 服务器实现
-│   └── pyproject.toml       # MCP 相关的依赖
+│       └── planning.py       # 规划端点
+├── mcp/                      # MCP服务
+│   ├── mcp_service.py       # MCP服务器实现
+│   └── pyproject.toml       # MCP特定依赖
+├── tools/                    # 工具推荐系统
+│   ├── apis/                # API类型工具定义
+│   │   ├── example_openweather.yml
+│   │   └── ...
+│   └── python_packages/     # Python包类型工具定义
+│       ├── example_yt_dlp.yml
+│       └── ...
 ├── utils/                    # 工具函数
 │   ├── call_llm.py          # LLM 通信
 │   ├── parse_markdown.py    # Markdown 处理
@@ -342,23 +351,23 @@ GTPlanner 提供全面的多语言支持，让全球开发者都能使用母语�
 #### CLI 模式
 ```bash
 # 指定语言
-uv run python main.py --lang zh --input "创建一个电商网站"
+uv run python main.py --lang zh --input "总结微信群聊记录并为成员创建用户画像"
 
 # 自动检测（输入中文会自动识别）
-uv run python main.py --input "创建一个电商网站"
+uv run python main.py --input "总结微信群聊记录并为成员创建用户画像"
 ```
 
 #### API 模式
 ```python
 # 显式指定语言
 response = requests.post("/planning/short", json={
-    "requirement": "创建一个网站应用",
+    "requirement": "总结微信群聊记录并为成员创建用户画像",
     "language": "zh"
 })
 
 # 自动检测
 response = requests.post("/planning/short", json={
-    "requirement": "创建一个网站应用"
+    "requirement": "总结微信群聊记录并为成员创建用户画像"
 })
 ```
 
@@ -380,7 +389,120 @@ supported_languages = ["en", "zh", "es", "fr", "ja"]
 
 ## 🤝 参与贡献
 
-我们非常欢迎各种形式的贡献与合作。请查看我们的 [贡献指南](CONTRIBUTING.md) 并参与进来。
+我们欢迎并高度赞赏贡献和协作。请查看[贡献指南](CONTRIBUTING.md)并参与其中。
+
+### 🔧 贡献工具
+
+GTPlanner包含一个智能工具推荐系统，支持社区贡献的工具。我们欢迎在两个类别中贡献高质量的工具：
+
+#### 支持的工具类型
+
+**🌐 API工具 (APIS)**
+- Web API和REST服务
+- 基于云的处理工具
+- 外部服务集成
+- 实时数据处理API
+
+**📦 Python包工具 (PYTHON_PACKAGE)**
+- PyPI包和库
+- 本地处理工具
+- 数据分析包
+- 实用程序库
+
+#### 如何贡献工具
+
+1. **选择正确的模板**：使用我们的专门PR模板以获得更好的组织：
+   - [API工具模板](.github/PULL_REQUEST_TEMPLATE/api_tool.md) - 用于Web API和服务
+   - [Python包模板](.github/PULL_REQUEST_TEMPLATE/python_package_tool.md) - 用于PyPI包
+
+2. **质量标准**：所有贡献的工具必须满足我们的质量标准：
+   - ✅ 公开可访问且文档完善
+   - ✅ 稳定且积极维护
+   - ✅ 清晰的使用示例和集成指南
+   - ✅ 适当的错误处理和安全实践
+   - ✅ 与现有工具无重复功能
+
+3. **工具信息格式**：每个工具需要：
+   - 唯一标识符（例如，`org.tool-name`）
+   - 全面的描述和用例
+   - 完整的API规范或包详细信息
+   - 工作示例和集成代码
+   - 测试和验证结果
+
+4. **审查流程**：所有工具贡献都经过：
+   - 技术准确性审查
+   - 质量和安全评估
+   - 文档完整性检查
+   - 社区反馈整合
+
+#### 🛠️ 工具定义格式
+
+所有工具都使用YAML格式定义，包含以下核心字段：
+
+**通用字段：**
+- **id**: 工具的唯一标识符
+- **type**: 工具类型（"APIS" 或 "PYTHON_PACKAGE"）
+- **summary**: 一句话功能概述
+- **description**: 详细功能描述
+- **examples**: 使用示例
+
+**APIS类型额外字段：**
+- **base_url**: API的基础URL地址
+- **endpoints**: API端点定义数组
+  - **summary**: 端点功能描述
+  - **method**: HTTP方法（GET、POST、PUT、DELETE等）
+  - **path**: 端点路径
+  - **inputs**: 输入参数定义（JSON Schema格式）
+  - **outputs**: 输出结果定义（JSON Schema格式）
+
+**PYTHON_PACKAGE类型额外字段：**
+- **requirement**: PyPI包安装要求（如："package-name==1.0.0"）
+
+#### 示例工具
+
+**API工具示例**
+查看 `tools/apis/example_openweather.yml` 了解如何定义一个API工具。
+
+**Python包示例**
+查看 `tools/python_packages/example_yt_dlp.yml` 了解如何定义一个Python包工具。
+
+#### 工具格式示例
+
+**API工具示例：**
+```yaml
+id: "public.weather-api"
+type: "APIS"
+summary: "获取全球城市的实时天气信息。"
+description: |
+  通过公开天气API，可以查询指定城市的当前天气、温度、湿度、
+  风速等详细气象数据。完全免费使用，无需注册或API密钥。
+base_url: "https://api.open-meteo.com/v1"
+endpoints:
+  - method: "GET"
+    path: "/forecast"
+    summary: "根据经纬度坐标获取当前天气数据"
+```
+
+**Python包示例：**
+```yaml
+id: "pypi.yt-dlp"
+type: "PYTHON_PACKAGE"
+summary: "功能强大的视频下载工具，支持数千个视频网站。"
+description: |
+  yt-dlp是youtube-dl的功能增强分支，支持从YouTube、Bilibili、抖音等
+  数千个视频网站下载视频和音频。
+requirement: "yt-dlp"
+```
+
+有关详细的贡献指南，请参阅我们的[工具贡献模板](.github/PULL_REQUEST_TEMPLATE/)。
+
+### 一般贡献流程
+
+1. Fork仓库
+2. 创建功能分支（`git checkout -b feature/amazing-feature`）
+3. 提交您的更改（`git commit -m 'Add amazing feature'`）
+4. 推送到分支（`git push origin feature/amazing-feature`）
+5. 打开Pull Request
 
 ## 📄 许可证
 

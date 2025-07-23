@@ -37,10 +37,10 @@
 
 GTPlanner is an advanced AI tool designed for "vibe coding," aimed at efficiently transforming high-level ideas and requirements into clearly structured and detailed technical documents. We recommend experiencing the full capabilities of GTPlanner through our modern **Web Interface**.
 
-For developers looking for deep integration and custom development, we also provide a powerful backend engine built on [PocketFlow](https://github.com/The-Pocket/PocketFlow). It features an asynchronous, node-based architecture and supports various usage methods, including an interactive CLI, REST API, and MCP service.
+For developers looking for deep integration and custom development, we also provide a powerful backend engine. It features an asynchronous, node-based architecture and supports various usage methods, including an interactive CLI, REST API, and MCP service.
 
 This project consists of two core parts:
-- **💻 [GTPlanner-frontend (Web UI)](https://github.com/The-Agent-Builder/GTPlanner-frontend)**: Provides a feature-rich and user-friendly online planning experience. (Recommended) [🚀 Try the Live Demo Now!](https://the-agent-builder.com/)
+- **💻 GTPlanner-frontend (Web UI)**: Provides a feature-rich and user-friendly online planning experience. (Recommended) [🚀 Try the Live Demo Now!](https://the-agent-builder.com/)
 - **⚙️ GTPlanner (Backend)**: A powerful backend engine offering multiple integration methods like CLI, API, etc.
 
 ## 💻 Web UI (Recommended)
@@ -147,7 +147,7 @@ For automated scripts or quick generation tasks, you can provide input directly 
 
 **Example Usage:**
 ```bash
-uv run python main.py --input "Summarize the WeChat group chat and create user profiles for members." --output-dir "wechat_analyzer" --lang "en"
+uv run python main.py --input "Summarize the WeChat group chat and create user profiles for members" --output-dir "wechat_analyzer" --lang "en"
 ```
 
 **Common Parameters:**
@@ -181,6 +181,8 @@ Our API provides standard, streaming, and unified chat endpoints for maximum fle
 *   **Standard Planning Endpoints**
     *   `POST /planning/short`: Generates a complete high-level plan in a single response.
     *   `POST /planning/long`: Generates a complete detailed design document in a single response.
+
+
 
 ### 🔌 MCP Service (Recommended for AI Integration)
 
@@ -272,21 +274,28 @@ GTPlanner/
 ├── start_cli.bat              # Windows CLI startup script
 ├── api/                       # API implementation
 │   └── v1/
-│       └── planning.py        # Planning-related endpoints
-├── mcp/                       # MCP service
-│   ├── mcp_service.py         # MCP server implementation
-│   └── pyproject.toml         # MCP-related dependencies
-├── utils/                     # Utility functions
-│   ├── call_llm.py            # LLM communication
-│   ├── parse_markdown.py      # Markdown processing
-│   ├── format_documentation.py # Document formatting
-│   └── store_conversation.py    # Conversation management
-├── docs/                      # Design documents
-│   ├── design.md              # Main architecture design
-│   └── design-longplan.md     # Long-plan API design
-├── output/                    # Output directory for generated documents
-└── assets/                    # Project assets
-    └── banner.png             # Project banner
+│       └── planning.py       # Planning endpoints
+├── mcp/                      # MCP service
+│   ├── mcp_service.py       # MCP server implementation
+│   └── pyproject.toml       # MCP-specific dependencies
+├── tools/                    # Tool recommendation system
+│   ├── apis/                # API type tool definitions
+│   │   ├── example_openweather.yml
+│   │   └── ...
+│   └── python_packages/     # Python package type tool definitions
+│       ├── example_yt_dlp.yml
+│       └── ...
+├── utils/                    # Utility functions
+│   ├── call_llm.py          # LLM communication
+│   ├── parse_markdown.py    # Markdown processing
+│   ├── format_documentation.py # Documentation formatting
+│   └── store_conversation.py   # Conversation management
+├── docs/                     # Design documentation
+│   ├── design.md            # Main architecture design
+│   └── design-longplan.md   # Long planning API design
+├── output/                   # Generated documentation output
+└── assets/                   # Project assets
+    └── banner.png           # Project banner
 ```
 
 ---
@@ -337,24 +346,24 @@ GTPlanner provides comprehensive multilingual support, enabling developers world
 
 #### CLI Mode
 ```bash
-# Specify language
-uv run python main.py --lang en --input "Create an e-commerce website"
+# Specify language explicitly
+uv run python main.py --lang en --input "Summarize the WeChat group chat and create user profiles for members"
 
-# Auto-detection (Chinese input will be automatically recognized)
-uv run python main.py --input "创建一个电商网站"
+# Auto-detection (language will be automatically detected)
+uv run python main.py --input "Summarize the WeChat group chat and create user profiles for members"
 ```
 
 #### API Mode
 ```python
 # Explicit language specification
 response = requests.post("/planning/short", json={
-    "requirement": "Create a web application",
+    "requirement": "Summarize the WeChat group chat and create user profiles for members",
     "language": "en"
 })
 
-# Auto-detection
+# Auto-detection (language will be automatically detected)
 response = requests.post("/planning/short", json={
-    "requirement": "创建一个网站应用"
+    "requirement": "Summarize the WeChat group chat and create user profiles for members"
 })
 ```
 
@@ -377,6 +386,112 @@ For detailed multilingual functionality and configuration guide, please refer to
 ## 🤝 Contributing
 
 We warmly welcome all forms of contributions and collaborations. Please check out our [Contributing Guide](CONTRIBUTING.md) and get involved.
+
+### 🔧 Contributing Tools
+
+GTPlanner includes an intelligent tool recommendation system that supports community-contributed tools. We welcome contributions of high-quality tools in two categories:
+
+#### Supported Tool Types
+
+**🌐 API Tools (APIS)**
+- Web APIs and REST services
+- Cloud-based processing tools
+- External service integrations
+- Real-time data processing APIs
+
+**📦 Python Package Tools (PYTHON_PACKAGE)**
+- PyPI packages and libraries
+- Local processing tools
+- Data analysis packages
+- Utility libraries
+
+#### How to Contribute Tools
+
+1. **Choose the Right Template**: Use our specialized PR templates for better organization:
+   - [API Tool Template](.github/PULL_REQUEST_TEMPLATE/api_tool.md) - For web APIs and services
+   - [Python Package Template](.github/PULL_REQUEST_TEMPLATE/python_package_tool.md) - For PyPI packages
+
+2. **Quality Standards**: All contributed tools must meet our quality criteria:
+   - ✅ Publicly accessible and well-documented
+   - ✅ Stable and actively maintained
+   - ✅ Clear usage examples and integration guides
+   - ✅ Proper error handling and security practices
+   - ✅ No duplicate functionality with existing tools
+
+3. **Tool Information Format**: Each tool requires:
+   - Unique identifier (e.g., `org.tool-name`)
+   - Comprehensive description and use cases
+   - Complete API specification or package details
+   - Working examples and integration code
+   - Testing and validation results
+
+4. **Review Process**: All tool contributions go through:
+   - Technical accuracy review
+   - Quality and security assessment
+   - Documentation completeness check
+   - Community feedback integration
+
+#### 🛠️ Tool Definition Format
+
+All tools are defined using YAML format with the following core fields:
+
+**Common Fields:**
+- **id**: Unique tool identifier
+- **type**: Tool type ("APIS" or "PYTHON_PACKAGE")
+- **summary**: One-line functionality overview
+- **description**: Detailed functionality description
+- **examples**: Usage examples
+
+**APIS Type Additional Fields:**
+- **base_url**: Base URL address of the API
+- **endpoints**: Array of API endpoint definitions
+  - **summary**: Endpoint functionality description
+  - **method**: HTTP method (GET, POST, PUT, DELETE, etc.)
+  - **path**: Endpoint path
+  - **inputs**: Input parameter definitions (JSON Schema format)
+  - **outputs**: Output result definitions (JSON Schema format)
+
+**PYTHON_PACKAGE Type Additional Fields:**
+- **requirement**: PyPI package installation requirement (e.g., "package-name==1.0.0")
+
+#### Example Tools
+
+**API Tool Example**
+See `tools/apis/example_openweather.yml` for how to define an API tool.
+
+**Python Package Example**
+See `tools/python_packages/example_yt_dlp.yml` for how to define a Python package tool.
+
+#### Example Tool Formats
+
+**API Tool Example:**
+```yaml
+id: "public.weather-api"
+type: "APIS"
+summary: "Get real-time weather information for global cities."
+description: |
+  Query current weather, temperature, humidity, wind speed and other detailed
+  meteorological data through public weather API. Completely free to use,
+  no registration or API key required.
+base_url: "https://api.open-meteo.com/v1"
+endpoints:
+  - method: "GET"
+    path: "/forecast"
+    summary: "Get current weather data by coordinates"
+```
+
+**Python Package Example:**
+```yaml
+id: "pypi.yt-dlp"
+type: "PYTHON_PACKAGE"
+summary: "Powerful video downloader supporting thousands of video sites."
+description: |
+  yt-dlp is a feature-rich fork of youtube-dl that supports downloading videos and audio
+  from YouTube, Bilibili, TikTok and thousands of other video sites.
+requirement: "yt-dlp"
+```
+
+For detailed contribution guidelines, see our [tool contribution templates](.github/PULL_REQUEST_TEMPLATE/).
 
 ## 📄 License
 
