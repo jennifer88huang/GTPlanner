@@ -37,10 +37,10 @@
 
 GTPlanner is an advanced AI tool designed for "vibe coding," aimed at efficiently transforming high-level ideas and requirements into clearly structured and detailed technical documents. We recommend experiencing the full capabilities of GTPlanner through our modern **Web Interface**.
 
-For developers looking for deep integration and custom development, we also provide a powerful backend engine built on [PocketFlow](https://github.com/The-Pocket/PocketFlow). It features an asynchronous, node-based architecture and supports various usage methods, including an interactive CLI, REST API, and MCP service.
+For developers looking for deep integration and custom development, we also provide a powerful backend engine. It features an asynchronous, node-based architecture and supports various usage methods, including an interactive CLI, REST API, and MCP service.
 
 This project consists of two core parts:
-- **💻 [GTPlanner-frontend (Web UI)](https://github.com/The-Agent-Builder/GTPlanner-frontend)**: Provides a feature-rich and user-friendly online planning experience. (Recommended) [🚀 Try the Live Demo Now!](https://the-agent-builder.com/)
+- **💻 GTPlanner-frontend (Web UI)**: Provides a feature-rich and user-friendly online planning experience. (Recommended) [🚀 Try the Live Demo Now!](https://the-agent-builder.com/)
 - **⚙️ GTPlanner (Backend)**: A powerful backend engine offering multiple integration methods like CLI, API, etc.
 
 ## 💻 Web UI (Recommended)
@@ -147,7 +147,7 @@ For automated scripts or quick generation tasks, you can provide input directly 
 
 **Example Usage:**
 ```bash
-uv run python main.py --input "Summarize the WeChat group chat and create user profiles for members." --output-dir "wechat_analyzer" --lang "en"
+uv run python main.py --input "Summarize the WeChat group chat and create user profiles for members" --output-dir "wechat_analyzer" --lang "en"
 ```
 
 **Common Parameters:**
@@ -181,6 +181,8 @@ Our API provides standard, streaming, and unified chat endpoints for maximum fle
 *   **Standard Planning Endpoints**
     *   `POST /planning/short`: Generates a complete high-level plan in a single response.
     *   `POST /planning/long`: Generates a complete detailed design document in a single response.
+
+
 
 ### 🔌 MCP Service (Recommended for AI Integration)
 
@@ -344,24 +346,24 @@ GTPlanner provides comprehensive multilingual support, enabling developers world
 
 #### CLI Mode
 ```bash
-# Specify language
-uv run python main.py --lang en --input "Create an e-commerce website"
+# Specify language explicitly
+uv run python main.py --lang en --input "Summarize the WeChat group chat and create user profiles for members"
 
-# Auto-detection (Chinese input will be automatically recognized)
-uv run python main.py --input "创建一个电商网站"
+# Auto-detection (language will be automatically detected)
+uv run python main.py --input "Summarize the WeChat group chat and create user profiles for members"
 ```
 
 #### API Mode
 ```python
 # Explicit language specification
 response = requests.post("/planning/short", json={
-    "requirement": "Create a web application",
+    "requirement": "Summarize the WeChat group chat and create user profiles for members",
     "language": "en"
 })
 
-# Auto-detection
+# Auto-detection (language will be automatically detected)
 response = requests.post("/planning/short", json={
-    "requirement": "创建一个网站应用"
+    "requirement": "Summarize the WeChat group chat and create user profiles for members"
 })
 ```
 
