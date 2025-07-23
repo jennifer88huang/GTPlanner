@@ -3,10 +3,12 @@ from fastapi import FastAPI
 
 from api.v1.planning import planning_router
 from api.v1.chat import chat_router
+from api.v1.canvas import canvas_router
 
 app = FastAPI()
 app.include_router(planning_router)
 app.include_router(chat_router)
+app.include_router(canvas_router)
 
 # 健康检查端点
 @app.get("/health")
