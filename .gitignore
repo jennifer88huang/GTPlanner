@@ -98,3 +98,6 @@ input/*
 output/*
 doc.pdf
 *.bak
+
+# Cookbook and examples (development only)
+cookbook/

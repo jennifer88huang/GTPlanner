@@ -6,6 +6,11 @@ base_url = "https://gateway.chat.sensedeal.vip/v1"
 api_key = "@format {env[LLM_API_KEY]}"
 model = "@format {env[LLM_MODEL]}"
 
+[default.jina]
+api_key = "@format {env[JINA_API_KEY]}"
+search_base_url = "https://s.jina.ai/"
+web_base_url = "https://r.jina.ai/"
+
 [default.multilingual]
 # Default language for the system (en, zh, es, fr, ja)
 default_language = "en"
