@@ -101,3 +101,6 @@ doc.pdf
 
 # Cookbook and examples (development only)
 cookbook/
+
+# GTPlanner session data
+.gtplanner_sessions/

@@ -127,3 +127,68 @@ class ResearchFlow:
                 "error": str(e),
                 "flow_result": None
             }
+
+    def run(self, shared: dict) -> bool:
+        """
+        运行研究调研流程（兼容ReAct系统）
+
+        Args:
+            shared: 共享状态字典
+
+        Returns:
+            bool: 执行是否成功
+        """
+        try:
+            print("🔄 启动研究调研流程...")
+
+            # 从共享状态获取结构化需求
+            structured_requirements = shared.get("structured_requirements", {})
+            if not structured_requirements:
+                print("❌ 缺少结构化需求数据")
+                return False
+
+            # 提取项目信息生成研究关键词
+            project_overview = structured_requirements.get("project_overview", {})
+            project_title = project_overview.get("title", "项目")
+            project_description = project_overview.get("description", "")
+
+            # 生成研究关键词
+            search_keywords = [
+                f"{project_title} 技术方案",
+                f"{project_title} 架构设计",
+                "最佳实践",
+                "技术选型"
+            ]
+
+            # 分析需求
+            analysis_requirements = f"针对{project_title}项目进行技术调研，项目描述：{project_description}"
+
+            # 执行研究
+            research_results = self.process_research_keywords(search_keywords, analysis_requirements)
+
+            # 保存结果到共享状态
+            shared["research_findings"] = {
+                "topics": search_keywords,
+                "results": research_results,
+                "summary": f"完成了{len(search_keywords)}个主题的技术调研"
+            }
+
+            print("✅ 研究调研流程完成")
+            return True
+
+        except Exception as e:
+            print(f"❌ 研究调研流程失败: {e}")
+            shared["research_error"] = str(e)
+            return False
+
+    async def run_async(self, shared: dict) -> bool:
+        """异步运行研究调研流程"""
+        import asyncio
+        import concurrent.futures
+
+        # 在线程池中运行同步方法
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            result = await asyncio.get_event_loop().run_in_executor(
+                executor, self.run, shared
+            )
+        return result

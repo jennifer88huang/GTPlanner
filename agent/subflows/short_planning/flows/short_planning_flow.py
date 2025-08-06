@@ -7,7 +7,7 @@ Short Planning Flow
 FunctionAnalysisNode → StepGenerationNode → ConfirmationFormattingNode
 """
 
-from pocketflow import Flow
+from pocketflow import Flow, AsyncFlow
 from ..nodes.function_analysis_node import FunctionAnalysisNode
 from ..nodes.step_generation_node import StepGenerationNode
 from ..nodes.confirmation_formatting_node import ConfirmationFormattingNode
@@ -37,37 +37,44 @@ class ShortPlanningFlow:
         # 错误处理：任何节点返回"error"都结束流程
         # pocketflow会自动处理没有后续节点的情况
         
-        # 创建流程
-        self.flow = Flow(start=function_analysis_node)
+        # 创建异步流程（因为包含异步节点）
+        self.flow = AsyncFlow(start=function_analysis_node)
     
-    def run(self, shared: dict) -> str:
+    async def run_async(self, shared: dict) -> str:
         """
-        运行短规划流程
-        
+        异步运行短规划流程
+
         Args:
             shared: pocketflow字典共享变量
-            
+
         Returns:
             流程执行结果
         """
         try:
-            print("🚀 启动简化短规划流程...")
-            
+            print("🚀 启动异步简化短规划流程...")
+
             # 验证输入数据
             if not self._validate_input(shared):
                 raise ValueError("输入数据验证失败")
-            
-            # 执行pocketflow流程
-            result = self.flow.run(shared)
-            
-            print("✅ 短规划流程执行完成")
+
+            # 执行异步pocketflow流程
+            result = await self.flow._run_async(shared)
+
+            print("✅ 异步短规划流程执行完成")
             return result
-            
+
         except Exception as e:
-            print(f"❌ 短规划流程执行失败: {e}")
+            print(f"❌ 异步短规划流程执行失败: {e}")
             # 在共享状态中记录错误
             shared["short_planning_flow_error"] = str(e)
             raise e
+
+    def run(self, shared: dict) -> str:
+        """
+        同步运行短规划流程（兼容性）
+        """
+        import asyncio
+        return asyncio.run(self.run_async(shared))
     
     def _validate_input(self, shared: dict) -> bool:
         """验证输入数据"""

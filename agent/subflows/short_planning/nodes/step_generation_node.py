@@ -12,12 +12,12 @@ from typing import Dict, Any, List
 
 # 添加utils路径以导入call_llm
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'utils'))
-from call_llm import call_llm_async
-
-from pocketflow import Node
 
 
-class StepGenerationNode(Node):
+from pocketflow import AsyncNode
+
+
+class StepGenerationNode(AsyncNode):
     """步骤生成节点 - 使用LLM生成实现步骤序列"""
     
     def __init__(self):
@@ -25,7 +25,7 @@ class StepGenerationNode(Node):
         self.name = "StepGenerationNode"
         self.description = "基于功能模块分析生成实现步骤序列"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取功能模块分析结果"""
         try:
             # 获取功能模块分析结果
@@ -45,7 +45,7 @@ class StepGenerationNode(Node):
         except Exception as e:
             return {"error": f"Step generation preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
         """执行步骤生成"""
         try:
             if "error" in prep_result:
@@ -54,10 +54,10 @@ class StepGenerationNode(Node):
             function_modules = prep_result["function_modules"]
             structured_requirements = prep_result["structured_requirements"]
             
-            # 使用LLM生成实现步骤
-            implementation_steps = asyncio.run(self._generate_steps_with_llm(
+            # 使用异步LLM生成实现步骤
+            implementation_steps = await self._generate_steps_with_llm(
                 function_modules, structured_requirements
-            ))
+            )
             
             return {
                 "implementation_steps": implementation_steps,
@@ -67,7 +67,7 @@ class StepGenerationNode(Node):
         except Exception as e:
             raise e
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """保存步骤生成结果"""
         if "error" in exec_res:
             shared["step_generation_error"] = exec_res["error"]
@@ -80,19 +80,20 @@ class StepGenerationNode(Node):
         print(f"✅ 实现步骤生成完成，包含 {steps_count} 个步骤")
         return "success"
     
-    async def _generate_steps_with_llm(self, function_modules: Dict[str, Any], 
+    async def _generate_steps_with_llm(self, function_modules: Dict[str, Any],
                                      structured_requirements: Dict[str, Any]) -> Dict[str, Any]:
-        """使用LLM生成实现步骤"""
-        
+        """使用异步LLM生成实现步骤"""
+
         # 构建LLM提示词
         prompt = self._build_step_generation_prompt(function_modules, structured_requirements)
-        
-        # 调用LLM
+
+        # 调用异步LLM
+        from call_llm import call_llm_async
         result = await call_llm_async(prompt, is_json=True)
-        
+
         # 验证和处理结果
         validated_result = self._validate_steps_result(result, function_modules)
-        
+
         return validated_result
     
     def _build_step_generation_prompt(self, function_modules: Dict[str, Any], 
