@@ -156,21 +156,23 @@ class LLMStructureNode(Node):
     def _call_llm_structure(self, prompt: str) -> Dict[str, Any]:
         """调用LLM进行结构化处理"""
         try:
-            # 调用LLM API进行结构化处理
-            import asyncio
+            # 导入同步版本的LLM调用
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'utils'))
+            from call_llm import call_llm
 
-            # 如果在异步环境中，直接调用
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # 在已有事件循环中，使用同步方式调用
-                    result = self._call_llm_sync(prompt)
-                else:
-                    # 创建新的事件循环
-                    result = asyncio.run(call_llm_async(prompt, is_json=True))
-            except RuntimeError:
-                # 没有事件循环，创建新的
-                result = asyncio.run(call_llm_async(prompt, is_json=True))
+            # 使用同步版本调用LLM
+            result = call_llm(prompt, is_json=True)
+
+            # 确保返回的是字典格式
+            if isinstance(result, str):
+                import json
+                try:
+                    result = json.loads(result)
+                except json.JSONDecodeError:
+                    print(f"❌ LLM返回的不是有效JSON: {result[:200]}...")
+                    raise ValueError("LLM返回的结果格式不符合要求")
 
             # 验证LLM返回的结果格式
             if isinstance(result, dict) and self._validate_llm_result(result):

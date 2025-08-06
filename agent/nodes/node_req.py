@@ -22,7 +22,7 @@ from ..shared import get_shared_state
 
 # 添加utils路径以导入call_llm
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'utils'))
-from call_llm import call_llm_async
+from call_llm import call_llm
 
 
 class NodeReq(Node):
@@ -125,8 +125,8 @@ class NodeReq(Node):
             raise ValueError("Empty dialogue text")
 
         try:
-            # 使用LLM进行需求分析
-            analysis_result = asyncio.run(self._analyze_requirements_with_llm(dialogue_text))
+            # 使用LLM进行需求分析 - 修复异步调用问题
+            analysis_result = self._analyze_requirements_with_llm_sync(dialogue_text)
 
             return {
                 "extracted_entities": analysis_result.get("extracted_entities", {}),
@@ -146,7 +146,7 @@ class NodeReq(Node):
         except Exception as e:
             raise RuntimeError(f"LLM requirement extraction failed: {str(e)}")
 
-    async def _analyze_requirements_with_llm(self, dialogue_text: str) -> Dict[str, Any]:
+    def _analyze_requirements_with_llm_sync(self, dialogue_text: str) -> Dict[str, Any]:
         """使用LLM分析需求"""
 
         prompt = f"""
@@ -198,7 +198,27 @@ class NodeReq(Node):
 """
 
         try:
-            result = await call_llm_async(prompt, is_json=True)
+            result = call_llm(prompt, is_json=True)
+
+            # 确保返回的是字典格式
+            if isinstance(result, str):
+                import json
+                try:
+                    result = json.loads(result)
+                except json.JSONDecodeError:
+                    print(f"❌ LLM返回的不是有效JSON: {result[:200]}...")
+                    # 返回默认结构
+                    result = {
+                        "extracted_entities": {},
+                        "functional_requirements": {},
+                        "non_functional_requirements": {},
+                        "user_intent": {},
+                        "project_overview": {},
+                        "confidence_score": 0.1,
+                        "text_complexity": "unknown",
+                        "processing_time": 0
+                    }
+
             return result
         except Exception as e:
             # LLM调用失败，直接抛出异常
@@ -219,42 +239,23 @@ class NodeReq(Node):
         """
         try:
             if "error" in exec_res:
-                shared["requirements_extraction_error"] = exec_res["error"]
+                shared["requirement_analysis_error"] = exec_res["error"]
                 return "error"
 
-            # 保存提取的需求信息到共享变量
-            shared["extracted_requirements"] = exec_res
+            # 更新共享变量
+            shared["extracted_entities"] = exec_res["extracted_entities"]
+            shared["functional_requirements"] = exec_res["functional_requirements"]
+            shared["non_functional_requirements"] = exec_res["non_functional_requirements"]
+            shared["user_intent"] = exec_res["user_intent"]
+            shared["project_overview"] = exec_res["project_overview"]
+            shared["confidence_score"] = exec_res["confidence_score"]
+            shared["extraction_metadata"] = exec_res["extraction_metadata"]
 
-            # 更新用户意图到共享变量
-            user_intent_data = exec_res.get("user_intent", {})
-            if user_intent_data:
-                current_user_intent = shared.get("user_intent", {})
-                current_user_intent.update({
-                    "original_request": user_intent_data.get("original_request", ""),
-                    "extracted_keywords": user_intent_data.get("extracted_keywords", []),
-                    "project_type": user_intent_data.get("project_type", ""),
-                    "complexity_level": user_intent_data.get("complexity_level", "medium"),
-                    "last_updated": exec_res.get("processing_time", 0)
-                })
-                shared["user_intent"] = current_user_intent
-
-            # 如果有结构化需求，也保存到共享变量
-            structured_requirements = exec_res.get("structured_requirements", {})
-            if structured_requirements:
-                shared["structured_requirements"] = structured_requirements
-
-            # 记录处理成功
-            entities = exec_res.get("extracted_entities", {})
-            func_reqs = exec_res.get("functional_requirements", {})
-            core_features_count = len(func_reqs.get("core_features", []))
-
-            print(f"✅ 需求提取完成，识别了 {core_features_count} 个核心功能")
+            # 标记需求分析完成
+            shared["requirement_analysis_complete"] = True
 
             return "success"
 
         except Exception as e:
-            shared["requirements_extraction_error"] = str(e)
-            print(f"❌ NodeReq post处理失败: {e}")
+            shared["requirement_analysis_error"] = str(e)
             return "error"
-    
-

@@ -260,8 +260,34 @@ async def call_llm_stream_async(prompt):
 
 # Synchronous version for backward compatibility
 def call_llm(prompt, conversation_history=None, is_json=False):
-    """Synchronous wrapper for call_llm_async"""
-    return asyncio.run(call_llm_async(prompt, conversation_history, is_json))
+    """Synchronous wrapper for call_llm_async - 处理事件循环冲突"""
+    import concurrent.futures
+    import threading
+
+    try:
+        # 尝试获取当前事件循环
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # 在已有事件循环中，使用线程池执行
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(_run_in_new_loop, call_llm_async(prompt, conversation_history, is_json))
+                return future.result()
+        else:
+            # 没有运行的事件循环，直接运行
+            return asyncio.run(call_llm_async(prompt, conversation_history, is_json))
+    except RuntimeError:
+        # 创建新的事件循环
+        return asyncio.run(call_llm_async(prompt, conversation_history, is_json))
+
+def _run_in_new_loop(coro):
+    """在新的事件循环中运行协程"""
+    new_loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(new_loop)
+        return new_loop.run_until_complete(coro)
+    finally:
+        new_loop.close()
+        asyncio.set_event_loop(None)
 
 
 # Example usage

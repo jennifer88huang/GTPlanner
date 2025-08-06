@@ -123,29 +123,23 @@ flowchart TD
         AA_DocumentGeneration["<b>6. 文档生成</b><br>DocumentGenerationNode<br>📝 生成完整Agent设计文档"]
         AA_Output_Data["<b>最终输出</b><br>- agent_design_document<br>- generated_files<br>- output_directory"]
         AA_Output_End(("End"))
-        n1@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
-        n2@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
-        n3@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
-        n4@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
-        n5@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
-        n6["输出文档节点"]
   end
     Core_Thought -- 决定下一步行动 --> Core_Action
     Core_Observation -- 作为新信息, 喂给下一轮思考 --> Core_Thought
     AA_Input_Start --> AA_Input_Data
     AA_Input_Data --> AA_AgentAnalysis
     AA_AgentAnalysis --> AA_AgentAnalysisOutput
-    AA_AgentAnalysisOutput --> AA_NodeIdentification & n1 & AA_DocumentGeneration
+    AA_AgentAnalysisOutput --> AA_NodeIdentification & AA_DocumentGeneration & AA_FlowDesign & AA_DataStructure & AA_NodeDesign
     AA_NodeIdentification --> AA_NodeIdentificationOutput
-    AA_NodeIdentificationOutput --> AA_FlowDesign & n2 & AA_DocumentGeneration
+    AA_NodeIdentificationOutput --> AA_FlowDesign & AA_DocumentGeneration & AA_DataStructure & AA_NodeDesign
     AA_FlowDesign --> AA_FlowDesignOutput
-    AA_FlowDesignOutput --> AA_DataStructure & n3 & AA_DocumentGeneration
+    AA_FlowDesignOutput --> AA_DataStructure & AA_DocumentGeneration & AA_NodeDesign
     AA_DataStructure --> AA_DataStructureOutput
-    AA_DataStructureOutput --> AA_NodeDesign & n4
+    AA_DataStructureOutput --> AA_NodeDesign & AA_DocumentGeneration
     AA_NodeDesign --> AA_NodeDesignOutput
-    AA_NodeDesignOutput --> AA_DocumentGeneration & n5
+    AA_NodeDesignOutput --> AA_DocumentGeneration
     AA_DocumentGeneration --> AA_Output_Data
-    AA_Output_Data --> AA_Output_End & n6
+    AA_Output_Data --> AA_Output_End
     A -- 用户输入 / 目标 --> Core_Thought
     Core_Action -- Action: 向用户提问/呈现草稿 --> A
     A -- Observation: 用户反馈/确认 --> Core_Observation
@@ -192,13 +186,7 @@ flowchart TD
     SP_ConfirmationFormat --> SP_Output_Data
     SP_Output_Data --> SP_Output_End
     RA_Input_Data -- "<span style=background-color:>search_keywords</span>" --> RA_P_Start
-    AA_DataStructureOutput --> AA_DocumentGeneration
     Core_Thought@{ shape: rect}
-    n1@{ shape: rect}
-    n2@{ shape: rect}
-    n3@{ shape: rect}
-    n4@{ shape: rect}
-    n5@{ shape: rect}
      A:::user
      Core_Thought:::orchestrator
      Core_Action:::orchestrator
@@ -259,12 +247,6 @@ flowchart TD
      AA_Output_Data:::sub_output
      AA_Output_Data:::aa_output
      AA_Output_End:::sub_output
-     n1:::Aqua
-     n2:::Aqua
-     n3:::Aqua
-     n4:::Aqua
-     n5:::Aqua
-     n6:::Aqua
     classDef orchestrator fill:#f9f,stroke:#333,stroke-width:2px
     classDef state fill:#ff9,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5
     classDef specialist fill:#cff,stroke:#333,stroke-width:1px

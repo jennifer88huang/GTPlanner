@@ -38,11 +38,11 @@ class LLMAnalysisNode(Node):
         keyword = prep_res["current_keyword"]
         analysis_requirements = prep_res["analysis_requirements"]
         
-        # 使用LLM进行内容分析
+        # 使用LLM进行内容分析 - 修复异步事件循环冲突
         try:
-            analysis_result = asyncio.run(self._analyze_content_with_llm(
+            analysis_result = self._analyze_content_with_llm_sync(
                 url_content, keyword, analysis_requirements
-            ))
+            )
         except Exception as e:
             print(f"❌ LLM分析失败: {e}")
             # 直接抛出异常，让上级处理
@@ -65,7 +65,7 @@ class LLMAnalysisNode(Node):
         
         return "success"
     
-    async def _analyze_content_with_llm(self, content, keyword, requirements):
+    def _analyze_content_with_llm_sync(self, content, keyword, requirements):
         """使用LLM分析内容"""
         prompt = f"""
 请分析以下网页内容，重点关注与关键词"{keyword}"相关的信息。
@@ -94,7 +94,13 @@ class LLMAnalysisNode(Node):
 """
         
         try:
-            result = await call_llm_async(prompt, is_json=True)
+            # 导入同步版本的LLM调用
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'utils'))
+            from call_llm import call_llm
+
+            result = call_llm(prompt, is_json=True)
             return result
         except Exception as e:
             return {

@@ -63,8 +63,8 @@ class AgentRequirementsAnalysisNode(Node):
             # 构建分析提示词
             prompt = self._build_analysis_prompt(prep_result)
             
-            # 调用LLM分析需求
-            analysis_result = asyncio.run(self._analyze_agent_requirements(prompt))
+            # 调用LLM分析需求 - 修复异步事件循环冲突
+            analysis_result = self._analyze_agent_requirements_sync(prompt)
             
             # 解析分析结果
             agent_analysis = self._parse_analysis_result(analysis_result)
@@ -166,14 +166,22 @@ class AgentRequirementsAnalysisNode(Node):
         
         return prompt
     
-    async def _analyze_agent_requirements(self, prompt: str) -> str:
+    def _analyze_agent_requirements_sync(self, prompt: str) -> str:
         """调用LLM分析Agent需求"""
         try:
-            # 使用重试机制调用LLM
-            result = await call_llm_async(prompt, is_json=True, max_retries=3, retry_delay=2)
+            # 导入同步版本的LLM调用
+            import sys
+            import os
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'utils'))
+            from call_llm import call_llm
+
+            # 使用同步版本调用LLM
+            result = call_llm(prompt, is_json=True)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")
+
+
 
   
     
