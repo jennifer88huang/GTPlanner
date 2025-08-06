@@ -39,21 +39,21 @@ class NodeCompress(Node):
     
     def prep(self, shared) -> Dict[str, Any]:
         """
-        准备阶段：从参数获取压缩配置
-        
+        准备阶段：从pocketflow字典共享变量获取压缩配置
+
         Args:
-            shared: 共享状态对象
-            
+            shared: pocketflow字典共享变量
+
         Returns:
             准备结果字典
         """
         try:
-            # 从节点参数获取压缩配置
-            content = self.params.get("content", "")
-            compression_ratio = self.params.get("compression_ratio", 0.3)
-            focus_keywords = self.params.get("focus_keywords", [])
-            preserve_structure = self.params.get("preserve_structure", True)
-            output_format = self.params.get("output_format", "summary")
+            # 从pocketflow字典共享变量获取压缩配置
+            content = shared.get("content", "")
+            compression_ratio = shared.get("compression_ratio", 0.3)
+            focus_keywords = shared.get("focus_keywords", [])
+            preserve_structure = shared.get("preserve_structure", True)
+            output_format = shared.get("output_format", "summary")
             
             # 如果没有提供内容，从共享状态中获取
             if not content:
@@ -239,36 +239,33 @@ class NodeCompress(Node):
         }
     
     def _extract_content_from_shared_state(self, shared) -> str:
-        """从共享状态中提取需要压缩的内容"""
+        """从pocketflow字典共享变量中提取需要压缩的内容"""
         content_parts = []
-        
-        # 从搜索结果中提取内容
-        if hasattr(shared.research_findings, 'search_results'):
-            for result in shared.research_findings.search_results[:3]:  # 最多3个搜索结果
-                if isinstance(result, dict):
-                    title = result.get("title", "")
-                    summary = result.get("content_summary", "")
-                    if title and summary:
-                        content_parts.append(f"标题: {title}\n内容: {summary}")
-        
+
+        # 从研究发现中提取内容
+        research_findings = shared.get("research_findings", [])
+        if isinstance(research_findings, list):
+            for finding in research_findings[:3]:  # 最多3个研究结果
+                if isinstance(finding, dict):
+                    title = finding.get("title", "")
+                    content = finding.get("content", "")
+                    if title and content:
+                        content_parts.append(f"标题: {title}\n内容: {content[:500]}...")
+
         # 从URL内容中提取
-        if hasattr(shared.research_findings, 'url_contents'):
-            for content in shared.research_findings.url_contents[:2]:  # 最多2个URL内容
-                if isinstance(content, dict):
-                    title = content.get("title", "")
-                    text = content.get("content", "")
-                    if title and text:
-                        content_parts.append(f"页面: {title}\n内容: {text[:500]}")  # 限制长度
-        
+        url_content = shared.get("url_content", "")
+        if url_content:
+            content_parts.append(f"网页内容: {url_content[:1000]}...")
+
         # 从召回文档中提取
-        if hasattr(shared.research_findings, 'recalled_documents'):
-            for doc in shared.research_findings.recalled_documents[:2]:  # 最多2个召回文档
-                if isinstance(doc, dict):
-                    title = doc.get("title", "")
-                    summary = doc.get("content_summary", "")
-                    if title and summary:
-                        content_parts.append(f"文档: {title}\n摘要: {summary}")
-        
+        recalled_documents = shared.get("recalled_documents", [])
+        for doc in recalled_documents[:2]:  # 最多2个召回文档
+            if isinstance(doc, dict):
+                title = doc.get("title", "")
+                content = doc.get("content", "")
+                if title and content:
+                    content_parts.append(f"文档: {title}\n内容: {content[:500]}...")
+
         return "\n\n".join(content_parts) if content_parts else ""
     
     async def _compress_with_llm(self, content: str, compression_ratio: float, 
@@ -311,11 +308,5 @@ class NodeCompress(Node):
             result = await call_llm_async(prompt, is_json=True)
             return result
         except Exception as e:
-            # 如果LLM调用失败，返回基本的压缩结果
-            simple_compressed = content[:target_length] + "..." if len(content) > target_length else content
-            return {
-                "compressed_content": simple_compressed,
-                "key_points": ["LLM压缩失败，使用简单截断"],
-                "preserved_sections": [],
-                "information_density": 0.2
-            }
+            # LLM调用失败，直接抛出异常
+            raise e

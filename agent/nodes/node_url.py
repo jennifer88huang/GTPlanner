@@ -46,20 +46,20 @@ class NodeURL(Node):
     
     def prep(self, shared) -> Dict[str, Any]:
         """
-        准备阶段：从参数获取URL和解析配置
-        
+        准备阶段：从pocketflow字典共享变量获取URL和解析配置
+
         Args:
-            shared: 共享状态对象
-            
+            shared: pocketflow字典共享变量
+
         Returns:
             准备结果字典
         """
         try:
-            # 从节点参数获取URL和配置
-            url = self.params.get("url", "")
-            extraction_type = self.params.get("extraction_type", "full")
-            target_selectors = self.params.get("target_selectors", [])
-            max_content_length = self.params.get("max_content_length", self.max_content_length)
+            # 从pocketflow字典共享变量获取URL和配置
+            url = shared.get("url", "")
+            extraction_type = shared.get("extraction_type", "full")
+            target_selectors = shared.get("target_selectors", [])
+            max_content_length = shared.get("max_content_length", self.max_content_length)
 
             # 如果没有URL参数，尝试从共享变量中获取（子流程模式）
             if not url and isinstance(shared, dict):
@@ -134,9 +134,6 @@ class NodeURL(Node):
                 if len(content) > max_content_length:
                     content = content[:max_content_length] + "..."
 
-                # 从Markdown内容中提取结构化信息
-                extracted_sections = self._extract_sections_from_markdown(content)
-
                 # 构建元数据
                 metadata = {
                     "author": "",
@@ -152,14 +149,13 @@ class NodeURL(Node):
                     "title": page_info.get("title", "无标题"),
                     "content": content,
                     "metadata": metadata,
-                    "extracted_sections": extracted_sections,
                     "processing_status": "success",
                     "processing_time": round(processing_time * 1000),
                     "content_length": len(content)
                 }
             else:
-                # 使用模拟结果
-                return self._generate_mock_result(url, max_content_length)
+                # API未配置，返回错误
+                raise RuntimeError(f"Web API not configured, cannot parse URL: {url}")
             
         except Exception as e:
             raise RuntimeError(f"URL parsing failed: {str(e)}")
@@ -232,98 +228,23 @@ class NodeURL(Node):
     
     def exec_fallback(self, prep_res: Dict[str, Any], exc: Exception) -> Dict[str, Any]:
         """
-        执行失败时的降级处理
-        
+        执行失败时的降级处理 - 直接返回错误
+
         Args:
             prep_res: 准备阶段结果
             exc: 异常对象
-            
+
         Returns:
-            降级结果
+            错误信息
         """
         url = prep_res.get("url", "")
-        
+
         return {
+            "error": f"URL parsing failed for {url}: {str(exc)}",
             "url": url,
-            "title": "解析失败",
-            "content": f"无法解析URL内容: {str(exc)}",
-            "metadata": {
-                "author": "",
-                "publish_date": "",
-                "tags": [],
-                "description": ""
-            },
-            "extracted_sections": {
-                "headings": [],
-                "key_points": [],
-                "code_blocks": []
-            },
-            "processing_status": "failed",
-            "processing_time": 0,
-            "content_length": 0,
-            "fallback_reason": str(exc)
+            "processing_status": "failed"
         }
     
-    def _generate_mock_result(self, url: str, max_content_length: int) -> Dict[str, Any]:
-        """生成模拟URL解析结果"""
-        mock_content = f"这是来自 {url} 的模拟内容。由于API未配置，无法获取真实内容。"
 
-        return {
-            "url": url,
-            "title": f"模拟页面标题 - {url}",
-            "content": mock_content,
-            "metadata": {
-                "author": "",
-                "publish_date": "",
-                "tags": [],
-                "description": "模拟页面描述"
-            },
-            "extracted_sections": {
-                "headings": ["模拟标题1", "模拟标题2"],
-                "key_points": ["模拟要点1", "模拟要点2"],
-                "code_blocks": []
-            },
-            "processing_status": "mock",
-            "processing_time": 100,
-            "content_length": len(mock_content)
-        }
 
-    def _extract_sections_from_markdown(self, markdown_content: str) -> Dict[str, List[str]]:
-        """从Markdown内容中提取结构化信息"""
-        sections = {
-            "headings": [],
-            "key_points": [],
-            "code_blocks": []
-        }
 
-        lines = markdown_content.split('\n')
-
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-
-            # 提取标题（以#开头）
-            if line.startswith('#'):
-                heading = line.lstrip('#').strip()
-                if heading:
-                    sections["headings"].append(heading)
-
-            # 提取列表项（以-或*开头）
-            elif line.startswith(('-', '*', '+')):
-                point = line[1:].strip()
-                if point and len(point) < 200:
-                    sections["key_points"].append(point)
-
-            # 提取代码块（以```包围）
-            elif line.startswith('```') and len(line) > 3:
-                code = line[3:].strip()
-                if code and len(code) < 500:
-                    sections["code_blocks"].append(code)
-
-        # 限制数量
-        sections["headings"] = sections["headings"][:10]
-        sections["key_points"] = sections["key_points"][:20]
-        sections["code_blocks"] = sections["code_blocks"][:5]
-
-        return sections

@@ -43,7 +43,6 @@ shared = {
         "extracted_keywords": ["Python", "机器学习", "API", "数据分析", "自动化"],
         "project_type": "web_application",
         "complexity_level": "medium",
-        "estimated_duration": "3-6个月",
         "key_technologies": ["Python", "机器学习", "数据库", "Web框架"],
         "main_objectives": [
             "实现数据自动导入和清洗",
@@ -191,38 +190,56 @@ shared = {
 
 ## ProcessResearch节点执行过程
 
-### prep()阶段 - 关键词提取
+### prep()阶段 - 关键词提取（基于真实测试结果）
 ```python
-# ProcessResearch.prep()从共享状态提取研究关键词
+# ProcessResearch.prep()从pocketflow字典共享状态提取研究关键词
 extracted_keywords = [
-    # 从user_intent.extracted_keywords获取
+    # 从shared["user_intent"]["extracted_keywords"]获取
     "Python", "机器学习", "API",
-    
-    # 从structured_requirements.project_overview.title获取
+
+    # 从shared["structured_requirements"]["project_overview"]["title"]获取
     "智能数据分析平台",
-    
-    # 从structured_requirements.functional_requirements.core_features获取
-    "数据导入", "数据清洗", "模型训练", "报告生成"
+
+    # 从shared["structured_requirements"]["functional_requirements"]["core_features"]获取
+    "模型训练"  # 只取前2个核心功能，"数据导入"已在前面
 ]
 
 # 去重并限制数量（最多5个）
-research_keywords = ["数据导入", "模型训练", "API", "智能数据分析平台", "Python"]
+# 真实测试结果：['智能数据分析平台', '模型训练', 'Python', '机器学习', 'API']
+research_keywords = ["智能数据分析平台", "模型训练", "Python", "机器学习", "API"]
 ```
 
-### exec()阶段 - 研究执行
+### exec()阶段 - 研究执行（基于真实测试结果）
 ```python
 # 对每个关键词执行Research Agent子流程
-# 并发处理5个关键词，成功处理4个
+# 并发处理5个关键词，全部成功处理（测试结果：5/5成功）
 research_result = {
     "success": True,
+    "processing_success": True,
+    "keywords": ["智能数据分析平台", "模型训练", "Python", "机器学习", "API"],
     "research_report": [
-        # 4个成功的关键词报告
+        # 5个成功的关键词报告，每个包含：
+        # - keyword: 关键词
+        # - url: 分析的网页URL
+        # - title: 网页标题
+        # - content: 网页内容（截取前1000字符）
+        # - analysis: LLM分析结果（洞察、技术细节、建议等）
+        # - processed_at: 处理时间戳
     ],
     "aggregated_summary": {
-        # 聚合后的总结
+        "overall_summary": "完成了5个关键词的研究分析，平均相关性: 0.XX",
+        "key_findings": [...],      # 去重后的关键洞察
+        "technical_insights": [...], # 去重后的技术细节
+        "recommendations": [...],    # 去重后的建议
+        "coverage_analysis": {
+            "total_keywords": 5,
+            "successful_keywords": 5,
+            "average_relevance": 0.XX,
+            "high_quality_results": X
+        }
     },
     "total_keywords": 5,
-    "successful_keywords": 4
+    "successful_keywords": 5
 }
 ```
 

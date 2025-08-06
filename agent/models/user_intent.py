@@ -17,7 +17,6 @@ class UserIntent:
     extracted_keywords: List[str] = field(default_factory=list)
     domain_context: str = ""
     complexity_level: str = "medium"  # "simple" | "medium" | "complex"
-    estimated_effort: str = "medium"  # "low" | "medium" | "high"
     last_updated: str = ""
 
     def add_keyword(self, keyword: str):
@@ -35,4 +34,4 @@ class UserIntent:
 
     def is_complex_task(self) -> bool:
         """判断是否为复杂任务"""
-        return self.complexity_level == "complex" or self.estimated_effort == "high"
+        return self.complexity_level == "complex"

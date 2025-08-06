@@ -31,24 +31,12 @@ print(state.to_dict())
 from .shared import SharedState, get_shared_state, reset_shared_state
 from .gtplanner import GTPlanner
 
-# 也可以导入数据模型，方便外部使用
-from .models import (
-    DialogueHistory, DialogueMessage, UserIntent,
-    StructuredRequirements, ResearchFindings, ArchitectureDraft
-)
 
 __all__ = [
     'SharedState',
     'get_shared_state',
     'reset_shared_state',
     'GTPlanner',
-    # 数据模型
-    'DialogueHistory',
-    'DialogueMessage',
-    'UserIntent',
-    'StructuredRequirements',
-    'ResearchFindings',
-    'ArchitectureDraft'
 ]
 
 __version__ = "1.0.0"

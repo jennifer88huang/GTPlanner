@@ -55,8 +55,7 @@ agent/
 - **RequirementsAnalysisFlow**: 需求分析处理流程
 - **ShortPlanningFlow**: 短规划生成和确认流程
 - **ResearchFlow**: 信息研究和综合流程
-- **ArchitectureFlow**: 架构设计和验证流程
-- **DocumentationFlow**: 文档格式化和生成流程
+- **ArchitectureFlow**: 架构设计和文档生成流程（集成了文档生成功能）
 
 ### 4. 主控制流程 (flows/)
 - **OrchestratorReActFlow**: 实现ReAct循环（思考-行动-观察）

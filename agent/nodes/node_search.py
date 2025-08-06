@@ -39,7 +39,7 @@ class NodeSearch(Node):
         except ValueError:
             self.search_client = None
             self.search_available = False
-            print("⚠️ 搜索API未配置，将使用模拟结果")
+            print("⚠️ 搜索API未配置")
 
         # 搜索配置
         self.default_max_results = 10
@@ -54,21 +54,21 @@ class NodeSearch(Node):
     
     def prep(self, shared) -> Dict[str, Any]:
         """
-        准备阶段：从参数或共享状态获取搜索关键词
-        
+        准备阶段：从pocketflow字典共享变量获取搜索关键词
+
         Args:
-            shared: 共享状态对象
-            
+            shared: pocketflow字典共享变量
+
         Returns:
             准备结果字典
         """
         try:
-            # 从节点参数获取搜索配置
-            search_keywords = self.params.get("search_keywords", [])
-            search_type = self.params.get("search_type", "web")
-            max_results = self.params.get("max_results", self.default_max_results)
-            language = self.params.get("language", self.default_language)
-            
+            # 从pocketflow字典共享变量获取搜索配置
+            search_keywords = shared.get("search_keywords", [])
+            search_type = shared.get("search_type", "web")
+            max_results = shared.get("max_results", self.default_max_results)
+            language = shared.get("language", self.default_language)
+
             # 如果没有提供关键词，从共享状态中提取
             if not search_keywords:
                 search_keywords = self._extract_keywords_from_shared_state(shared)
@@ -156,19 +156,16 @@ class NodeSearch(Node):
 
                         all_results.extend(formatted_results)
                     else:
-                        # 使用模拟搜索结果
-                        mock_results = self._generate_mock_results(keyword, max_results)
-                        all_results.extend(mock_results)
+                        # 搜索API不可用，跳过此关键词
+                        print(f"⚠️ 搜索API不可用，跳过关键词: {keyword}")
+                        continue
 
                     # 避免请求过于频繁
                     time.sleep(0.5)
 
                 except Exception as e:
                     # 单个关键词搜索失败不影响其他关键词
-                    print(f"Search failed for keyword '{keyword}': {str(e)}")
-                    # 生成模拟结果作为降级
-                    mock_results = self._generate_mock_results(keyword, max_results)
-                    all_results.extend(mock_results)
+                    print(f"❌ 搜索失败，关键词 '{keyword}': {str(e)}")
                     continue
             
             # 去重和排序
@@ -272,47 +269,22 @@ class NodeSearch(Node):
     
     def exec_fallback(self, prep_res: Dict[str, Any], exc: Exception) -> Dict[str, Any]:
         """
-        执行失败时的降级处理
+        执行失败时的降级处理 - 直接返回错误
 
         Args:
             prep_res: 准备阶段结果
             exc: 异常对象
 
         Returns:
-            降级结果
+            错误信息
         """
-        # 返回空的搜索结果
         return {
+            "error": f"Search execution failed: {str(exc)}",
             "search_results": [],
-            "total_found": 0,
-            "search_time": 0,
-            "keywords_processed": 0,
-            "fallback_reason": str(exc),
-            "deduplication_stats": {
-                "original_count": 0,
-                "deduplicated_count": 0,
-                "final_count": 0
-            }
+            "total_found": 0
         }
 
-    def _generate_mock_results(self, keyword: str, max_results: int) -> List[Dict[str, Any]]:
-        """生成模拟搜索结果"""
-        mock_results = []
 
-        for i in range(min(max_results, 3)):  # 最多3个模拟结果
-            result = {
-                "title": f"{keyword} - 相关资源 {i+1}",
-                "url": f"https://example.com/{keyword.replace(' ', '-')}-{i+1}",
-                "snippet": f"关于{keyword}的详细介绍和实现方案，包含最佳实践和案例分析。",
-                "search_keyword": keyword,
-                "rank": i + 1,
-                "source_type": "docs" if i % 2 == 0 else "blog",
-                "content": f"这是关于{keyword}的详细内容，包含技术细节和实现指南。"
-            }
-            result["relevance_score"] = self._calculate_relevance_score(result, keyword)
-            mock_results.append(result)
-
-        return mock_results
 
     def _classify_source_type(self, url: str) -> str:
         """分类信息源类型"""

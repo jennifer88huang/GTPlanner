@@ -18,7 +18,7 @@ import sys
 import os
 from typing import Dict, List, Any, Optional
 from pocketflow import Node
-from ..shared import get_shared_state, DialogueMessage
+from ..shared import get_shared_state
 
 # 添加utils路径以导入call_llm
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'utils'))
@@ -38,42 +38,63 @@ class NodeReq(Node):
         """
         super().__init__(max_retries=max_retries, wait=wait)
     
-    def prep(self, shared) -> Dict[str, Any]:
+    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """
-        准备阶段：从共享状态获取对话文本
-        
+        准备阶段：从pocketflow字典共享变量获取对话文本
+
         Args:
-            shared: 共享状态对象
-            
+            shared: pocketflow字典共享变量
+
         Returns:
             准备结果字典
         """
         try:
-            # 获取对话历史
-            dialogue_history = shared.dialogue_history.messages
-            
-            # 提取用户消息
-            user_messages = [msg for msg in dialogue_history if msg.role == "user"]
-            
-            if not user_messages:
+            # 从字典共享变量获取对话历史
+            dialogue_history = shared.get("dialogue_history")
+            user_intent = shared.get("user_intent", {})
+
+            # 处理字典格式的对话历史
+            if not isinstance(dialogue_history, dict) or "messages" not in dialogue_history:
                 return {
-                    "error": "No user messages found",
+                    "error": "Invalid dialogue history: expected dict with messages",
                     "dialogue_text": "",
                     "context_history": [],
                     "extraction_focus": ["entities", "functions", "constraints"]
                 }
-            
-            # 合并所有用户消息作为对话文本
-            dialogue_text = " ".join([msg.content for msg in user_messages])
-            
-            # 构建上下文历史
-            context_history = [msg.content for msg in dialogue_history[-5:]]  # 最近5条消息
-            
+
+            # 获取所有消息
+            all_messages = dialogue_history.get("messages", [])
+            if not all_messages:
+                return {
+                    "error": "No messages found",
+                    "dialogue_text": "",
+                    "context_history": [],
+                    "extraction_focus": ["entities", "functions", "constraints"]
+                }
+
+            # 获取完整的对话文本（包含用户和助手的所有消息）
+            dialogue_text = "\n".join([
+                f"{msg['role']}: {msg['content']}" for msg in all_messages
+            ])
+
+            # 获取最近的消息作为上下文
+            recent_messages = all_messages[-10:] if len(all_messages) > 10 else all_messages
+            context_history = [f"{msg['role']}: {msg['content']}" for msg in recent_messages]
+            message_count = len(all_messages)
+
+            if not dialogue_text.strip():
+                return {
+                    "error": "Empty dialogue text",
+                    "dialogue_text": "",
+                    "context_history": [],
+                    "extraction_focus": ["entities", "functions", "constraints"]
+                }
+
             return {
                 "dialogue_text": dialogue_text,
                 "context_history": context_history,
                 "extraction_focus": ["entities", "functions", "constraints"],
-                "message_count": len(user_messages),
+                "message_count": message_count,
                 "total_length": len(dialogue_text)
             }
             
@@ -129,9 +150,9 @@ class NodeReq(Node):
         """使用LLM分析需求"""
 
         prompt = f"""
-请分析以下用户需求对话，提取结构化的需求信息。请以JSON格式返回分析结果。
+请分析以下完整的对话历史，提取结构化的项目需求信息。对话包含用户和助手的交互，请重点关注用户的需求表达和项目要求。
 
-用户对话内容：
+完整对话历史：
 {dialogue_text}
 
 请按照以下JSON结构返回分析结果：
@@ -155,8 +176,7 @@ class NodeReq(Node):
         "primary_goal": "主要目标",
         "intent_category": "planning/analysis/design/research",
         "domain_context": "领域上下文",
-        "complexity_level": "simple/medium/complex",
-        "estimated_effort": "low/medium/high"
+        "complexity_level": "simple/medium/complex"
     }},
     "project_overview": {{
         "title": "项目标题",
@@ -181,36 +201,16 @@ class NodeReq(Node):
             result = await call_llm_async(prompt, is_json=True)
             return result
         except Exception as e:
-            # 如果LLM调用失败，返回基本的结构
-            return {
-                "extracted_entities": {"business_objects": [], "actors": ["用户"], "systems": ["系统"]},
-                "functional_requirements": {"core_features": ["基础功能"], "user_stories": [], "workflows": []},
-                "non_functional_requirements": {"performance": [], "security": [], "scalability": []},
-                "user_intent": {
-                    "primary_goal": "系统开发需求",
-                    "intent_category": "planning",
-                    "domain_context": "通用",
-                    "complexity_level": "medium",
-                    "estimated_effort": "medium"
-                },
-                "project_overview": {
-                    "title": "用户需求项目",
-                    "description": "基于用户对话的项目需求",
-                    "scope": "待明确",
-                    "objectives": [],
-                    "success_criteria": []
-                },
-                "confidence_score": 0.1,
-                "text_complexity": "unknown",
-                "processing_time": 0
-            }
+            # LLM调用失败，直接抛出异常
+            print(f"❌ LLM调用失败: {e}")
+            raise e
 
-    def post(self, shared, prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """
-        后处理阶段：将LLM分析结果更新到共享状态
+        后处理阶段：将LLM分析结果更新到pocketflow字典共享变量
 
         Args:
-            shared: 共享状态对象
+            shared: pocketflow字典共享变量
             prep_res: 准备阶段结果
             exec_res: 执行阶段结果
 
@@ -219,123 +219,42 @@ class NodeReq(Node):
         """
         try:
             if "error" in exec_res:
-                shared.record_error(Exception(exec_res["error"]), "NodeReq.exec")
+                shared["requirements_extraction_error"] = exec_res["error"]
                 return "error"
 
-            # 更新用户意图（从LLM分析结果中获取）
+            # 保存提取的需求信息到共享变量
+            shared["extracted_requirements"] = exec_res
+
+            # 更新用户意图到共享变量
             user_intent_data = exec_res.get("user_intent", {})
-            shared.user_intent.primary_goal = user_intent_data.get("primary_goal", "")
-            shared.user_intent.intent_category = user_intent_data.get("intent_category", "planning")
-            shared.user_intent.confidence_level = exec_res.get("confidence_score", 0.5)
-            shared.user_intent.domain_context = user_intent_data.get("domain_context", "")
-            shared.user_intent.complexity_level = user_intent_data.get("complexity_level", "medium")
-            shared.user_intent.estimated_effort = user_intent_data.get("estimated_effort", "medium")
-            shared.user_intent.last_updated = shared.dialogue_history.last_activity
+            if user_intent_data:
+                current_user_intent = shared.get("user_intent", {})
+                current_user_intent.update({
+                    "original_request": user_intent_data.get("original_request", ""),
+                    "extracted_keywords": user_intent_data.get("extracted_keywords", []),
+                    "project_type": user_intent_data.get("project_type", ""),
+                    "complexity_level": user_intent_data.get("complexity_level", "medium"),
+                    "last_updated": exec_res.get("processing_time", 0)
+                })
+                shared["user_intent"] = current_user_intent
 
-            # 从实体中提取关键词
+            # 如果有结构化需求，也保存到共享变量
+            structured_requirements = exec_res.get("structured_requirements", {})
+            if structured_requirements:
+                shared["structured_requirements"] = structured_requirements
+
+            # 记录处理成功
             entities = exec_res.get("extracted_entities", {})
-            keywords = []
-            keywords.extend(entities.get("business_objects", []))
-            keywords.extend(entities.get("actors", []))
-            keywords.extend(entities.get("systems", []))
-            shared.user_intent.extracted_keywords = keywords[:10]  # 限制数量
-
-            # 更新项目概览（从LLM分析结果中获取）
-            project_overview_data = exec_res.get("project_overview", {})
-            shared.structured_requirements.project_overview.title = project_overview_data.get("title", "")
-            shared.structured_requirements.project_overview.description = project_overview_data.get("description", "")
-            shared.structured_requirements.project_overview.scope = project_overview_data.get("scope", "")
-            shared.structured_requirements.project_overview.objectives = project_overview_data.get("objectives", [])
-            shared.structured_requirements.project_overview.success_criteria = project_overview_data.get("success_criteria", [])
-
-            # 更新功能需求
             func_reqs = exec_res.get("functional_requirements", {})
-            for feature_name in func_reqs.get("core_features", []):
-                shared.structured_requirements.functional_requirements.add_feature(
-                    name=feature_name,
-                    description=f"基于用户需求分析的{feature_name}",
-                    priority="medium"
-                )
+            core_features_count = len(func_reqs.get("core_features", []))
 
-            # 更新非功能需求
-            non_func_reqs = exec_res.get("non_functional_requirements", {})
-            for perf_req in non_func_reqs.get("performance", []):
-                shared.structured_requirements.non_functional_requirements.add_performance_requirement("general", perf_req)
-            for sec_req in non_func_reqs.get("security", []):
-                shared.structured_requirements.non_functional_requirements.add_security_requirement("general", sec_req)
-
-            # 设置分析元数据
-            shared.structured_requirements.analysis_metadata = {
-                "created_by": "NodeReq",
-                "created_at": shared.dialogue_history.last_activity,
-                "version": "1.0",
-                "validation_status": "extracted",
-                "confidence_score": exec_res.get("confidence_score", 0.5),
-                "extraction_metadata": exec_res.get("extraction_metadata", {}),
-                "llm_analysis": True
-            }
-
-            # 添加系统消息记录处理结果
-            shared.add_system_message(
-                f"LLM需求解析完成，置信度: {exec_res.get('confidence_score', 0.5):.2f}",
-                agent_source="NodeReq",
-                entities_count=len(entities.get("business_objects", [])),
-                features_count=len(func_reqs.get("core_features", [])),
-                llm_analysis=True
-            )
+            print(f"✅ 需求提取完成，识别了 {core_features_count} 个核心功能")
 
             return "success"
 
         except Exception as e:
-            shared.record_error(e, "NodeReq.post")
+            shared["requirements_extraction_error"] = str(e)
+            print(f"❌ NodeReq post处理失败: {e}")
             return "error"
     
-    def exec_fallback(self, prep_res: Dict[str, Any], exc: Exception) -> Dict[str, Any]:
-        """
-        执行失败时的降级处理
-        
-        Args:
-            prep_res: 准备阶段结果
-            exc: 异常对象
-            
-        Returns:
-            降级结果
-        """
-        return {
-            "extracted_entities": {
-                "business_objects": [],
-                "actors": ["用户"],  # 默认至少有用户
-                "systems": ["系统"]   # 默认至少有系统
-            },
-            "functional_requirements": {
-                "core_features": ["基础功能"],
-                "user_stories": [],
-                "workflows": []
-            },
-            "non_functional_requirements": {
-                "performance": [],
-                "security": [],
-                "scalability": []
-            },
-            "user_intent": {
-                "primary_goal": "系统开发需求",
-                "intent_category": "planning",
-                "domain_context": "通用",
-                "complexity_level": "medium",
-                "estimated_effort": "medium"
-            },
-            "project_overview": {
-                "title": "需求分析失败",
-                "description": "由于分析失败，无法提取详细需求",
-                "scope": "待明确",
-                "objectives": [],
-                "success_criteria": []
-            },
-            "confidence_score": 0.1,
-            "fallback_reason": str(exc),
-            "extraction_metadata": {
-                "processing_time": 0,
-                "text_complexity": "unknown",
-                "extraction_method": "fallback"
-            }
-        }
+

@@ -79,19 +79,19 @@ class GTPlanner:
     
     def get_dialogue_history(self) -> Dict[str, Any]:
         """获取对话历史"""
-        return self.shared_state.dialogue_history.__dict__
-    
+        return self.shared_state.dialogue_history
+
     def get_requirements(self) -> Dict[str, Any]:
         """获取结构化需求"""
-        return self.shared_state._dataclass_to_dict(self.shared_state.structured_requirements)
-    
+        return self.shared_state.structured_requirements
+
     def get_research_findings(self) -> Dict[str, Any]:
         """获取研究发现"""
-        return self.shared_state._dataclass_to_dict(self.shared_state.research_findings)
-    
+        return self.shared_state.research_findings
+
     def get_architecture_draft(self) -> Dict[str, Any]:
         """获取架构草稿"""
-        return self.shared_state._dataclass_to_dict(self.shared_state.architecture_draft)
+        return self.shared_state.architecture_draft
     
     def reset(self):
         """重置系统状态"""

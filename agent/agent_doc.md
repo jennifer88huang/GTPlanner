@@ -18,8 +18,10 @@
 
 - **智能化需求分析**：自动从自然语言中提取结构化需求
 - **多源信息研究**：整合网络搜索、知识库召回等多种信息源
-- **自动化架构设计**：基于需求和研究结果生成Mermaid流程图
+- **自动化架构设计**：基于需求和研究结果生成Mermaid流程图和完整文档
 - **用户确认机制**：通过Short Planning Agent确保需求理解一致性
+- **环环相扣的设计流程**：Architecture Agent采用5步串行设计，每步都基于前面的结果
+- **一体化架构和文档生成**：合并了Documentation Agent，实现架构设计和文档生成的紧密集成
 - **容错性设计**：完善的错误处理和恢复机制
 - **高性能架构**：支持水平扩展和性能优化
 
@@ -38,30 +40,23 @@ flowchart TD
  subgraph subGraph0["用户交互层 (User Interaction Layer)"]
         A["User"]
   end
-
- subgraph subGraph1["核心控制与状态管理 (The Core Loop - ReAct Powered)"]
-    direction LR
-    subgraph Orchestrator_ReAct_Loop ["Orchestrator Agent 内部 ReAct 循环"]
-        direction TB
-        Core_Thought["<b>Thought (思考)</b><br>1. 我的最终目标是什么?<br>2. 审视共享变量(State), 我已知什么?<br>3. 基于目标和已知信息, 下一步最佳行动是什么?<br><i>(e.g., '需求还不明确, 我需要先做需求分析')</i>"]
+ subgraph Orchestrator_ReAct_Loop["Orchestrator Agent 内部 ReAct 循环"]
+    direction TB
+        Core_Thought@{ label: "<b>Thought (思考)</b><br>1. 我的最终目标是什么?<br>2. 审视共享变量(State), 我已知什么?<br>3. 基于目标和已知信息, 下一步最佳行动是什么?<br><i>(e.g., '需求还不明确, 我需要先做需求分析')</i>" }
         Core_Action["<b>Action (行动)</b><br>执行思考后决定的动作:<br>- 调用一个专家Agent<br>- 向用户提问/确认<br>- 给出最终答案"]
         Core_Observation["<b>Observation (观察)</b><br>接收行动的结果:<br>- 专家Agent返回的数据<br>- 用户的回答<br>- 工具执行的错误信息"]
-
-        Core_Thought -- "决定下一步行动" --> Core_Action
-        Core_Observation -- "作为新信息, 喂给下一轮思考" --> Core_Thought
-    end
-    
-    C[("<b>Session State / Shared Variables</b><br>(Single Source of Truth)<br>- dialogue_history<br>- user_intent<br>- structured_requirements<br>- research_findings<br>- architecture_draft: {mermaid, nodes, vars}")]
- end
-
+  end
+ subgraph subGraph1["核心控制与状态管理 (The Core Loop - ReAct Powered)"]
+    direction LR
+        Orchestrator_ReAct_Loop
+        C[("<b>Session State / Shared Variables</b><br>(Single Source of Truth)<br>- dialogue_history<br>- user_intent<br>- structured_requirements<br>- research_findings<br>- architecture_draft: {mermaid, nodes, vars}")]
+  end
  subgraph subGraph2["专业智能体 (Specialist Agents - 作为Orchestrator可调用的高级工具)"]
         D("<b>Requirements Analysis Agent</b><br>提炼/结构化需求<hr><b>内部变量:</b><br>- raw_text_input<br>- extracted_entities<br>- structured_output_draft")
-        SP("<b>Short Planning Agent</b><br>生成简洁规划供用户确认<hr><b>内部变量:</b><br>- structured_requirements<br>- planning_draft<br>- confirmation_document")
+        SP("<b>Short Planning Agent</b><br>生成功能导向的实现步骤供用户确认<hr><b>内部变量:</b><br>- structured_requirements<br>- function_modules<br>- implementation_steps<br>- confirmation_document")
         E["<b>Research Agent</b><br>信息搜集与分析<hr><b>内部变量:</b><br>- search_queries<br>- raw_search_results<br>- compressed_context<br>- synthesis_report_draft"]
-        F("<b>Architecture Agent</b><br>设计图逻辑/节点/变量<hr><b>内部变量:</b><br>- design_constraints<br>- generated_mermaid_code<br>- generated_nodes_list<br>- generated_vars_list")
-        G("<b>Documentation Agent</b><br>格式化并生成最终文档<hr><b>内部变量:</b><br>- final_data_input<br>- formatted_req_md<br>- formatted_mermaid_md<br>- formatted_nodes_json")
+        F("<b>Architecture Agent</b><br>环环相扣的架构设计和文档生成<hr><b>内部变量:</b><br>- agent_analysis<br>- identified_nodes<br>- flow_design<br>- data_structure<br>- detailed_nodes<br>- agent_design_document")
   end
-  
  subgraph subGraph3["原子能力节点 (Tool Layer)"]
         Node_Req["需求解析节点"]
         Node_Search["搜索引擎节点"]
@@ -70,35 +65,26 @@ flowchart TD
         Node_Compress["上下文压缩节点"]
         Node_Output["输出文档节点"]
   end
-  
- subgraph subGraph4["最终产出物 (Final Artifacts)"]
-        Out_Desc[/"需求描述.md"/]
-        Out_Mermaid[/"图编排.md"/]
-        Out_Nodes[/"节点设计.json"/]
-        Out_Vars[/"共享变量.json"/]
+ subgraph RA_Parallel["RA_Parallel"]
+    direction TB
+        RA_P_Start("fa:fa-cogs Start Keyword Task")
+        RA_P_Search["<b>2a. 调用搜索引擎节点</b>"]
+        RA_P_SearchResult[("<b>首条搜索结果</b><br>{url, title}")]
+        RA_P_URL["<b>2b. 调用URL解析节点</b>"]
+        RA_P_Content[("raw_content: string")]
+        RA_P_LLM["<b>2c. LLM分析模块</b>"]
+        RA_P_Assemble["<b>2d. 单条结果组装</b>"]
+        RA_P_Final_Item[("<b>单个关键词报告</b><br>{keyword, url, title, content, analysis}")]
   end
-
-  %% 详细工作流子图 (保持不变)
-   subgraph subGraph_RA["Research Agent 内部详细工作流 (并行批处理版)"]
+ subgraph subGraph_RA["Research Agent 内部详细工作流 (并行批处理版)"]
     direction LR
         RA_Input_Start(("Start"))
-        RA_Parallel["2. 并行批处理 (For each keyword)"]
+        RA_Parallel
         RA_Aggregate["<b>3. 结果聚合</b>"]
         RA_Output_Data["<b>输出 (返回给 Orchestrator)</b><br>research_report: [{...}, {...}]"]
+        RA_Input_Data["<b>输入 (来自 Orchestrator)</b><br>- search_keywords: string[]<br>- analysis_requirements: string"]
         RA_Output_End(("End"))
-        subgraph RA_Parallel
-            direction TB
-            RA_P_Start("fa:fa-cogs Start Keyword Task")
-            RA_P_Search["<b>2a. 调用搜索引擎节点</b>"]
-            RA_P_SearchResult[("<b>首条搜索结果</b><br>{url, title}")]
-            RA_P_URL["<b>2b. 调用URL解析节点</b>"]
-            RA_P_Content[("raw_content: string")]
-            RA_P_LLM["<b>2c. LLM分析模块</b>"]
-            RA_P_Assemble["<b>2d. 单条结果组装</b>"]
-            RA_P_Final_Item[("<b>单个关键词报告</b><br>{keyword, url, title, content, analysis}")]
-            RA_Input_Data["<b>输入 (来自 Orchestrator)</b><br>- search_keywords: string[]<br>- analysis_requirements: string"]
-        end
-    end
+  end
  subgraph subGraph_DA["Requirements Analysis Agent 内部工作流"]
     direction TB
         DA_Input_Start(("Start"))
@@ -114,94 +100,105 @@ flowchart TD
     direction TB
         SP_Input_Start(("Start"))
         SP_Input_Data["<b>输入 (来自 Orchestrator)</b><br>- structured_requirements: object<br>- dialogue_history: string"]
-        SP_Analysis["<b>1. 需求理解与分析</b><br>解析结构化需求，识别核心目标"]
-        SP_Planning["<b>2. 生成简洁规划</b><br>创建清晰的执行步骤和预期产出"]
-        SP_Format["<b>3. 格式化确认文档</b><br>生成用户友好的确认文档"]
-        SP_Validation["<b>4. 内容校验</b><br>确保规划完整且易于理解"]
+        SP_FunctionAnalysis["<b>1. 功能模块分析</b><br>从需求中识别核心功能模块"]
+        SP_StepGeneration["<b>2. 实现步骤生成</b><br>按功能模块生成实现步骤序列"]
+        SP_ConfirmationFormat["<b>3. 确认文档格式化</b><br>生成功能导向的确认文档"]
         SP_Output_Data["<b>输出 (返回给 Orchestrator)</b><br>confirmation_document: string"]
         SP_Output_End(("End"))
   end
- subgraph subGraph_AA["Architecture Agent 内部工作流 (蓝图优先版)"]
+ subgraph subGraph_AA["Architecture Agent 内部工作流 (环环相扣的6步设计流程)"]
     direction TB
         AA_Input_Start(("Start"))
-        AA_Input_Data["<b>输入 (来自 Orchestrator)</b><br>- structured_requirements<br>- research_findings"]
-        AA_Design_Phase["<b>1. LLM 核心设计阶段</b><br>构思流程、识别原子节点和数据流"]
-        AA_Step2["2.生成设计蓝图 (并行)"]
-        AA_Validation["<b>3.蓝图交叉校验</b><br>确保图、节点、变量三者一致且无遗漏"]
-        AA_Assemble_Output["<b>4. 组装架构草稿</b>"]
-        AA_Output_Data["<b>输出 (返回给 Orchestrator)</b><br>architecture_draft: {mermaid, nodes, vars}"]
+        AA_Input_Data["<b>输入数据</b><br>- structured_requirements<br>- research_findings<br>- confirmation_document"]
+        AA_AgentAnalysis["<b>1. Agent需求分析</b><br>AgentRequirementsAnalysisNode<br>📊 分析Agent类型和核心功能"]
+        AA_AgentAnalysisOutput["<b>输出: agent_analysis</b><br>- agent_type<br>- core_functions<br>- processing_pattern"]
+        AA_NodeIdentification["<b>2. Node识别</b><br>NodeIdentificationNode<br>🔍 确定需要的所有Node"]
+        AA_NodeIdentificationOutput["<b>输出: identified_nodes</b><br>- node_name<br>- node_type<br>- purpose"]
+        AA_FlowDesign["<b>3. Flow编排</b><br>FlowDesignNode<br>🔗 设计Node间连接和Action转换"]
+        AA_FlowDesignOutput["<b>输出: flow_design</b><br>- connections<br>- execution_flow<br>- mermaid_diagram"]
+        AA_DataStructure["<b>4. 数据结构设计</b><br>DataStructureDesignNode<br>💾 设计shared存储结构"]
+        AA_DataStructureOutput["<b>输出: data_structure</b><br>- shared_fields<br>- data_flow_patterns<br>- shared_example"]
+        AA_NodeDesign["<b>5. Node详细设计</b><br>NodeDesignNode<br>⚙️ 设计prep/exec/post实现"]
+        AA_NodeDesignOutput["<b>输出: detailed_nodes</b><br>- design_details<br>- data_access<br>- retry_config"]
+        AA_DocumentGeneration["<b>6. 文档生成</b><br>DocumentGenerationNode<br>📝 生成完整Agent设计文档"]
+        AA_Output_Data["<b>最终输出</b><br>- agent_design_document<br>- generated_files<br>- output_directory"]
         AA_Output_End(("End"))
-        subgraph AA_Step2
-            direction TB
-            AA_Generate_Mermaid["<b>2a. 生成Mermaid图</b><br>将构思的流程可视化为节点编排图"]
-            subgraph AA_Define_Group[" "]
-                direction LR
-                AA_Define_Nodes["<b>2b. 定义原子化节点</b><br>为图中每个节点创建结构化描述 (JSON)"]
-                AA_Define_Vars["<b>2c. 定义共享变量</b><br>识别并定义节点间传递的数据 (JSON)"]
-            end
-        end
-    end
- subgraph subGraph_G["Documentation Agent 内部工作流"]
-    direction TB
-        G_Input_Start(("Start"))
-        G_Input_Data["<b>输入 (来自 Orchestrator)</b><br>- architecture_draft: {mermaid, nodes, vars}<br>- structured_requirements: object<br>- research_findings: object"]
-        G_Format_Requirements["<b>1. 格式化需求文档</b><br>将结构化需求转换为Markdown格式"]
-        G_Format_Mermaid["<b>2. 格式化Mermaid图</b><br>优化和美化架构图代码"]
-        G_Format_Nodes["<b>3. 格式化节点设计</b><br>生成标准化的JSON节点描述"]
-        G_Format_Variables["<b>4. 格式化共享变量</b><br>生成标准化的JSON变量定义"]
-        G_Generate_Files["<b>5. 调用输出节点生成文件</b><br>使用Node_Output生成最终文档"]
-        G_Output_Data["<b>输出 (返回给 Orchestrator)</b><br>completion_signal: string"]
-        G_Output_End(("End"))
-    end
-
-  %% --- 核心连接关系 (体现ReAct模式) ---
-  A -- "用户输入 / 目标" --> Core_Thought
-  Core_Action -- "Action: 向用户提问/呈现草稿" --> A
-  A -- "Observation: 用户反馈/确认" --> Core_Observation
-
-  Core_Thought -- "读取状态, 作为思考依据" --> C
-  Core_Observation -- "将新观察结果写入State" --> C
-
-  Core_Action -- "Action: 委派 [需求分析]" --> D
-  D -- "Observation: 返回 [结构化需求]" --> Core_Observation
-  Core_Action -- "Action: 委派 [短规划生成]" --> SP
-  SP -- "Observation: 返回 [规划确认文档]" --> Core_Observation
-  Core_Action -- "Action: 委派 [信息研究]" --> E
-  E -- "Observation: 返回 [研究报告]" --> Core_Observation
-  Core_Action -- "Action: 委派 [架构设计]" --> F
-  F -- "Observation: 返回 [架构草稿]" --> Core_Observation
-  Core_Action -- "Action: 委派 [文档生成]" --> G
-  G -- "Observation: 返回 [完成信号]" --> Core_Observation
-
-  G -- "当被调用生成完整文档时" --> Node_Output
-  Node_Output -- "生成最终文件" --> Out_Desc & Out_Mermaid & Out_Nodes & Out_Vars
-
-  %% --- 内部工作流的连接 (保持不变) ---
-   D -. "内部工作流" .-> DA_Input_Start
-   SP -. "内部工作流" .-> SP_Input_Start
-   E -. "内部工作流" .-> RA_Input_Start
-   F -. "内部工作流" .-> AA_Input_Start
-   G -. "内部工作流" .-> G_Input_Start
-   
-   RA_P_Start -- keyword --> RA_P_Search & RA_P_Assemble; RA_P_Search --> RA_P_SearchResult; RA_P_SearchResult -- url --> RA_P_URL; RA_P_URL --> RA_P_Content; RA_P_Content -- raw_content --> RA_P_LLM; RA_Input_Data -- analysis_requirements --> RA_P_LLM; RA_P_SearchResult -- url, title --> RA_P_Assemble; RA_P_Content -- content --> RA_P_Assemble; RA_P_LLM -- analysis --> RA_P_Assemble; RA_P_Assemble --> RA_P_Final_Item; RA_Input_Start --> RA_Input_Data; RA_Input_Data -- search_keywords --> RA_Parallel; RA_P_Final_Item --> RA_Aggregate; RA_Aggregate --> RA_Output_Data; RA_Output_Data --> RA_Output_End;
-   DA_Input_Start --> DA_Input_Data; DA_Input_Data --> DA_Node_Extract; DA_Node_Extract --> DA_Extracted_Info; DA_Input_Data -- 原始对话作为上下文 --> DA_LLM_Structure; DA_Extracted_Info -- 结构化处理 --> DA_LLM_Structure; DA_LLM_Structure --> DA_Validation; DA_Validation --> DA_Output_Data; DA_Output_Data --> DA_Output_End;
-   SP_Input_Start --> SP_Input_Data; SP_Input_Data --> SP_Analysis; SP_Analysis --> SP_Planning; SP_Planning --> SP_Format; SP_Format --> SP_Validation; SP_Validation --> SP_Output_Data; SP_Output_Data --> SP_Output_End;
-   AA_Input_Start --> AA_Input_Data; AA_Input_Data --> AA_Design_Phase; AA_Design_Phase --> AA_Step2; AA_Step2 --> AA_Validation; AA_Generate_Mermaid --> AA_Validation; AA_Define_Group --> AA_Validation; AA_Validation --> AA_Assemble_Output; AA_Assemble_Output --> AA_Output_Data; AA_Output_Data --> AA_Output_End; AA_Step2 --> AA_Define_Group; AA_Design_Phase --> AA_Generate_Mermaid;
-   G_Input_Start --> G_Input_Data; G_Input_Data --> G_Format_Requirements; G_Format_Requirements --> G_Format_Mermaid; G_Format_Mermaid --> G_Format_Nodes; G_Format_Nodes --> G_Format_Variables; G_Format_Variables --> G_Generate_Files; G_Generate_Files --> G_Output_Data; G_Output_Data --> G_Output_End;
-
-  %% --- 样式定义 (Style Definitions) ---
-    classDef orchestrator fill:#f9f,stroke:#333,stroke-width:2px
-    classDef state fill:#ff9,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5
-    classDef specialist fill:#cff,stroke:#333,stroke-width:1px
-    classDef tool fill:#fcc,stroke:#333,stroke-width:1px
-    classDef user fill:#9f9,stroke:#333,stroke-width:2px
-    classDef output fill:#bbf,stroke:#333,stroke-width:1px
-    classDef sub_input fill:#cde4ff,stroke:#555,stroke-width:1px
-    classDef sub_output fill:#d4edda,stroke:#555,stroke-width:1px
-    classDef sub_process fill:#fff3cd,stroke:#555,stroke-width:1px
-    classDef sub_parallel fill:#e9ecef,stroke:#555,stroke-width:1px,stroke-dasharray: 3 3
-    
-  %% --- 样式应用 (Class Applications) ---
+        n1@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
+        n2@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
+        n3@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
+        n4@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
+        n5@{ label: "<span style=\"background-color:\">输出文档节点</span>" }
+        n6["输出文档节点"]
+  end
+    Core_Thought -- 决定下一步行动 --> Core_Action
+    Core_Observation -- 作为新信息, 喂给下一轮思考 --> Core_Thought
+    AA_Input_Start --> AA_Input_Data
+    AA_Input_Data --> AA_AgentAnalysis
+    AA_AgentAnalysis --> AA_AgentAnalysisOutput
+    AA_AgentAnalysisOutput --> AA_NodeIdentification & n1 & AA_DocumentGeneration
+    AA_NodeIdentification --> AA_NodeIdentificationOutput
+    AA_NodeIdentificationOutput --> AA_FlowDesign & n2 & AA_DocumentGeneration
+    AA_FlowDesign --> AA_FlowDesignOutput
+    AA_FlowDesignOutput --> AA_DataStructure & n3 & AA_DocumentGeneration
+    AA_DataStructure --> AA_DataStructureOutput
+    AA_DataStructureOutput --> AA_NodeDesign & n4
+    AA_NodeDesign --> AA_NodeDesignOutput
+    AA_NodeDesignOutput --> AA_DocumentGeneration & n5
+    AA_DocumentGeneration --> AA_Output_Data
+    AA_Output_Data --> AA_Output_End & n6
+    A -- 用户输入 / 目标 --> Core_Thought
+    Core_Action -- Action: 向用户提问/呈现草稿 --> A
+    A -- Observation: 用户反馈/确认 --> Core_Observation
+    Core_Thought -- 读取状态, 作为思考依据 --> C
+    Core_Observation -- 将新观察结果写入State --> C
+    Core_Action -- Action: 委派 [需求分析] --> D
+    D -- Observation: 返回 [结构化需求] --> Core_Observation
+    Core_Action -- Action: 委派 [短规划生成] --> SP
+    SP -- Observation: 返回 [规划确认文档] --> Core_Observation
+    Core_Action -- Action: 委派 [信息研究] --> E
+    E -- Observation: 返回 [研究报告] --> Core_Observation
+    Core_Action -- Action: 委派 [架构设计与文档生成] --> F
+    F -- Observation: 返回 [架构草稿与完成信号] --> Core_Observation
+    D -. 内部工作流 .-> DA_Input_Start
+    SP -. 内部工作流 .-> SP_Input_Start
+    E -. 内部工作流 .-> RA_Input_Start
+    F -. 内部工作流 .-> AA_Input_Start
+    RA_P_Start -- keyword --> RA_P_Search & RA_P_Assemble
+    RA_P_Search --> RA_P_SearchResult
+    RA_P_SearchResult -- url --> RA_P_URL
+    RA_P_URL --> RA_P_Content
+    RA_P_Content -- raw_content --> RA_P_LLM
+    RA_Input_Data -- analysis_requirements --> RA_P_LLM
+    RA_P_SearchResult -- url, title --> RA_P_Assemble
+    RA_P_Content -- content --> RA_P_Assemble
+    RA_P_LLM -- analysis --> RA_P_Assemble
+    RA_P_Assemble --> RA_P_Final_Item
+    RA_Input_Start --> RA_Input_Data
+    RA_P_Final_Item --> RA_Aggregate
+    RA_Aggregate --> RA_Output_Data
+    RA_Output_Data --> RA_Output_End
+    DA_Input_Start --> DA_Input_Data
+    DA_Input_Data --> DA_Node_Extract
+    DA_Node_Extract --> DA_Extracted_Info
+    DA_Input_Data -- 原始对话作为上下文 --> DA_LLM_Structure
+    DA_Extracted_Info -- 结构化处理 --> DA_LLM_Structure
+    DA_LLM_Structure --> DA_Validation
+    DA_Validation --> DA_Output_Data
+    DA_Output_Data --> DA_Output_End
+    SP_Input_Start --> SP_Input_Data
+    SP_Input_Data --> SP_FunctionAnalysis
+    SP_FunctionAnalysis --> SP_StepGeneration
+    SP_StepGeneration --> SP_ConfirmationFormat
+    SP_ConfirmationFormat --> SP_Output_Data
+    SP_Output_Data --> SP_Output_End
+    RA_Input_Data -- "<span style=background-color:>search_keywords</span>" --> RA_P_Start
+    AA_DataStructureOutput --> AA_DocumentGeneration
+    Core_Thought@{ shape: rect}
+    n1@{ shape: rect}
+    n2@{ shape: rect}
+    n3@{ shape: rect}
+    n4@{ shape: rect}
+    n5@{ shape: rect}
      A:::user
      Core_Thought:::orchestrator
      Core_Action:::orchestrator
@@ -211,17 +208,12 @@ flowchart TD
      SP:::specialist
      E:::specialist
      F:::specialist
-     G:::specialist
      Node_Req:::tool
      Node_Search:::tool
      Node_URL:::tool
      Node_Recall:::tool
      Node_Compress:::tool
      Node_Output:::tool
-     Out_Desc:::output
-     Out_Mermaid:::output
-     Out_Nodes:::output
-     Out_Vars:::output
      RA_P_Start:::sub_process
      RA_P_Search:::sub_process
      RA_P_SearchResult:::sub_process
@@ -230,11 +222,11 @@ flowchart TD
      RA_P_LLM:::sub_process
      RA_P_Assemble:::sub_process
      RA_P_Final_Item:::sub_process
-     RA_Input_Data:::sub_input
      RA_Input_Start:::sub_input
      RA_Parallel:::sub_parallel
      RA_Aggregate:::sub_process
      RA_Output_Data:::sub_output
+     RA_Input_Data:::sub_input
      RA_Output_End:::sub_output
      DA_Input_Start:::sub_input
      DA_Input_Data:::sub_input
@@ -246,33 +238,47 @@ flowchart TD
      DA_Output_End:::sub_output
      SP_Input_Start:::sub_input
      SP_Input_Data:::sub_input
-     SP_Analysis:::sub_process
-     SP_Planning:::sub_process
-     SP_Format:::sub_process
-     SP_Validation:::sub_process
+     SP_FunctionAnalysis:::sub_process
+     SP_StepGeneration:::sub_process
+     SP_ConfirmationFormat:::sub_process
      SP_Output_Data:::sub_output
      SP_Output_End:::sub_output
-     AA_Define_Nodes:::sub_process
-     AA_Define_Vars:::sub_process
-     AA_Generate_Mermaid:::sub_process
-     AA_Define_Group:::sub_process
      AA_Input_Start:::sub_input
      AA_Input_Data:::sub_input
-     AA_Design_Phase:::sub_process
-     AA_Step2:::sub_process
-     AA_Validation:::sub_process
-     AA_Assemble_Output:::sub_process
+     AA_AgentAnalysis:::aa_step
+     AA_AgentAnalysisOutput:::aa_output
+     AA_NodeIdentification:::aa_step
+     AA_NodeIdentificationOutput:::aa_output
+     AA_FlowDesign:::aa_step
+     AA_FlowDesignOutput:::aa_output
+     AA_DataStructure:::aa_step
+     AA_DataStructureOutput:::aa_output
+     AA_NodeDesign:::aa_step
+     AA_NodeDesignOutput:::aa_output
+     AA_DocumentGeneration:::aa_step
      AA_Output_Data:::sub_output
+     AA_Output_Data:::aa_output
      AA_Output_End:::sub_output
-     G_Input_Start:::sub_input
-     G_Input_Data:::sub_input
-     G_Format_Requirements:::sub_process
-     G_Format_Mermaid:::sub_process
-     G_Format_Nodes:::sub_process
-     G_Format_Variables:::sub_process
-     G_Generate_Files:::sub_process
-     G_Output_Data:::sub_output
-     G_Output_End:::sub_output
+     n1:::Aqua
+     n2:::Aqua
+     n3:::Aqua
+     n4:::Aqua
+     n5:::Aqua
+     n6:::Aqua
+    classDef orchestrator fill:#f9f,stroke:#333,stroke-width:2px
+    classDef state fill:#ff9,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5
+    classDef specialist fill:#cff,stroke:#333,stroke-width:1px
+    classDef tool fill:#fcc,stroke:#333,stroke-width:1px
+    classDef user fill:#9f9,stroke:#333,stroke-width:2px
+    classDef output fill:#bbf,stroke:#333,stroke-width:1px
+    classDef sub_input fill:#cde4ff,stroke:#555,stroke-width:1px
+    classDef sub_output fill:#d4edda,stroke:#555,stroke-width:1px
+    classDef sub_process fill:#fff3cd,stroke:#555,stroke-width:1px
+    classDef sub_parallel fill:#e9ecef,stroke:#555,stroke-width:1px,stroke-dasharray: 3 3
+    classDef aa_step fill:#e8f4fd,stroke:#1e88e5,stroke-width:2px
+    classDef aa_dependency fill:#fff8e1,stroke:#f57c00,stroke-width:1px
+    classDef aa_output fill:#f3e5f5, stroke:#8e24aa, stroke-width:1px
+    classDef Aqua stroke-width:1px, stroke-dasharray:none, stroke:#46EDC8, fill:#DEFFF8, color:#378E7A
 ```
 
 ### 1.2 架构说明
@@ -281,11 +287,11 @@ GTPlanner系统采用分层架构设计，主要包含以下几个层次：
 
 1. **用户交互层**：处理用户输入和输出展示
 2. **核心控制层**：基于ReAct模式的Orchestrator Agent，负责整体流程控制
-3. **专业智能体层**：包含5个专业Agent，各自负责特定的处理任务
+3. **专业智能体层**：包含4个专业Agent，各自负责特定的处理任务
 4. **原子能力层**：提供基础的工具和服务能力
 5. **数据存储层**：管理共享状态和持久化数据
 
-系统的核心特点是通过Orchestrator Agent的ReAct循环（思考-行动-观察）来协调各个专业Agent的工作，确保整个处理流程的智能化和自适应性。
+系统的核心特点是通过Orchestrator Agent的ReAct循环（思考-行动-观察）来协调各个专业Agent的工作，确保整个处理流程的智能化和自适应性。Architecture Agent集成了文档生成功能，实现了从架构设计到文档输出的一体化处理。
 
 ---
 
@@ -398,11 +404,6 @@ GTPlanner系统采用分层架构设计，主要包含以下几个层次：
     "publish_date": "string",          // 发布日期
     "tags": "string[]",                // 标签
     "description": "string"            // 页面描述
-  },
-  "extracted_sections": {
-    "headings": "string[]",            // 标题列表
-    "key_points": "string[]",          // 关键点
-    "code_blocks": "string[]"          // 代码块
   },
   "processing_status": "string"        // 处理状态："success" | "partial" | "failed"
 }
@@ -577,7 +578,6 @@ GTPlanner系统采用分层架构设计，主要包含以下几个层次：
   "extracted_keywords": "string[]",   // 提取的关键词
   "domain_context": "string",          // 领域上下文
   "complexity_level": "string",        // 复杂度："simple" | "medium" | "complex"
-  "estimated_effort": "string",        // 预估工作量："low" | "medium" | "high"
   "last_updated": "string"             // 最后更新时间
 }
 ```
@@ -871,76 +871,78 @@ GTPlanner系统采用分层架构设计，主要包含以下几个层次：
 }
 ```
 
-**planning_draft** - 规划草稿
+**function_modules** - 功能模块分析
 ```json
 {
-  "planning_approach": "string",      // 规划方法："waterfall" | "agile" | "hybrid"
-  "execution_phases": [
+  "core_modules": [
     {
-      "phase_id": "string",           // 阶段ID
-      "phase_name": "string",         // 阶段名称
-      "description": "string",        // 阶段描述
-      "deliverables": "string[]",     // 交付物
-      "estimated_duration": "string", // 预估时长
-      "dependencies": "string[]",     // 依赖关系
-      "risks": "string[]",            // 风险点
-      "success_criteria": "string[]"  // 成功标准
+      "module_id": "string",          // 模块ID
+      "module_name": "string",        // 模块名称
+      "description": "string",        // 功能描述
+      "priority": "string",           // 优先级："high" | "medium" | "low"
+      "dependencies": "string[]",     // 依赖的其他模块
+      "technical_requirements": "string[]" // 技术要求
     }
   ],
-  "resource_requirements": {
-    "human_resources": "string[]",    // 人力资源需求
-    "technical_resources": "string[]", // 技术资源需求
-    "external_dependencies": "string[]" // 外部依赖
-  },
-  "timeline_overview": {
-    "total_estimated_time": "string", // 总预估时间
-    "critical_path": "string[]",      // 关键路径
-    "milestone_dates": "object",      // 里程碑日期
-    "buffer_time": "string"           // 缓冲时间
-  },
-  "quality_assurance": {
-    "review_points": "string[]",      // 评审点
-    "testing_strategy": "string",     // 测试策略
-    "validation_methods": "string[]"  // 验证方法
+  "implementation_sequence": "string[]", // 实现顺序
+  "technical_stack": {
+    "frontend": "string[]",           // 前端技术栈
+    "backend": "string[]",            // 后端技术栈
+    "database": "string[]",           // 数据库选择
+    "infrastructure": "string[]"      // 基础设施
   }
+}
+```
+
+**implementation_steps** - 实现步骤
+```json
+{
+  "steps": [
+    {
+      "step_number": "number",        // 步骤序号
+      "step_name": "string",          // 步骤名称
+      "description": "string",        // 详细描述
+      "target_modules": "string[]",   // 涉及的功能模块
+      "key_deliverables": "string[]", // 关键产出
+      "technical_focus": "string[]"   // 技术重点
+    }
+  ],
+  "critical_path": "string[]",        // 关键实现路径
+  "parallel_opportunities": "string[]" // 可并行开发的部分
 }
 ```
 
 **confirmation_document** - 确认文档
 ```json
 {
-  "document_structure": {
-    "executive_summary": "string",    // 执行摘要
-    "project_scope": "string",        // 项目范围
-    "key_deliverables": "string[]",   // 关键交付物
-    "timeline_summary": "string",     // 时间线摘要
-    "resource_overview": "string",    // 资源概览
-    "risk_assessment": "string",      // 风险评估
-    "next_steps": "string[]"          // 下一步行动
-  },
-  "presentation_format": {
-    "format_type": "string",          // 格式类型："markdown" | "html" | "pdf"
-    "visual_elements": "string[]",    // 视觉元素
-    "interactive_elements": "string[]", // 交互元素
-    "accessibility_features": "string[]" // 可访问性特性
-  },
-  "user_interaction": {
-    "confirmation_points": [
+  "content": "string",                // Markdown格式的确认文档内容
+  "structure": {
+    "project_title": "string",      // 项目标题
+    "implementation_steps": [
       {
-        "point_id": "string",         // 确认点ID
-        "question": "string",         // 确认问题
-        "options": "string[]",        // 选项
-        "importance": "string"        // 重要性："critical" | "important" | "optional"
+        "step_number": "number",     // 步骤序号
+        "step_title": "string",      // 步骤标题
+        "description": "string",     // 步骤描述
+        "key_functions": "string[]"  // 涉及的关键功能
       }
     ],
-    "feedback_mechanisms": "string[]", // 反馈机制
-    "modification_options": "string[]" // 修改选项
+    "core_functions": "string[]",    // 核心功能列表
+    "technical_stack": {
+      "frontend": "string[]",        // 前端技术
+      "backend": "string[]",         // 后端技术
+      "database": "string[]"         // 数据库技术
+    },
+    "confirmation_points": [
+      {
+        "question": "string",        // 确认问题
+        "type": "string"             // 问题类型："function" | "tech" | "sequence"
+      }
+    ]
   },
-  "document_metadata": {
-    "version": "string",              // 文档版本
-    "created_at": "string",           // 创建时间
-    "review_status": "string",        // 评审状态
-    "approval_required": "boolean"    // 是否需要批准
+  "metadata": {
+    "format": "markdown",           // 固定为markdown格式
+    "created_at": "string",         // 创建时间
+    "version": "1.0"                // 文档版本
   }
 }
 ```
@@ -1083,264 +1085,170 @@ GTPlanner系统采用分层架构设计，主要包含以下几个层次：
 
 ### 3.4 Architecture Agent 内部变量
 
-**design_constraints** - 设计约束
+**agent_analysis** - Agent需求分析结果（步骤1输出）
 ```json
 {
-  "technical_constraints": {
-    "platform_requirements": "string[]", // 平台要求
-    "technology_stack": "string[]",    // 技术栈
-    "performance_limits": "object",    // 性能限制
-    "security_requirements": "string[]", // 安全要求
-    "compliance_standards": "string[]" // 合规标准
-  },
-  "business_constraints": {
-    "budget_limitations": "string",    // 预算限制
-    "timeline_constraints": "string",  // 时间约束
-    "resource_availability": "string[]", // 资源可用性
-    "stakeholder_requirements": "string[]", // 利益相关者要求
-    "market_considerations": "string[]" // 市场考虑
-  },
-  "architectural_constraints": {
-    "scalability_requirements": "object", // 扩展性要求
-    "integration_requirements": "string[]", // 集成要求
-    "data_constraints": "object",      // 数据约束
-    "user_experience_constraints": "string[]", // 用户体验约束
-    "maintenance_requirements": "string[]" // 维护要求
-  }
+  "agent_type": "string",                   // Agent类型（如：对话Agent、分析Agent等）
+  "agent_purpose": "string",                // Agent的主要目的和价值
+  "core_functions": [                       // 核心功能列表
+    {
+      "function_name": "string",            // 功能名称
+      "description": "string",              // 功能描述
+      "complexity": "string",               // 复杂度：简单/中等/复杂
+      "priority": "string"                  // 优先级：高/中/低
+    }
+  ],
+  "input_types": "string[]",                // 输入数据类型
+  "output_types": "string[]",               // 输出数据类型
+  "processing_pattern": "string",           // 处理模式（流水线、批处理、实时响应等）
+  "key_challenges": "string[]",             // 主要技术挑战
+  "success_criteria": "string[]"            // 成功标准
 }
 ```
 
-**generated_mermaid_code** - 生成的Mermaid代码
+**identified_nodes** - 识别的Node列表（步骤2输出）
+```json
+[
+  {
+    "node_name": "string",                  // Node名称
+    "node_type": "string",                  // Node类型（Node/AsyncNode/BatchNode等）
+    "purpose": "string",                    // Node的具体目的和职责
+    "responsibility": "string",             // Node负责的具体功能
+    "input_expectations": "string",         // 期望的输入数据类型
+    "output_expectations": "string",        // 期望的输出数据类型
+    "complexity_level": "string",           // 复杂度（简单/中等/复杂）
+    "processing_type": "string",            // 处理类型（数据预处理/核心计算/结果后处理等）
+    "retry_recommended": "boolean"          // 是否推荐重试机制
+  }
+]
+```
+
+**flow_design** - Flow编排设计（步骤3输出）
 ```json
 {
-  "diagram_versions": [
+  "flow_name": "string",              // Flow名称
+  "flow_description": "string",       // Flow描述
+  "start_node": "string",             // 起始节点名称
+  "connections": [                    // 节点连接关系
     {
-      "version_id": "string",          // 版本ID
-      "mermaid_code": "string",        // Mermaid代码
-      "diagram_type": "string",        // 图表类型
-      "complexity_metrics": {
-        "node_count": "number",        // 节点数
-        "edge_count": "number",        // 边数
-        "depth_levels": "number",      // 深度层级
-        "branching_factor": "number"   // 分支因子
+      "from_node": "string",          // 源节点
+      "to_node": "string",            // 目标节点
+      "action": "string",             // 触发的Action（default或具体action名）
+      "condition": "string",          // 转换条件描述
+      "data_passed": "string"         // 传递的数据描述
+    }
+  ],
+  "execution_flow": [                 // 执行流程描述
+    {
+      "step": "number",               // 步骤序号
+      "node": "string",               // 节点名称
+      "description": "string",        // 此步骤的作用
+      "input_data": "string",         // 输入数据来源
+      "output_data": "string"         // 输出数据去向
+    }
+  ],
+  "mermaid_diagram": "string",        // 完整的Mermaid flowchart TD代码
+  "design_rationale": "string"       // Flow编排的设计理由
+}
+```
+
+**data_structure** - 数据结构设计（步骤4输出）
+```json
+{
+  "shared_structure_description": "string",  // shared存储的整体描述
+  "shared_fields": [                         // shared字段定义
+    {
+      "field_name": "string",                // 字段名称
+      "data_type": "string",                 // 数据类型（str, dict, list等）
+      "description": "string",               // 字段描述
+      "purpose": "string",                   // 字段用途
+      "read_by_nodes": "string[]",           // 读取此字段的Node列表
+      "written_by_nodes": "string[]",        // 写入此字段的Node列表
+      "example_value": "any",                // 示例值或结构
+      "required": "boolean"                  // 是否必需
+    }
+  ],
+  "data_flow_patterns": [                    // 数据流模式
+    {
+      "pattern_name": "string",              // 数据流模式名称
+      "description": "string",               // 数据流描述
+      "involved_fields": "string[]",         // 涉及的字段
+      "flow_sequence": "string[]"            // 数据流转顺序
+    }
+  ],
+  "shared_example": "object"                 // 完整的shared存储示例结构
+}
+```
+
+**detailed_nodes** - Node详细设计（步骤5输出）
+```json
+[
+  {
+    "node_name": "string",                  // Node名称
+    "node_type": "string",                  // Node类型
+    "purpose": "string",                    // 节点目的
+    "design_details": {                     // 设计详情
+      "prep_stage": {                       // prep阶段设计
+        "description": "string",            // prep阶段的详细描述
+        "input_from_shared": "string[]",    // 从shared读取的数据字段
+        "validation_logic": "string",       // 数据验证逻辑
+        "preparation_steps": "string[]",    // 准备步骤
+        "output_prep_res": "string"         // prep_res的结构描述
       },
-      "validation_results": {
-        "syntax_valid": "boolean",     // 语法有效性
-        "semantic_valid": "boolean",   // 语义有效性
-        "rendering_test": "boolean",   // 渲染测试
-        "issues": "string[]"           // 问题列表
+      "exec_stage": {                       // exec阶段设计
+        "description": "string",            // exec阶段的详细描述
+        "core_logic": "string",             // 核心处理逻辑描述
+        "processing_steps": "string[]",     // 处理步骤
+        "error_handling": "string",         // 错误处理策略
+        "output_exec_res": "string"         // exec_res的结构描述
       },
-      "creation_metadata": {
-        "created_at": "string",        // 创建时间
-        "generation_method": "string", // 生成方法
-        "iteration_number": "number"   // 迭代次数
+      "post_stage": {                       // post阶段设计
+        "description": "string",            // post阶段的详细描述
+        "result_processing": "string",      // 结果处理逻辑
+        "shared_updates": "string[]",       // 更新到shared的数据
+        "action_logic": "string",           // Action决策逻辑
+        "possible_actions": "string[]"      // 可能返回的Action列表
       }
+    },
+    "data_access": {                        // 数据访问模式
+      "reads_from_shared": "string[]",      // 读取的shared字段
+      "writes_to_shared": "string[]",       // 写入的shared字段
+      "temp_variables": "string[]"          // 临时变量
+    },
+    "retry_config": {                       // 重试配置
+      "max_retries": "number",              // 最大重试次数
+      "wait": "number",                     // 重试等待时间
+      "retry_conditions": "string[]"        // 重试条件
     }
-  ],
-  "optimization_history": [
-    {
-      "optimization_type": "string",   // 优化类型
-      "before_metrics": "object",      // 优化前指标
-      "after_metrics": "object",       // 优化后指标
-      "improvement_ratio": "number"    // 改进比率
-    }
-  ]
-}
+  }
+]
 ```
 
-**generated_nodes_list** - 生成的节点列表
+**agent_design_document** - 最终生成的Agent设计文档（步骤6输出）
 ```json
 {
-  "node_catalog": [
-    {
-      "node_definition": "object",     // 节点定义（引用系统级结构）
-      "design_rationale": "string",    // 设计理由
-      "alternative_designs": "string[]", // 替代设计
-      "implementation_notes": "string[]", // 实现注释
-      "testing_considerations": "string[]", // 测试考虑
-      "performance_analysis": {
-        "expected_load": "string",     // 预期负载
-        "bottleneck_analysis": "string[]", // 瓶颈分析
-        "optimization_opportunities": "string[]" // 优化机会
-      }
-    }
-  ],
-  "node_relationships": [
-    {
-      "source_node": "string",        // 源节点
-      "target_node": "string",        // 目标节点
-      "relationship_type": "string",  // 关系类型
-      "data_flow": "object",          // 数据流
-      "dependency_strength": "number", // 依赖强度
-      "failure_impact": "string"      // 失败影响
-    }
-  ],
-  "design_patterns": [
-    {
-      "pattern_name": "string",       // 模式名称
-      "applicable_nodes": "string[]", // 适用节点
-      "implementation_details": "string", // 实现细节
-      "benefits": "string[]",         // 优势
-      "trade_offs": "string[]"        // 权衡
-    }
-  ]
-}
-```
-
-**generated_vars_list** - 生成的变量列表
-```json
-{
-  "variable_catalog": [
-    {
-      "variable_definition": "object", // 变量定义（引用系统级结构）
-      "usage_patterns": [
-        {
-          "usage_context": "string",  // 使用上下文
-          "access_frequency": "string", // 访问频率
-          "modification_pattern": "string", // 修改模式
-          "performance_impact": "string" // 性能影响
-        }
-      ],
-      "data_lineage": {
-        "source_systems": "string[]",  // 源系统
-        "transformation_steps": "string[]", // 转换步骤
-        "destination_systems": "string[]", // 目标系统
-        "quality_checkpoints": "string[]" // 质量检查点
-      }
-    }
-  ],
-  "variable_dependencies": [
-    {
-      "primary_variable": "string",   // 主变量
-      "dependent_variables": "string[]", // 依赖变量
-      "dependency_type": "string",    // 依赖类型
-      "impact_analysis": "string"     // 影响分析
-    }
-  ],
-  "data_governance": {
-    "privacy_classification": "object", // 隐私分类
-    "retention_policies": "object",   // 保留策略
-    "access_controls": "object",      // 访问控制
-    "audit_requirements": "string[]"  // 审计要求
+  "document_content": "string",            // 完整的Markdown格式设计文档
+  "document_sections": {                   // 文档各部分内容
+    "project_requirements": "string",      // 项目需求部分
+    "flow_design": "string",               // Flow设计部分
+    "data_structure": "string",            // 数据结构部分
+    "node_designs": "string"               // Node设计部分
+  },
+  "generation_metadata": {                 // 生成元数据
+    "generation_time": "number",           // 生成耗时(ms)
+    "completion_timestamp": "string",      // 完成时间戳
+    "document_length": "number"            // 文档长度（字符数）
   }
 }
 ```
 
-### 3.5 Documentation Agent 内部变量
+### 3.5 专业Agent协作模式
 
-**final_data_input** - 最终数据输入
-```json
-{
-  "input_sources": {
-    "requirements_data": "object",    // 需求数据（引用）
-    "research_data": "object",        // 研究数据（引用）
-    "architecture_data": "object",    // 架构数据（引用）
-    "metadata": "object"              // 元数据
-  },
-  "data_validation": {
-    "completeness_check": "object",   // 完整性检查
-    "consistency_check": "object",    // 一致性检查
-    "quality_assessment": "object",   // 质量评估
-    "validation_errors": "string[]"   // 验证错误
-  },
-  "processing_context": {
-    "generation_purpose": "string",   // 生成目的
-    "target_audience": "string[]",    // 目标受众
-    "output_requirements": "object",  // 输出要求
-    "formatting_preferences": "object" // 格式偏好
-  }
-}
-```
 
-**formatted_req_md** - 格式化需求Markdown
-```json
-{
-  "document_structure": {
-    "header_hierarchy": "object",     // 标题层次结构
-    "section_organization": "string[]", // 章节组织
-    "content_flow": "string[]",       // 内容流程
-    "cross_references": "object"      // 交叉引用
-  },
-  "formatting_applied": {
-    "markdown_features": "string[]",  // 使用的Markdown特性
-    "styling_conventions": "object",  // 样式约定
-    "accessibility_features": "string[]", // 可访问性特性
-    "responsive_elements": "string[]" // 响应式元素
-  },
-  "content_optimization": {
-    "readability_score": "number",    // 可读性评分
-    "information_density": "number",  // 信息密度
-    "navigation_aids": "string[]",    // 导航辅助
-    "visual_enhancements": "string[]" // 视觉增强
-  },
-  "version_control": {
-    "document_version": "string",     // 文档版本
-    "change_log": "string[]",         // 变更日志
-    "review_status": "string",        // 评审状态
-    "approval_workflow": "object"     // 审批工作流
-  }
-}
-```
 
-**formatted_mermaid_md** - 格式化Mermaid Markdown
-```json
-{
-  "diagram_presentation": {
-    "diagram_title": "string",       // 图表标题
-    "description": "string",         // 图表描述
-    "legend": "object",              // 图例
-    "annotations": "string[]"        // 注释
-  },
-  "code_formatting": {
-    "syntax_highlighting": "boolean", // 语法高亮
-    "code_comments": "string[]",     // 代码注释
-    "formatting_style": "string",    // 格式化样式
-    "line_numbering": "boolean"      // 行号
-  },
-  "interactive_features": {
-    "zoom_controls": "boolean",      // 缩放控制
-    "pan_navigation": "boolean",     // 平移导航
-    "node_tooltips": "object",       // 节点提示
-    "click_interactions": "object"   // 点击交互
-  },
-  "export_options": {
-    "supported_formats": "string[]", // 支持的格式
-    "resolution_settings": "object", // 分辨率设置
-    "color_schemes": "string[]",     // 颜色方案
-    "print_optimization": "boolean"  // 打印优化
-  }
-}
-```
 
-**formatted_nodes_json** - 格式化节点JSON
-```json
-{
-  "json_structure": {
-    "schema_version": "string",      // 模式版本
-    "data_organization": "string",   // 数据组织方式
-    "indexing_strategy": "string",   // 索引策略
-    "validation_schema": "object"    // 验证模式
-  },
-  "formatting_standards": {
-    "naming_conventions": "object",  // 命名约定
-    "data_types": "object",         // 数据类型
-    "required_fields": "string[]",  // 必需字段
-    "optional_fields": "string[]"   // 可选字段
-  },
-  "documentation_metadata": {
-    "generation_timestamp": "string", // 生成时间戳
-    "generator_version": "string",   // 生成器版本
-    "data_lineage": "object",       // 数据血缘
-    "quality_metrics": "object"     // 质量指标
-  },
-  "usage_guidelines": {
-    "integration_instructions": "string[]", // 集成说明
-    "api_documentation": "object",  // API文档
-    "example_usage": "string[]",    // 使用示例
-    "troubleshooting": "string[]"   // 故障排除
-  }
-}
-```
+
+
 
 ---
 
@@ -1509,23 +1417,23 @@ graph TD
       "source": "SharedState.structured_requirements",
       "target": "PlanAgent.structured_requirements",
       "data_type": "finalized_requirements",
-      "transformation": "requirements_interpretation_and_analysis",
-      "output_format": "planning_context"
+      "transformation": "function_module_analysis",
+      "output_format": "function_modules"
     },
     {
       "step": 2,
-      "source": "PlanAgent.structured_requirements",
-      "target": "PlanAgent.planning_draft",
-      "data_type": "planning_context",
-      "transformation": "execution_planning_and_strategy_design",
-      "output_format": "detailed_execution_plan"
+      "source": "PlanAgent.function_modules",
+      "target": "PlanAgent.implementation_steps",
+      "data_type": "function_modules",
+      "transformation": "step_sequence_generation",
+      "output_format": "implementation_steps"
     },
     {
       "step": 3,
-      "source": "PlanAgent.planning_draft",
+      "source": "PlanAgent.implementation_steps",
       "target": "PlanAgent.confirmation_document",
-      "data_type": "detailed_execution_plan",
-      "transformation": "user_friendly_presentation_formatting",
+      "data_type": "implementation_steps",
+      "transformation": "markdown_formatting_with_confirmation_points",
       "output_format": "confirmation_document"
     },
     {
@@ -1538,16 +1446,16 @@ graph TD
     }
   ],
   "user_interaction_points": [
-    "plan_review_and_feedback",
-    "scope_adjustment_requests",
-    "priority_reordering",
-    "resource_constraint_discussions"
+    "function_module_confirmation",
+    "implementation_sequence_review",
+    "technical_stack_validation",
+    "step_completeness_check"
   ],
   "feedback_processing": [
     "user_approval_handling",
-    "modification_request_processing",
-    "scope_change_impact_analysis",
-    "plan_refinement_iterations"
+    "function_scope_adjustment",
+    "sequence_reordering",
+    "technical_stack_modification"
   ]
 }
 ```
@@ -1668,7 +1576,7 @@ graph TD
 }
 ```
 
-#### 4.2.5 架构设计数据流程
+#### 4.2.5 架构设计数据流程（串行精编排）
 
 **数据流路径：** SharedState → Architecture Agent → SharedState
 ```json
@@ -1677,57 +1585,56 @@ graph TD
   "data_transformations": [
     {
       "step": 1,
-      "source": "SharedState.structured_requirements + SharedState.research_findings",
+      "source": "SharedState.structured_requirements + SharedState.research_findings + SharedState.confirmation_document",
       "target": "ArchAgent.design_constraints",
-      "data_type": "combined_requirements_and_research",
-      "transformation": "constraint_analysis_and_design_context_preparation",
-      "output_format": "comprehensive_design_constraints"
+      "data_type": "combined_requirements_research_and_planning",
+      "transformation": "constraint_analysis_and_design_principles_extraction",
+      "output_format": "design_constraints"
     },
     {
       "step": 2,
       "source": "ArchAgent.design_constraints",
-      "target": "ArchAgent.generated_mermaid_code",
-      "data_type": "design_requirements",
-      "transformation": "visual_architecture_design_and_mermaid_generation",
+      "target": "ArchAgent.mermaid_diagram",
+      "data_type": "design_constraints",
+      "transformation": "llm_based_architecture_diagram_generation",
       "output_format": "mermaid_diagram_with_metadata"
     },
     {
       "step": 3,
-      "source": "ArchAgent.design_constraints",
-      "target": "ArchAgent.generated_nodes_list",
-      "data_type": "functional_requirements",
-      "transformation": "atomic_node_identification_and_specification",
-      "output_format": "detailed_node_specifications"
+      "source": "ArchAgent.mermaid_diagram + ArchAgent.design_constraints",
+      "target": "ArchAgent.nodes_definition",
+      "data_type": "architecture_diagram_and_constraints",
+      "transformation": "llm_based_component_specification_generation",
+      "output_format": "detailed_nodes_definition"
     },
     {
       "step": 4,
-      "source": "ArchAgent.design_constraints",
-      "target": "ArchAgent.generated_vars_list",
-      "data_type": "data_flow_requirements",
-      "transformation": "shared_variable_design_and_data_modeling",
-      "output_format": "comprehensive_variable_definitions"
+      "source": "ArchAgent.nodes_definition + ArchAgent.mermaid_diagram",
+      "target": "ArchAgent.shared_variables",
+      "data_type": "nodes_definition_and_data_flows",
+      "transformation": "data_interface_analysis_and_variable_definition",
+      "output_format": "shared_variables_definition"
     },
     {
       "step": 5,
-      "source": "ArchAgent.generated_mermaid_code + ArchAgent.generated_nodes_list + ArchAgent.generated_vars_list",
+      "source": "ArchAgent.mermaid_diagram + ArchAgent.nodes_definition + ArchAgent.shared_variables",
       "target": "SharedState.architecture_draft",
       "data_type": "complete_architecture_components",
-      "transformation": "architecture_integration_and_validation",
-      "output_format": "validated_architecture_draft"
+      "transformation": "architecture_assembly_and_packaging",
+      "output_format": "architecture_draft_for_ai_coding"
     }
   ],
-  "design_validation_checks": [
-    "architectural_consistency_verification",
-    "scalability_analysis",
-    "performance_feasibility_check",
-    "security_compliance_validation",
-    "maintainability_assessment"
+  "serial_flow_benefits": [
+    "guaranteed_consistency_between_components",
+    "contextual_awareness_in_each_step",
+    "no_validation_overhead_required",
+    "natural_dependency_resolution"
   ],
-  "optimization_processes": [
-    "node_efficiency_optimization",
-    "data_flow_streamlining",
-    "resource_utilization_optimization",
-    "bottleneck_identification_and_resolution"
+  "ai_coding_optimization": [
+    "structured_output_format_for_code_generation",
+    "detailed_component_specifications",
+    "clear_data_interface_definitions",
+    "implementation_ready_architecture"
   ]
 }
 ```

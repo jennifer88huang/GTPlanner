@@ -44,16 +44,9 @@ class LLMAnalysisNode(Node):
                 url_content, keyword, analysis_requirements
             ))
         except Exception as e:
-            print(f"⚠️ LLM分析失败，使用模拟结果: {e}")
-            # 使用模拟分析结果
-            analysis_result = {
-                "key_insights": [f"关于{keyword}的基础信息", f"{keyword}的应用场景"],
-                "relevant_information": f"这是关于{keyword}的相关信息摘要",
-                "technical_details": [f"{keyword}的技术实现", f"{keyword}的最佳实践"],
-                "recommendations": [f"学习{keyword}的建议", f"使用{keyword}的注意事项"],
-                "relevance_score": 0.8,
-                "summary": f"关于{keyword}的内容分析"
-            }
+            print(f"❌ LLM分析失败: {e}")
+            # 直接抛出异常，让上级处理
+            raise e
         
         return {
             "analysis": analysis_result,
