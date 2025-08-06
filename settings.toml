@@ -20,3 +20,9 @@ auto_detect = true
 fallback_enabled = true
 # Supported languages (can be customized to enable/disable specific languages)
 supported_languages = ["en", "zh", "es", "fr", "ja"]
+
+[default.vector_service]
+# Vector service configuration for tool recommendation
+base_url = "http://nodeport.sensedeal.vip:32421"
+timeout = 30
+
