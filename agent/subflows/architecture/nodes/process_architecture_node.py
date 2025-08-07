@@ -6,10 +6,10 @@ Process Architecture Node
 
 import time
 from typing import Dict, Any
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 
-class ProcessArchitectureNode(Node):
+class ProcessArchitectureNode(AsyncNode):
     """架构处理节点 - 管理Agent设计文档生成"""
 
     def __init__(self):
@@ -20,7 +20,7 @@ class ProcessArchitectureNode(Node):
         # 延迟初始化架构设计流程，避免循环导入
         self.architecture_flow = None
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：验证输入并准备流程执行"""
         try:
             # 检查必需的输入
@@ -47,8 +47,8 @@ class ProcessArchitectureNode(Node):
         except Exception as e:
             return {"error": f"Architecture processing preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行阶段：运行架构设计流程"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行阶段：运行架构设计流程"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -68,8 +68,8 @@ class ProcessArchitectureNode(Node):
                 "user_input": prep_result["user_input"]
             }
 
-            # 执行架构设计流程
-            flow_result = self.architecture_flow.run(flow_shared)
+            # 异步执行架构设计流程
+            flow_result = await self.architecture_flow.run_async(flow_shared)
             
             if flow_result == "success":
                 # 构建流程执行摘要
@@ -97,7 +97,7 @@ class ProcessArchitectureNode(Node):
                 "processing_time": time.time() - prep_result.get("processing_start_time", time.time())
             }
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """后处理阶段：更新共享状态"""
         try:
             if not exec_res.get("processing_success", False):

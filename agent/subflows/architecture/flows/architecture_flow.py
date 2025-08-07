@@ -12,7 +12,7 @@ Architecture Flow - 重构版本
 6. 文档生成 → 整合所有设计结果
 """
 
-from pocketflow import Flow
+from pocketflow import AsyncFlow
 from ..nodes.agent_requirements_analysis_node import AgentRequirementsAnalysisNode
 from ..nodes.node_identification_node import NodeIdentificationNode
 from ..nodes.flow_design_node import FlowDesignNode
@@ -58,8 +58,8 @@ def create_architecture_flow():
     node_design_dispatcher - "dispatch_complete" >> node_design_aggregator
     node_design_aggregator - "aggregation_complete" >> document_generation
 
-    # 创建并返回Flow，从Agent需求分析开始
-    return Flow(start=agent_analysis)
+    # 创建并返回AsyncFlow，从Agent需求分析开始
+    return AsyncFlow(start=agent_analysis)
 
 
 class ArchitectureFlow:
@@ -72,29 +72,29 @@ class ArchitectureFlow:
         self.description = "环环相扣的Agent设计流程"
         self.flow = create_architecture_flow()
     
-    def run(self, shared: dict) -> str:
+    async def run_async(self, shared: dict) -> str:
         """
-        运行架构设计流程
-        
+        异步运行架构设计流程
+
         Args:
             shared: pocketflow字典共享变量
-            
+
         Returns:
             流程执行结果
         """
         try:
             print("🚀 启动Agent设计文档生成流程...")
-            
+
             # 验证输入数据
             if not self._validate_input(shared):
                 raise ValueError("输入数据验证失败")
-            
-            # 执行pocketflow流程
-            result = self.flow.run(shared)
-            
+
+            # 执行pocketflow异步流程
+            result = await self.flow.run_async(shared)
+
             print("✅ Agent设计文档生成流程执行完成")
             return result
-            
+
         except Exception as e:
             print(f"❌ Agent设计流程执行失败: {e}")
             # 在共享状态中记录错误

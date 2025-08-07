@@ -5,19 +5,15 @@ Plan Generation Node
 """
 
 import time
-import sys
-import os
-import asyncio
 from typing import Dict, Any, List
 
-# 添加utils路径以导入call_llm
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'utils'))
-from call_llm import call_llm_async
+# 导入LLM工具
+from agent.llm_utils import call_llm_async
 
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 
-class PlanGenerationNode(Node):
+class PlanGenerationNode(AsyncNode):
     """规划生成节点 - 使用LLM生成清晰的执行步骤和预期产出"""
     
     def __init__(self):
@@ -45,7 +41,7 @@ class PlanGenerationNode(Node):
         except Exception as e:
             return {"error": f"Plan generation preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
         """执行规划生成"""
         try:
             if "error" in prep_result:

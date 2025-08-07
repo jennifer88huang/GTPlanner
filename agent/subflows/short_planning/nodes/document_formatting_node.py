@@ -6,10 +6,10 @@ Document Formatting Node
 
 import time
 from typing import Dict, Any, List
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 
-class DocumentFormattingNode(Node):
+class DocumentFormattingNode(AsyncNode):
     """文档格式化节点 - 生成用户友好的确认文档"""
     
     def __init__(self):
@@ -17,7 +17,7 @@ class DocumentFormattingNode(Node):
         self.name = "DocumentFormattingNode"
         self.description = "将执行规划格式化为用户友好的确认文档"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取执行规划和需求分析结果"""
         try:
             # 获取执行规划
@@ -41,8 +41,8 @@ class DocumentFormattingNode(Node):
         except Exception as e:
             return {"error": f"Document formatting preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行文档格式化"""
+    async  def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行文档格式化"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -68,7 +68,7 @@ class DocumentFormattingNode(Node):
         except Exception as e:
             raise e
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """保存文档格式化结果"""
         if "error" in exec_res:
             shared["document_formatting_error"] = exec_res["error"]

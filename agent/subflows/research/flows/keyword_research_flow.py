@@ -5,7 +5,7 @@
 搜索 → URL解析 → LLM分析 → 结果组装
 """
 
-from pocketflow import Flow
+from pocketflow import AsyncFlow
 from ....nodes.node_search import NodeSearch
 from ....nodes.node_url import NodeURL
 from ..nodes.llm_analysis_node import LLMAnalysisNode
@@ -39,7 +39,7 @@ def create_keyword_research_subflow():
     # 错误处理：任何节点返回"error"都结束流程
     # pocketflow会自动处理没有后续节点的情况
 
-    # 创建子流程
-    subflow = Flow(start=search_node)
+    # 创建异步子流程
+    subflow = AsyncFlow(start=search_node)
 
     return subflow

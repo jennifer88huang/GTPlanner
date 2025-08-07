@@ -6,10 +6,11 @@ Validation Node
 
 import time
 from typing import Dict, Any, List, Tuple
-from pocketflow import Node
+from pocketflow import AsyncNode
+from agent.shared_migration import field_validation_decorator
 
 
-class ValidationNode(Node):
+class ValidationNode(AsyncNode):
     """验证节点 - 确保规划完整且易于理解"""
     
     def __init__(self):
@@ -32,7 +33,7 @@ class ValidationNode(Node):
             }
         }
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取确认文档和相关数据"""
         try:
             # 获取确认文档
@@ -56,7 +57,7 @@ class ValidationNode(Node):
         except Exception as e:
             return {"error": f"Validation preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
         """执行验证"""
         try:
             if "error" in prep_result:
@@ -100,7 +101,7 @@ class ValidationNode(Node):
         except Exception as e:
             raise e
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """保存验证结果"""
         if "error" in exec_res:
             shared["validation_error"] = exec_res["error"]

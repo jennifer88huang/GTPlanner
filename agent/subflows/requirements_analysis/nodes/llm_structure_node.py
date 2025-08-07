@@ -6,49 +6,56 @@ LLM Structure Node
 
 import json
 from typing import Dict, Any
-from pocketflow import Node
-from agent.common import call_llm_async
+from pocketflow import AsyncNode
+from agent.llm_utils import call_llm_async
 
 
-class LLMStructureNode(Node):
+class LLMStructureNode(AsyncNode):
     """LLM结构化节点"""
-    
+
     def __init__(self):
         super().__init__()
         self.name = "LLMStructureNode"
         self.description = "使用LLM将提取的需求信息进行结构化处理"
-    
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备LLM结构化处理"""
         # 获取NodeReq提取的信息
-        extracted_info = shared.get("extracted_requirements", {})
+        extracted_info = {
+            "extracted_entities": shared.get("extracted_entities", {}),
+            "functional_requirements": shared.get("functional_requirements", {}),
+            "non_functional_requirements": shared.get("non_functional_requirements", {}),
+            "project_overview": shared.get("project_overview", {}),
+            "confidence_score": shared.get("confidence_score", 0.5),
+            "extraction_metadata": shared.get("extraction_metadata", {})
+        }
         dialogue_history = shared.get("dialogue_history", "")
         user_intent = shared.get("user_intent", {})
-        
+
         return {
             "extracted_info": extracted_info,
             "dialogue_history": dialogue_history,
             "user_intent": user_intent
         }
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行LLM结构化处理"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行LLM结构化处理"""
         try:
             extracted_info = prep_result["extracted_info"]
             dialogue_history = prep_result["dialogue_history"]
             user_intent = prep_result["user_intent"]
-            
+
             # 构建LLM prompt
             prompt = self._build_structure_prompt(extracted_info, dialogue_history, user_intent)
-            
-            # 调用LLM进行结构化
-            structured_result = self._call_llm_structure(prompt)
-            
+
+            # 异步调用LLM进行结构化
+            structured_result = await self._call_llm_structure_async(prompt)
+
             return {
                 "structured_requirements": structured_result,
                 "processing_success": True
             }
-            
+
         except Exception as e:
             print(f"❌ LLM结构化处理失败: {e}")
             return {
@@ -56,7 +63,7 @@ class LLMStructureNode(Node):
                 "processing_success": False
             }
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """保存结构化结果"""
         if "error" in exec_res:
             shared["llm_structure_error"] = exec_res["error"]
@@ -153,17 +160,11 @@ class LLMStructureNode(Node):
         
         return prompt
     
-    def _call_llm_structure(self, prompt: str) -> Dict[str, Any]:
-        """调用LLM进行结构化处理"""
+    async def _call_llm_structure_async(self, prompt: str) -> Dict[str, Any]:
+        """异步调用LLM进行结构化处理"""
         try:
-            # 导入同步版本的LLM调用
-            import sys
-            import os
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'utils'))
-            from call_llm import call_llm
-
-            # 使用同步版本调用LLM
-            result = call_llm(prompt, is_json=True)
+            # 使用异步版本调用LLM
+            result = await call_llm_async(prompt, is_json=True)
 
             # 确保返回的是字典格式
             if isinstance(result, str):
@@ -185,11 +186,7 @@ class LLMStructureNode(Node):
             print(f"❌ LLM调用失败: {e}")
             raise e
 
-    def _call_llm_sync(self, prompt: str) -> Dict[str, Any]:
-        """同步方式调用LLM（用于在异步环境中的同步调用）"""
-        # TODO: 实现同步的LLM调用
-        # 这里应该调用同步版本的LLM API
-        raise NotImplementedError("同步LLM调用尚未实现，请配置异步环境")
+
 
     def _validate_llm_result(self, result: Dict[str, Any]) -> bool:
         """验证LLM返回结果的格式"""

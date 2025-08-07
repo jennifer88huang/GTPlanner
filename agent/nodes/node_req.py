@@ -12,20 +12,15 @@
 - 结果结构化和置信度评估
 """
 
-import json
-import asyncio
-import sys
-import os
-from typing import Dict, List, Any, Optional
-from pocketflow import Node
-from ..shared import get_shared_state
 
-# 添加utils路径以导入call_llm
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'utils'))
-from call_llm import call_llm
+from typing import Dict, Any
+from pocketflow import AsyncNode
+
+# 导入LLM工具
+from agent.llm_utils import call_llm_async
 
 
-class NodeReq(Node):
+class NodeReq(AsyncNode):
     """需求解析节点 - 完全基于LLM进行需求分析"""
 
     def __init__(self, max_retries: int = 2, wait: float = 1.0):
@@ -37,8 +32,8 @@ class NodeReq(Node):
             wait: 重试等待时间
         """
         super().__init__(max_retries=max_retries, wait=wait)
-    
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """
         准备阶段：从pocketflow字典共享变量获取对话文本
 
@@ -106,9 +101,9 @@ class NodeReq(Node):
                 "extraction_focus": []
             }
     
-    def exec(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
         """
-        执行阶段：使用LLM执行需求解析
+        异步执行阶段：使用LLM执行需求解析
 
         Args:
             prep_res: 准备阶段的结果
@@ -125,8 +120,8 @@ class NodeReq(Node):
             raise ValueError("Empty dialogue text")
 
         try:
-            # 使用LLM进行需求分析 - 修复异步调用问题
-            analysis_result = self._analyze_requirements_with_llm_sync(dialogue_text)
+            # 使用LLM进行需求分析 - 异步调用
+            analysis_result = await self._analyze_requirements_with_llm_async(dialogue_text)
 
             return {
                 "extracted_entities": analysis_result.get("extracted_entities", {}),
@@ -146,7 +141,7 @@ class NodeReq(Node):
         except Exception as e:
             raise RuntimeError(f"LLM requirement extraction failed: {str(e)}")
 
-    def _analyze_requirements_with_llm_sync(self, dialogue_text: str) -> Dict[str, Any]:
+    async def _analyze_requirements_with_llm_async(self, dialogue_text: str) -> Dict[str, Any]:
         """使用LLM分析需求"""
 
         prompt = f"""
@@ -198,7 +193,7 @@ class NodeReq(Node):
 """
 
         try:
-            result = call_llm(prompt, is_json=True)
+            result = await call_llm_async(prompt, is_json=True)
 
             # 确保返回的是字典格式
             if isinstance(result, str):
@@ -225,7 +220,7 @@ class NodeReq(Node):
             print(f"❌ LLM调用失败: {e}")
             raise e
 
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """
         后处理阶段：将LLM分析结果更新到pocketflow字典共享变量
 

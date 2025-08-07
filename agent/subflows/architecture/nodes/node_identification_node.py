@@ -9,14 +9,13 @@ import time
 import json
 import time
 from typing import Dict, Any
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 # 导入LLM调用工具
-from agent.common import call_llm_async
-import asyncio
+from agent.llm_utils import call_llm_async
 
 
-class NodeIdentificationNode(Node):
+class NodeIdentificationNode(AsyncNode):
     """Node识别节点 - 确定Agent需要的所有Node"""
     
     def __init__(self):
@@ -24,7 +23,7 @@ class NodeIdentificationNode(Node):
         self.name = "NodeIdentificationNode"
         self.description = "基于Agent需求分析，识别需要的所有Node"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取Agent分析结果"""
         try:
             # 获取Agent分析结果
@@ -48,8 +47,8 @@ class NodeIdentificationNode(Node):
         except Exception as e:
             return {"error": f"Node identification preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行阶段：识别所需的Node"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行阶段：识别所需的Node"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -58,7 +57,7 @@ class NodeIdentificationNode(Node):
             prompt = self._build_node_identification_prompt(prep_result)
             
             # 调用LLM识别Node
-            node_list = asyncio.run(self._identify_nodes(prompt))
+            node_list = await self._identify_nodes(prompt)
             
             # 解析Node识别结果
             parsed_nodes = self._parse_node_list(node_list)
@@ -72,7 +71,7 @@ class NodeIdentificationNode(Node):
         except Exception as e:
             return {"error": f"Node identification failed: {str(e)}"}
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """后处理阶段：保存识别的Node列表"""
         try:
             if "error" in exec_res:
@@ -173,8 +172,8 @@ class NodeIdentificationNode(Node):
     async def _identify_nodes(self, prompt: str) -> str:
         """调用LLM识别Node"""
         try:
-            # 使用重试机制调用LLM
-            result = await call_llm_async(prompt, is_json=True, max_retries=3, retry_delay=2)
+            # 调用LLM识别Node
+            result = await call_llm_async(prompt, is_json=True)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")

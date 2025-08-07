@@ -6,10 +6,11 @@ Requirement Analysis Node
 
 import time
 from typing import Dict, Any, List
-from pocketflow import Node
+from pocketflow import AsyncNode
+from agent.shared_migration import field_validation_decorator
 
 
-class RequirementAnalysisNode(Node):
+class RequirementAnalysisNode(AsyncNode):
     """需求分析节点 - 解析结构化需求，识别核心目标"""
     
     def __init__(self):
@@ -17,7 +18,7 @@ class RequirementAnalysisNode(Node):
         self.name = "RequirementAnalysisNode"
         self.description = "解析结构化需求，识别核心目标和关键信息"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：从pocketflow字典共享变量获取结构化需求"""
         try:
             # 获取结构化需求
@@ -37,7 +38,7 @@ class RequirementAnalysisNode(Node):
         except Exception as e:
             return {"error": f"Requirement analysis preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
         """执行需求分析"""
         try:
             if "error" in prep_result:
@@ -84,7 +85,7 @@ class RequirementAnalysisNode(Node):
         except Exception as e:
             raise e
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """保存需求分析结果"""
         if "error" in exec_res:
             shared["requirement_analysis_error"] = exec_res["error"]

@@ -8,7 +8,7 @@ NodeReq → LLMStructureNode → ValidationNode → ProcessRequirementsNode
 """
 
 from typing import Dict, Any
-from pocketflow import Flow
+from pocketflow import AsyncFlow
 from agent.nodes.node_req import NodeReq
 from ..nodes.llm_structure_node import LLMStructureNode
 from ..nodes.validation_node import ValidationNode
@@ -38,10 +38,10 @@ class RequirementsAnalysisFlow:
         # 错误处理：任何节点返回"error"都结束流程
         # pocketflow会自动处理没有后续节点的情况
 
-        # 创建流程
-        self.flow = Flow(start=req_extract_node)
-    
-    def run(self, shared: Dict[str, Any]) -> bool:
+        # 创建异步流程
+        self.flow = AsyncFlow(start=req_extract_node)
+
+    async def run_async(self, shared: Dict[str, Any]) -> bool:
         """
         运行需求分析流程
         
@@ -60,8 +60,8 @@ class RequirementsAnalysisFlow:
             if not self._validate_input(shared):
                 return False
             
-            # 执行pocketflow流程
-            result = self.flow.run(shared)
+            # 执行pocketflow异步流程
+            result = await self.flow.run_async(shared)
             
             if result:
                 print(f"✅ 需求分析完成")
@@ -87,6 +87,6 @@ class RequirementsAnalysisFlow:
         return True
 
 
-def create_requirements_analysis_flow() -> Flow:
+def create_requirements_analysis_flow() -> RequirementsAnalysisFlow:
     """创建需求分析流程实例"""
-    return create_requirements_analysis_flow()
+    return RequirementsAnalysisFlow()

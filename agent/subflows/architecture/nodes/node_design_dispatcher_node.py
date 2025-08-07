@@ -7,10 +7,10 @@ Node Design Dispatcher Node
 
 import time
 from typing import Dict, Any, List
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 
-class NodeDesignDispatcherNode(Node):
+class NodeDesignDispatcherNode(AsyncNode):
     """Node设计分发器节点 - 为每个Node创建并行设计任务"""
     
     def __init__(self):
@@ -18,7 +18,7 @@ class NodeDesignDispatcherNode(Node):
         self.name = "NodeDesignDispatcherNode"
         self.description = "分发Node设计任务到并行处理节点"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：收集需要设计的Node列表和相关数据"""
         try:
             # 获取前面步骤的结果
@@ -49,8 +49,8 @@ class NodeDesignDispatcherNode(Node):
         except Exception as e:
             return {"error": f"Node design dispatch preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行阶段：准备批处理任务数据"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行阶段：准备批处理任务数据"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -85,7 +85,7 @@ class NodeDesignDispatcherNode(Node):
         except Exception as e:
             return {"error": f"Node design dispatch failed: {str(e)}"}
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """后处理阶段：将任务数据保存到shared，供后续批处理使用"""
         try:
             if "error" in exec_res:
@@ -126,7 +126,7 @@ class NodeDesignDispatcherNode(Node):
             return "error"
 
 
-class NodeDesignAggregatorNode(Node):
+class NodeDesignAggregatorNode(AsyncNode):
     """Node设计聚合器节点 - 收集并整合所有Node设计结果"""
     
     def __init__(self):
@@ -134,7 +134,7 @@ class NodeDesignAggregatorNode(Node):
         self.name = "NodeDesignAggregatorNode"
         self.description = "聚合所有Node设计结果"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：检查批处理任务状态"""
         try:
             # 检查是否有设计任务
@@ -158,8 +158,8 @@ class NodeDesignAggregatorNode(Node):
         except Exception as e:
             return {"error": f"Node design aggregation preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行阶段：聚合设计结果"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行阶段：聚合设计结果"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -186,7 +186,7 @@ class NodeDesignAggregatorNode(Node):
                     start_time = time.time()
 
                     # 模拟单个Node的设计过程
-                    node_result = self._design_single_node(node_design_node, task)
+                    node_result = await self._design_single_node(node_design_node, task)
 
                     design_time = time.time() - start_time
 
@@ -213,7 +213,7 @@ class NodeDesignAggregatorNode(Node):
         except Exception as e:
             return {"error": f"Node design aggregation failed: {str(e)}"}
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """后处理阶段：保存聚合结果"""
         try:
             if "error" in exec_res:
@@ -250,7 +250,7 @@ class NodeDesignAggregatorNode(Node):
             print(f"❌ Node设计聚合后处理失败: {str(e)}")
             return "error"
     
-    def _design_single_node(self, node_design_node: 'NodeDesignNode', task: Dict[str, Any]) -> Dict[str, Any]:
+    async def _design_single_node(self, node_design_node: 'NodeDesignNode', task: Dict[str, Any]) -> Dict[str, Any]:
         """为单个Node执行设计（简化版本）"""
         try:
             node_info = task["node_info"]
@@ -273,7 +273,7 @@ class NodeDesignAggregatorNode(Node):
             llm_start_time = time.time()
 
             # 调用原来的设计逻辑
-            design_result = node_design_node._design_single_node_detailed(prep_result, node_info)
+            design_result = await node_design_node._design_single_node_detailed(prep_result, node_info)
 
             llm_time = time.time() - llm_start_time
             print(f"      ✅ LLM调用完成 (耗时: {llm_time:.2f}秒)")

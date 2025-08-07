@@ -8,14 +8,14 @@ Flow Design Node
 import time
 import json
 from typing import Dict, Any
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 # 导入LLM调用工具
-from agent.common import call_llm_async
+from agent.llm_utils import call_llm_async
 import asyncio
 
 
-class FlowDesignNode(Node):
+class FlowDesignNode(AsyncNode):
     """Flow设计节点 - 设计pocketflow的Flow架构"""
     
     def __init__(self):
@@ -23,7 +23,7 @@ class FlowDesignNode(Node):
         self.name = "FlowDesignNode"
         self.description = "设计pocketflow的Flow架构和Node连接逻辑"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取已识别的Node列表"""
         try:
             # 获取已识别的Node列表
@@ -52,8 +52,8 @@ class FlowDesignNode(Node):
         except Exception as e:
             return {"error": f"Flow design preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行阶段：设计Flow架构"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行阶段：设计Flow架构"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -61,8 +61,8 @@ class FlowDesignNode(Node):
             # 构建Flow设计提示词
             prompt = self._build_flow_design_prompt(prep_result)
             
-            # 调用LLM设计Flow
-            flow_design = asyncio.run(self._design_flow_architecture(prompt))
+            # 异步调用LLM设计Flow
+            flow_design = await self._design_flow_architecture(prompt)
 
             
             # 解析Flow设计结果
@@ -77,7 +77,7 @@ class FlowDesignNode(Node):
         except Exception as e:
             return {"error": f"Flow design failed: {str(e)}"}
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """后处理阶段：保存Flow设计"""
         try:
             if "error" in exec_res:
@@ -177,7 +177,7 @@ class FlowDesignNode(Node):
         """调用LLM设计Flow架构"""
         try:
             # 使用重试机制调用LLM
-            result = await call_llm_async(prompt, is_json=True, max_retries=3, retry_delay=2)
+            result = await call_llm_async(prompt, is_json=True)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")

@@ -7,10 +7,10 @@ Requirements Analysis Agent的主节点，负责协调整个需求分析流程�
 
 import time
 from typing import Dict, Any
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 
-class ProcessRequirementsNode(Node):
+class ProcessRequirementsNode(AsyncNode):
     """需求处理主节点"""
     
     def __init__(self):
@@ -18,7 +18,7 @@ class ProcessRequirementsNode(Node):
         self.name = "ProcessRequirementsNode"
         self.description = "协调需求分析流程并更新主Agent共享状态"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备需求处理 - 使用pocketflow字典共享变量"""
         # 从主Agent共享状态获取输入数据
         dialogue_history = shared.get("dialogue_history", "")
@@ -37,8 +37,8 @@ class ProcessRequirementsNode(Node):
             "user_intent": user_intent
         }
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行需求分析流程"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行需求分析流程"""
         try:
             # 检查prep阶段是否有错误
             if not prep_result.get("dialogue_history") and not prep_result.get("user_intent"):
@@ -66,9 +66,9 @@ class ProcessRequirementsNode(Node):
                 "validation_report": {}
             }
 
-            # 执行需求分析流程
+            # 异步执行需求分析流程
             try:
-                flow_success = requirements_flow.run(subflow_shared)
+                flow_success = await requirements_flow.run_async(subflow_shared)
             except Exception as flow_error:
                 print(f"⚠️ 子流程执行出错: {flow_error}")
                 # 即使子流程出错，也尝试继续处理
@@ -98,7 +98,7 @@ class ProcessRequirementsNode(Node):
                 "error": str(e)
             }
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """保存需求分析结果并更新主Agent共享状态 - 使用pocketflow字典共享变量"""
         # 检查执行结果
         if "error" in exec_res:

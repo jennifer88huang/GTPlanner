@@ -17,14 +17,13 @@ import asyncio
 import sys
 import os
 from typing import Dict, List, Any, Optional
-from pocketflow import Node
+from pocketflow import AsyncNode
 
-# 添加utils路径以导入call_llm
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'utils'))
-from call_llm import call_llm_async
+# 导入LLM工具
+from agent.llm_utils import call_llm_async
 
 
-class NodeRecall(Node):
+class NodeRecall(AsyncNode):
     """文档召回节点 - 完全基于LLM进行知识召回"""
     
     def __init__(self, max_retries: int = 2, wait: float = 1.0):

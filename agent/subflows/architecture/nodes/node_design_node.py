@@ -9,14 +9,13 @@ import time
 import json
 import asyncio
 from typing import Dict, Any
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 # 导入LLM调用工具
-from agent.common import call_llm_async
-import asyncio
+from agent.llm_utils import call_llm_async
 
 
-class NodeDesignNode(Node):
+class NodeDesignNode(AsyncNode):
     """Node设计节点 - 详细设计每个Node的实现"""
     
     def __init__(self):
@@ -24,7 +23,7 @@ class NodeDesignNode(Node):
         self.name = "NodeDesignNode"
         self.description = "详细设计每个Node的prep/exec/post三阶段实现"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取Flow设计结果"""
         try:
             # 获取Flow设计结果
@@ -60,8 +59,8 @@ class NodeDesignNode(Node):
         except Exception as e:
             return {"error": f"Node design preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行阶段：设计每个Node的详细实现"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行阶段：设计每个Node的详细实现"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -78,8 +77,8 @@ class NodeDesignNode(Node):
                 # 构建Node设计提示词
                 prompt = self._build_node_design_prompt(prep_result, node_info)
                 
-                # 调用LLM设计Node
-                node_design = asyncio.run(self._design_single_node(prompt))
+                # 异步调用LLM设计Node
+                node_design = await self._design_single_node(prompt)
                 
                 # 解析Node设计结果
                 parsed_node = self._parse_node_design(node_design, node_info)
@@ -93,7 +92,7 @@ class NodeDesignNode(Node):
         except Exception as e:
             return {"error": f"Node design failed: {str(e)}"}
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """后处理阶段：保存Node设计"""
         try:
             if "error" in exec_res:
@@ -225,12 +224,12 @@ class NodeDesignNode(Node):
         """调用LLM设计单个Node"""
         try:
             # 使用重试机制调用LLM
-            result = await call_llm_async(prompt, is_json=True, max_retries=3, retry_delay=2)
+            result = await call_llm_async(prompt, is_json=True)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")
 
-    def _design_single_node_detailed(self, prep_result: Dict[str, Any], node_info: Dict[str, Any]) -> Dict[str, Any]:
+    async def _design_single_node_detailed(self, prep_result: Dict[str, Any], node_info: Dict[str, Any]) -> Dict[str, Any]:
         """为单个Node执行详细设计（供批处理聚合器调用）"""
         try:
             node_name = node_info.get('node_name', 'Unknown')
@@ -248,7 +247,7 @@ class NodeDesignNode(Node):
             import time
 
             llm_start = time.time()
-            design_result = asyncio.run(self._design_single_node(prompt))
+            design_result = await self._design_single_node(prompt)
             llm_duration = time.time() - llm_start
 
             print(f"         ✅ LLM API调用成功 (耗时: {llm_duration:.2f}秒)")

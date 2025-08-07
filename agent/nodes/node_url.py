@@ -15,11 +15,11 @@ URL解析节点 (Node_URL)
 import time
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse
-from pocketflow import Node
+from pocketflow import AsyncNode
 from ..utils.URL_to_Markdown import JinaWebClient
 
 
-class NodeURL(Node):
+class NodeURL(AsyncNode):
     """URL解析节点"""
     
     def __init__(self, max_retries: int = 2, wait: float = 1.0):
@@ -44,7 +44,7 @@ class NodeURL(Node):
         # 配置
         self.max_content_length = 10000  # 默认最大内容长度
     
-    def prep(self, shared) -> Dict[str, Any]:
+    async def prep_async(self, shared) -> Dict[str, Any]:
         """
         准备阶段：从pocketflow字典共享变量获取URL和解析配置
 
@@ -104,7 +104,7 @@ class NodeURL(Node):
                 "max_content_length": self.max_content_length
             }
     
-    def exec(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
         """
         执行阶段：执行URL解析
         
@@ -160,7 +160,7 @@ class NodeURL(Node):
         except Exception as e:
             raise RuntimeError(f"URL parsing failed: {str(e)}")
     
-    def post(self, shared, prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared, prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """
         后处理阶段：将解析结果存储到共享状态
         

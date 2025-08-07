@@ -6,10 +6,11 @@ Function Analysis Node
 
 import time
 from typing import Dict, Any, List
-from pocketflow import Node
+from pocketflow import AsyncNode
+from agent.shared_migration import field_validation_decorator
 
 
-class FunctionAnalysisNode(Node):
+class FunctionAnalysisNode(AsyncNode):
     """功能分析节点 - 识别核心功能模块"""
     
     def __init__(self):
@@ -17,7 +18,7 @@ class FunctionAnalysisNode(Node):
         self.name = "FunctionAnalysisNode"
         self.description = "从结构化需求中识别核心功能模块"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取结构化需求"""
         try:
             # 获取结构化需求
@@ -33,7 +34,7 @@ class FunctionAnalysisNode(Node):
         except Exception as e:
             return {"error": f"Function analysis preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
         """执行功能分析"""
         try:
             if "error" in prep_result:
@@ -62,7 +63,7 @@ class FunctionAnalysisNode(Node):
         except Exception as e:
             raise e
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """保存功能分析结果"""
         if "error" in exec_res:
             shared["function_analysis_error"] = exec_res["error"]

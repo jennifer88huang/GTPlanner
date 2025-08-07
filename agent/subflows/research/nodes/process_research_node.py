@@ -5,11 +5,12 @@
 
 import json
 import time
-from pocketflow import Node
+from pocketflow import AsyncNode
 from ..flows.research_flow import ResearchFlow
+from agent.shared_migration import field_validation_decorator
 
 
-class ProcessResearch(Node):
+class ProcessResearch(AsyncNode):
     """研究处理节点 - 管理研究处理状态"""
 
     def __init__(self):
@@ -18,7 +19,12 @@ class ProcessResearch(Node):
 
 
     
-    def prep(self, shared):
+    @field_validation_decorator(validation_enabled=True, strict_mode=False)
+
+
+
+    
+    async def prep_async(self, shared):
         """准备研究处理 - 使用pocketflow字典共享变量"""
         # 从共享变量中提取研究关键词
         research_keywords = []
@@ -76,7 +82,10 @@ class ProcessResearch(Node):
             "total_keywords": len(research_keywords)
         }
     
-    def exec(self, data):
+    @field_validation_decorator(validation_enabled=True, strict_mode=False)
+
+    
+    async def exec_async(self, data):
         """执行研究处理 - 按照架构文档实现"""
         research_keywords = data["research_keywords"]
         requirements = data["requirements"]
@@ -126,7 +135,10 @@ class ProcessResearch(Node):
                 "total_keywords": total_keywords
             }
     
-    def post(self, shared, prep_res, exec_res):
+    @field_validation_decorator(validation_enabled=True, strict_mode=False)
+
+    
+    async def post_async(self, shared, prep_res, exec_res):
         """保存研究结果并更新状态 - 使用pocketflow字典共享变量"""
         # 检查执行结果
         if "error" in exec_res:

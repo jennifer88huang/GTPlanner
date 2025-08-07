@@ -5,13 +5,10 @@ Step Generation Node
 """
 
 import time
-import sys
-import os
-import asyncio
-from typing import Dict, Any, List
+from typing import Dict, Any
 
-# 添加utils路径以导入call_llm
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'utils'))
+# 导入LLM工具
+from agent.llm_utils import call_llm_async
 
 
 from pocketflow import AsyncNode
@@ -88,8 +85,15 @@ class StepGenerationNode(AsyncNode):
         prompt = self._build_step_generation_prompt(function_modules, structured_requirements)
 
         # 调用异步LLM
-        from call_llm import call_llm_async
-        result = await call_llm_async(prompt, is_json=True)
+        result_str = await call_llm_async(prompt, is_json=True)
+
+        # 解析JSON结果
+        import json
+        try:
+            result = json.loads(result_str)
+        except json.JSONDecodeError:
+            # 如果解析失败，返回基础结构
+            result = {"steps": [], "critical_path": [], "parallel_opportunities": []}
 
         # 验证和处理结果
         validated_result = self._validate_steps_result(result, function_modules)

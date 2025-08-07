@@ -8,14 +8,13 @@ Document Generation Node
 import time
 import json
 from typing import Dict, Any
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 # 导入LLM调用工具
-from agent.common import call_llm_async
-import asyncio
+from agent.llm_utils import call_llm_async
 
 
-class DocumentGenerationNode(Node):
+class DocumentGenerationNode(AsyncNode):
     """文档生成节点 - 生成完整的Agent设计文档"""
     
     def __init__(self):
@@ -23,7 +22,7 @@ class DocumentGenerationNode(Node):
         self.name = "DocumentGenerationNode"
         self.description = "整合所有设计结果生成完整的Agent设计文档"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：收集所有设计结果"""
         try:
             # 获取所有前面步骤的结果
@@ -66,8 +65,8 @@ class DocumentGenerationNode(Node):
         except Exception as e:
             return {"error": f"Document generation preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行阶段：生成完整的Agent设计文档"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行阶段：生成完整的Agent设计文档"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -75,8 +74,8 @@ class DocumentGenerationNode(Node):
             # 构建文档生成提示词
             prompt = self._build_document_generation_prompt(prep_result)
             
-            # 调用LLM生成文档
-            agent_design_document = asyncio.run(self._generate_complete_document(prompt))
+            # 异步调用LLM生成文档
+            agent_design_document = await self._generate_complete_document(prompt)
             
             return {
                 "agent_design_document": agent_design_document,
@@ -87,7 +86,7 @@ class DocumentGenerationNode(Node):
         except Exception as e:
             return {"error": f"Document generation failed: {str(e)}"}
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """后处理阶段：保存文档并生成文件"""
         try:
             if "error" in exec_res:
@@ -201,7 +200,7 @@ class DocumentGenerationNode(Node):
         """调用LLM生成完整文档"""
         try:
             # 使用重试机制调用LLM
-            result = await call_llm_async(prompt, is_json=False, max_retries=3, retry_delay=2)
+            result = await call_llm_async(prompt, is_json=False)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")

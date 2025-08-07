@@ -7,7 +7,7 @@ Short Planning Flow
 FunctionAnalysisNode → StepGenerationNode → ConfirmationFormattingNode
 """
 
-from pocketflow import Flow, AsyncFlow
+from pocketflow import AsyncFlow
 from ..nodes.function_analysis_node import FunctionAnalysisNode
 from ..nodes.step_generation_node import StepGenerationNode
 from ..nodes.confirmation_formatting_node import ConfirmationFormattingNode

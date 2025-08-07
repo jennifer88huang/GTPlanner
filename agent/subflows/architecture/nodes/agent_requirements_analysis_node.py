@@ -9,14 +9,14 @@ import time
 import json
 import time
 from typing import Dict, Any
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 # 导入LLM调用工具
-from agent.common import call_llm_async
+from agent.llm_utils import call_llm_async
 import asyncio
 
 
-class AgentRequirementsAnalysisNode(Node):
+class AgentRequirementsAnalysisNode(AsyncNode):
     """Agent需求分析节点 - 理解和分析Agent设计需求"""
     
     def __init__(self):
@@ -24,7 +24,7 @@ class AgentRequirementsAnalysisNode(Node):
         self.name = "AgentRequirementsAnalysisNode"
         self.description = "分析Agent设计需求，明确Agent类型和核心功能"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：收集需求信息"""
         try:
             # 获取结构化需求
@@ -54,8 +54,8 @@ class AgentRequirementsAnalysisNode(Node):
         except Exception as e:
             return {"error": f"Agent requirements analysis preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行阶段：分析Agent需求"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行阶段：分析Agent需求"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -63,8 +63,8 @@ class AgentRequirementsAnalysisNode(Node):
             # 构建分析提示词
             prompt = self._build_analysis_prompt(prep_result)
             
-            # 调用LLM分析需求 - 修复异步事件循环冲突
-            analysis_result = self._analyze_agent_requirements_sync(prompt)
+            # 异步调用LLM分析需求
+            analysis_result = await self._analyze_agent_requirements_async(prompt)
             
             # 解析分析结果
             agent_analysis = self._parse_analysis_result(analysis_result)
@@ -78,7 +78,7 @@ class AgentRequirementsAnalysisNode(Node):
         except Exception as e:
             return {"error": f"Agent requirements analysis failed: {str(e)}"}
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """后处理阶段：保存分析结果"""
         try:
             if "error" in exec_res:
@@ -166,17 +166,11 @@ class AgentRequirementsAnalysisNode(Node):
         
         return prompt
     
-    def _analyze_agent_requirements_sync(self, prompt: str) -> str:
-        """调用LLM分析Agent需求"""
+    async def _analyze_agent_requirements_async(self, prompt: str) -> str:
+        """异步调用LLM分析Agent需求"""
         try:
-            # 导入同步版本的LLM调用
-            import sys
-            import os
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'utils'))
-            from call_llm import call_llm
-
-            # 使用同步版本调用LLM
-            result = call_llm(prompt, is_json=True)
+            # 使用异步版本调用LLM
+            result = await call_llm_async(prompt, is_json=True)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")

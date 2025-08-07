@@ -8,14 +8,13 @@ Data Structure Design Node
 import time
 import json
 from typing import Dict, Any
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 # 导入LLM调用工具
-from agent.common import call_llm_async
-import asyncio
+from agent.llm_utils import call_llm_async
 
 
-class DataStructureDesignNode(Node):
+class DataStructureDesignNode(AsyncNode):
     """数据结构设计节点 - 设计shared存储结构"""
     
     def __init__(self):
@@ -23,7 +22,7 @@ class DataStructureDesignNode(Node):
         self.name = "DataStructureDesignNode"
         self.description = "设计pocketflow Agent的shared存储数据结构"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取Flow和Node设计结果"""
         try:
             # 获取Flow设计结果
@@ -52,8 +51,8 @@ class DataStructureDesignNode(Node):
         except Exception as e:
             return {"error": f"Data structure design preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """执行阶段：设计shared数据结构"""
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+        """异步执行阶段：设计shared数据结构"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
@@ -61,8 +60,8 @@ class DataStructureDesignNode(Node):
             # 构建数据结构设计提示词
             prompt = self._build_data_structure_prompt(prep_result)
             
-            # 调用LLM设计数据结构
-            data_structure = asyncio.run(self._design_data_structure(prompt))
+            # 异步调用LLM设计数据结构
+            data_structure = await self._design_data_structure(prompt)
             
             # 解析数据结构设计结果
             parsed_structure = self._parse_data_structure(data_structure)
@@ -76,7 +75,7 @@ class DataStructureDesignNode(Node):
         except Exception as e:
             return {"error": f"Data structure design failed: {str(e)}"}
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """后处理阶段：保存数据结构设计"""
         try:
             if "error" in exec_res:
@@ -191,7 +190,7 @@ class DataStructureDesignNode(Node):
         """调用LLM设计数据结构"""
         try:
             # 使用重试机制调用LLM
-            result = await call_llm_async(prompt, is_json=True, max_retries=3, retry_delay=2)
+            result = await call_llm_async(prompt, is_json=True)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")

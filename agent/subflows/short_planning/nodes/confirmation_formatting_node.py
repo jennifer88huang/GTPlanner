@@ -6,10 +6,11 @@ Confirmation Formatting Node
 
 import time
 from typing import Dict, Any, List
-from pocketflow import Node
+from pocketflow import AsyncNode
+from agent.shared_migration import field_validation_decorator
 
 
-class ConfirmationFormattingNode(Node):
+class ConfirmationFormattingNode(AsyncNode):
     """确认文档格式化节点 - 生成Markdown格式的确认文档"""
     
     def __init__(self):
@@ -17,7 +18,7 @@ class ConfirmationFormattingNode(Node):
         self.name = "ConfirmationFormattingNode"
         self.description = "将实现步骤格式化为用户友好的确认文档"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取实现步骤和相关数据"""
         try:
             # 获取实现步骤
@@ -41,7 +42,7 @@ class ConfirmationFormattingNode(Node):
         except Exception as e:
             return {"error": f"Confirmation formatting preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
         """执行确认文档格式化"""
         try:
             if "error" in prep_result:
@@ -64,7 +65,7 @@ class ConfirmationFormattingNode(Node):
         except Exception as e:
             raise e
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """保存确认文档格式化结果"""
         if "error" in exec_res:
             shared["confirmation_formatting_error"] = exec_res["error"]

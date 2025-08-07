@@ -15,11 +15,11 @@
 import time
 import hashlib
 from typing import Dict, List, Any, Optional
-from pocketflow import Node
+from pocketflow import AsyncNode
 from ..utils.search import JinaSearchClient
 
 
-class NodeSearch(Node):
+class NodeSearch(AsyncNode):
     """搜索引擎节点"""
     
     def __init__(self, max_retries: int = 3, wait: float = 2.0):
@@ -52,7 +52,7 @@ class NodeSearch(Node):
         self.url_weight = 0.2
         self.source_weight = 0.1
     
-    def prep(self, shared) -> Dict[str, Any]:
+    async def prep_async(self, shared) -> Dict[str, Any]:
         """
         准备阶段：从pocketflow字典共享变量获取搜索关键词
 
@@ -104,7 +104,7 @@ class NodeSearch(Node):
                 "language": self.default_language
             }
     
-    def exec(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
         """
         执行阶段：执行搜索操作
         
@@ -192,7 +192,7 @@ class NodeSearch(Node):
         except Exception as e:
             raise RuntimeError(f"Search execution failed: {str(e)}")
     
-    def post(self, shared, prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared, prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """
         后处理阶段：将搜索结果存储到共享状态
         

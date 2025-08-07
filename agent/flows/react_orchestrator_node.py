@@ -9,10 +9,8 @@ import json
 import time
 from typing import Dict, List, Any
 from pocketflow import Node, AsyncNode
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'utils'))
-from call_llm import call_llm
+# 导入LLM工具
+from agent.llm_utils import call_llm_async, call_llm_stream_async
 
 
 class ReActOrchestratorNode(AsyncNode):
@@ -226,8 +224,8 @@ Agent调用可行性检查:
                 # 使用流式调用
                 return await self._make_decision_with_stream_async(system_prompt, state_description, stream_callback)
             else:
-                # 使用普通调用
-                result = call_llm(
+                # 使用异步调用
+                result = await call_llm_async(
                     prompt=f"{system_prompt}\n\n{state_description}",
                     is_json=True
                 )
@@ -253,7 +251,7 @@ Agent调用可行性检查:
         """异步流式LLM调用进行决策"""
         try:
             from utils.json_stream_parser import JSONStreamParser
-            from call_llm import call_llm_stream_async
+            # call_llm_stream_async已经在顶部导入
 
             # 创建JSON流式解析器
             parser = JSONStreamParser()

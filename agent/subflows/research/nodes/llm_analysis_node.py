@@ -5,15 +5,15 @@ LLM分析节点 - Research Agent的2c步骤
 """
 
 import asyncio
-from pocketflow import Node
+from pocketflow import AsyncNode
 
-from agent.common import call_llm_async
+from agent.llm_utils import call_llm_async
 
 
-class LLMAnalysisNode(Node):
+class LLMAnalysisNode(AsyncNode):
     """LLM分析节点 - 2c步骤"""
     
-    def prep(self, shared):
+    async def prep_async(self, shared):
         """准备LLM分析"""
         # 从共享变量中获取URL解析结果
         url_content = shared.get("url_content", "")
@@ -29,7 +29,7 @@ class LLMAnalysisNode(Node):
             "analysis_requirements": analysis_requirements
         }
     
-    def exec(self, prep_res):
+    async def exec_async(self, prep_res):
         """执行LLM分析"""
         if "error" in prep_res:
             raise ValueError(prep_res["error"])
@@ -38,9 +38,9 @@ class LLMAnalysisNode(Node):
         keyword = prep_res["current_keyword"]
         analysis_requirements = prep_res["analysis_requirements"]
         
-        # 使用LLM进行内容分析 - 修复异步事件循环冲突
+        # 使用LLM进行内容分析 - 异步调用
         try:
-            analysis_result = self._analyze_content_with_llm_sync(
+            analysis_result = await self._analyze_content_with_llm_async(
                 url_content, keyword, analysis_requirements
             )
         except Exception as e:
@@ -53,7 +53,7 @@ class LLMAnalysisNode(Node):
             "keyword": keyword
         }
     
-    def post(self, shared, prep_res, exec_res):
+    async def post_async(self, shared, prep_res, exec_res):
         """保存LLM分析结果到共享变量"""
         if "error" in exec_res:
             shared["llm_analysis_error"] = exec_res["error"]
@@ -65,15 +65,15 @@ class LLMAnalysisNode(Node):
         
         return "success"
     
-    def _analyze_content_with_llm_sync(self, content, keyword, requirements):
-        """使用LLM分析内容"""
+    async def _analyze_content_with_llm_async(self, content, keyword, requirements):
+        """异步使用LLM分析内容"""
         prompt = f"""
-请分析以下网页内容，重点关注与关键词"{keyword}"相关的信息。
+请分析以下内容，重点关注与关键词"{keyword}"相关的信息。
 
 分析需求：
 {requirements}
 
-网页内容：
+内容：
 {content[:3000]}
 
 请以JSON格式返回分析结果：
@@ -92,15 +92,13 @@ class LLMAnalysisNode(Node):
 3. 提供实用的建议和洞察
 4. 评估内容与关键词的相关性（0-1分）
 """
-        
-        try:
-            # 导入同步版本的LLM调用
-            import sys
-            import os
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'utils'))
-            from call_llm import call_llm
 
-            result = call_llm(prompt, is_json=True)
+        try:
+            result = await call_llm_async(prompt, is_json=True)
+            # 如果返回的是字符串，尝试解析为JSON
+            if isinstance(result, str):
+                import json
+                result = json.loads(result)
             return result
         except Exception as e:
             return {

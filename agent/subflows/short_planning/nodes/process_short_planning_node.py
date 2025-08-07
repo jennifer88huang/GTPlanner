@@ -7,10 +7,10 @@ Short Planning Agent的主节点，协调整个简化的短规划流程。
 
 import time
 from typing import Dict, Any
-from pocketflow import Node
+from pocketflow import AsyncNode
 
 
-class ProcessShortPlanningNode(Node):
+class ProcessShortPlanningNode(AsyncNode):
     """短规划处理主节点 - 协调简化的短规划流程"""
     
     def __init__(self):
@@ -18,7 +18,7 @@ class ProcessShortPlanningNode(Node):
         self.name = "ProcessShortPlanningNode"
         self.description = "协调短规划流程，生成功能导向的确认文档"
     
-    def prep(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：验证输入数据"""
         try:
             # 检查结构化需求
@@ -38,7 +38,7 @@ class ProcessShortPlanningNode(Node):
         except Exception as e:
             return {"error": f"Short planning preparation failed: {str(e)}"}
     
-    def exec(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
         """执行短规划流程"""
         try:
             # 检查prep阶段是否有错误
@@ -49,6 +49,7 @@ class ProcessShortPlanningNode(Node):
             
             # 动态导入避免循环导入
             from ..flows.short_planning_flow import ShortPlanningFlow
+from agent.shared_migration import field_validation_decorator
             
             # 创建短规划流程
             planning_flow = ShortPlanningFlow()
@@ -74,7 +75,7 @@ class ProcessShortPlanningNode(Node):
             print(f"❌ 短规划流程执行失败: {e}")
             raise e
     
-    def post(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """保存短规划结果并更新共享状态"""
         
         # 检查执行结果
