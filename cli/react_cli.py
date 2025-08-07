@@ -255,7 +255,7 @@ class ReActCLI:
             self.real_time_display.start_streaming_session(f"处理需求: {user_input[:30]}...")
         else:
             # 简化模式：只显示基本的处理提示
-            self.console.print(f"🤔 正在思考: {user_input[:50]}{'...' if len(user_input) > 50 else ''}", style="bold blue")
+            self.console.print(f"🤖 正在处理: {user_input[:50]}{'...' if len(user_input) > 50 else ''}", style="bold blue")
 
         try:
             # 获取当前共享状态
@@ -367,22 +367,19 @@ class ReActCLI:
         last_action_type = None  # 跟踪上次显示的行动类型
         displayed_progress = set()  # 跟踪已显示的进度信息，避免重复
 
-        async def simple_callback(parsed_data: Dict[str, Any], raw_text: str):
+        def simple_callback(parsed_data: Dict[str, Any], raw_text: str):
             """
             简单的流式处理回调函数，显示关键信息
             """
             nonlocal last_action_type  # 声明要修改外层变量
 
             try:
-                # 1. 优先显示user_message（AI的回复）
+                # 1. 流式显示user_message（AI的回复）
                 if "user_message" in parsed_data and parsed_data["user_message"]:
-                    user_message = parsed_data["user_message"].strip()
-                    if user_message and user_message not in displayed_messages:
-                        # 只显示完整的、未显示过的消息
-                        if len(user_message) > 10:  # 降低长度要求
-                            displayed_messages.add(user_message)
-                            formatted_message = user_message.replace("\\n", "\n")
-                            self.console.print(f"\n🤖 {formatted_message}\n", style="cyan")
+                    new_content = parsed_data["user_message"]
+                    if new_content:
+                        # 直接显示新增内容，不检查重复
+                        self.console.print(new_content, style="cyan", end="")
 
                 # 2. 显示行动类型变化（简化版）
                 if "action_decision" in parsed_data and parsed_data["action_decision"]:

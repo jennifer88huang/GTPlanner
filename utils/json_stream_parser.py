@@ -366,7 +366,7 @@ class JSONStreamParser:
         return ".".join(self.current_path)
 
     def _notify_field_update(self, field_path: str, new_value: str, is_complete: bool = False):
-        """通知字段更新"""
+        """通知字段更新（支持异步回调）"""
         if field_path not in self.subscribed_fields:
             return
 
@@ -376,13 +376,20 @@ class JSONStreamParser:
             new_content = new_value[len(current_buffer):]
             self.field_buffers[field_path] = new_value
 
-            # 调用回调函数
+            # 调用回调函数（支持异步）
             callback = self.field_subscribers.get(field_path)
             if callback:
                 try:
-                    callback(field_path, new_content, is_complete)
-                except Exception:
-                    # 静默处理回调错误
+                    import asyncio
+                    if asyncio.iscoroutinefunction(callback):
+                        # 异步回调：创建任务
+                        asyncio.create_task(callback(field_path, new_content, is_complete))
+                    else:
+                        # 同步回调：直接调用
+                        callback(field_path, new_content, is_complete)
+                except Exception as e:
+                    # 静默处理回调错误，但可以打印调试信息
+                    print(f"⚠️ JSONStreamParser回调错误: {e}")
                     pass
     
     def _parse_incremental(self):

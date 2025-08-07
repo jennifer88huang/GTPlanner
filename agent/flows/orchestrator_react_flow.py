@@ -109,12 +109,13 @@ class OrchestratorReActFlow:
         # 创建异步流程，从主Agent开始
         self.flow = AsyncFlow(start=main_agent)
     
-    async def run_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
+    async def run_async(self, shared: Dict[str, Any], stream_callback=None) -> Dict[str, Any]:
         """
         异步运行ReAct主控制器流程（使用pocketflow原生异步能力）
 
         Args:
             shared: 共享状态字典
+            stream_callback: 可选的流式回调函数
 
         Returns:
             处理结果
@@ -126,8 +127,16 @@ class OrchestratorReActFlow:
             if "react_cycle_count" not in shared:
                 shared["react_cycle_count"] = 0
 
+            # 如果有流式回调，保存到shared中供节点使用
+            if stream_callback:
+                shared["_stream_callback"] = stream_callback
+
             # 直接使用pocketflow异步执行流程
             result = await self.flow._run_async(shared)
+
+            # 清理回调
+            if "_stream_callback" in shared:
+                del shared["_stream_callback"]
 
             # 分析最终结果
             react_cycles = shared.get("react_cycle_count", 0)

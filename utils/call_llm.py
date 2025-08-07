@@ -24,12 +24,6 @@ async def _request_llm_async(
 ):
     import time
 
-    # 调试信息：请求开始
-    print(f"🤖 LLM调用开始")
-    print(f"   📡 URL: {settings.llm.base_url}/chat/completions")
-    print(f"   🎯 模型: {model}")
-    print(f"   📏 提示词长度: {len(prompt)} 字符")
-    print(f"   📋 JSON模式: {'是' if is_json else '否'}")
 
     url = f"{settings.llm.base_url}/chat/completions"
     payload = json.dumps(
@@ -47,18 +41,15 @@ async def _request_llm_async(
     }
 
     request_start_time = time.time()
-    print(f"   🚀 发送HTTP请求...")
 
     try:
         async with aiohttp.ClientSession() as session:
             # 设置更长的超时时间，适应复杂提示词
             timeout = aiohttp.ClientTimeout(total=120, connect=15, sock_read=90)
-            print(f"   ⏰ 超时设置: 总计60秒, 连接10秒, 读取30秒")
 
             async with session.post(
                 url, headers=headers, data=payload, timeout=timeout
             ) as response:
-                print(f"   📨 收到HTTP响应: {response.status}")
 
                 if response.status != 200:
                     error_text = await response.text()
@@ -68,7 +59,6 @@ async def _request_llm_async(
 
                 response_json = await response.json()
                 request_duration = time.time() - request_start_time
-                print(f"   ✅ HTTP请求完成 (耗时: {request_duration:.2f}秒)")
 
                 # 检查响应结构
                 if "choices" not in response_json:
@@ -81,12 +71,9 @@ async def _request_llm_async(
                     raise Exception("LLM响应choices为空")
 
                 response_text = response_json["choices"][0]["message"]["content"]
-                print(f"   📊 LLM返回内容长度: {len(response_text)} 字符")
 
                 if is_json:
-                    print(f"   🔧 解析JSON响应...")
-                    print(f"   📄 响应内容预览: {response_text[:200]}...")
-
+                 
                     # 先尝试直接解析JSON
                     try:
                         json_start_time = time.time()
@@ -252,8 +239,12 @@ async def _request_llm_stream_async(
                         continue
 
 
-async def call_llm_stream_async(prompt):
+async def call_llm_stream_async(prompt, is_json=False):
     """流式调用LLM"""
+    # 如果需要JSON格式，添加JSON指令
+    if is_json:
+        prompt = f"{prompt}\n\n请以JSON格式回复，确保输出是有效的JSON。"
+
     async for chunk in _request_llm_stream_async(prompt, model=settings.llm.model):
         yield chunk
 

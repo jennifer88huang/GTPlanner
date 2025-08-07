@@ -64,17 +64,12 @@ class ReActOrchestratorNode(AsyncNode):
             user_message = prep_result["user_message"]
             state_info = prep_result["state_info"]
             
-            print(f"🤖 ReAct Agent开始推理...")
-            
             # 构建系统提示词
             system_prompt = self._build_system_prompt()
-            
+
             # 异步让LLM进行推理和决策
             shared_data = prep_result.get("shared_data", {})
             decision = await self._make_decision_async(system_prompt, state_info, shared_data)
-            
-            print(f"🎯 ReAct决策: {decision.get('next_action', 'unknown')}")
-            print(f"💭 推理过程: {decision.get('reasoning', '')}")
             
             return {
                 "user_message": decision.get("user_message", "我正在处理您的请求..."),
@@ -265,14 +260,14 @@ Agent调用可行性检查:
             collected_data = {}
             user_message_buffer = ""
 
-            def on_field_update(field_path: str, new_content: str, is_complete: bool):
+            async def on_field_update(field_path: str, new_content: str, is_complete: bool):
                 nonlocal user_message_buffer, collected_data
 
                 # 处理user_message字段的流式输出
                 if field_path == "user_message":
                     user_message_buffer += new_content
 
-                    # 发送新增内容给CLI
+                    # 异步发送新增内容给CLI
                     if stream_callback and len(new_content) > 0:
                         try:
                             stream_data = {
@@ -280,7 +275,12 @@ Agent调用可行性检查:
                                 "field_path": field_path,
                                 "is_complete": is_complete
                             }
-                            stream_callback(stream_data, new_content)
+                            # 检查回调是否存在且是协程函数
+                            import asyncio
+                            if asyncio.iscoroutinefunction(stream_callback):
+                                await stream_callback(stream_data, new_content)
+                            elif callable(stream_callback):
+                                stream_callback(stream_data, new_content)
                         except Exception as e:
                             print(f"⚠️ 流式回调失败: {e}")
 
@@ -294,7 +294,7 @@ Agent调用可行性检查:
             # 异步调用流式LLM
             prompt = f"{system_prompt}\n\n{state_description}"
 
-            async for chunk in call_llm_stream_async(prompt):
+            async for chunk in call_llm_stream_async(prompt, is_json=True):
                 if chunk:
                     parser.add_chunk(chunk)
 
