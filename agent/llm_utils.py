@@ -62,20 +62,31 @@ async def call_llm_async(
                 json.loads(content)
                 return content
             except json.JSONDecodeError as e:
-                # 尝试修复常见的JSON问题
+                # 尝试清理代码块包裹的JSON
                 try:
-                    # 尝试添加缺失的结束括号
-                    if content.count('{') > content.count('}'):
-                        content += '}' * (content.count('{') - content.count('}'))
-                    if content.count('[') > content.count(']'):
-                        content += ']' * (content.count('[') - content.count(']'))
+                    # 移除markdown代码块
+                    import re
+                    cleaned_content = re.sub(r'^```json\s*', '', content.strip())
+                    cleaned_content = re.sub(r'\s*```$', '', cleaned_content)
 
-                    # 再次尝试解析
-                    json.loads(content)
-                    return content
+                    # 尝试解析清理后的内容
+                    json.loads(cleaned_content)
+                    return cleaned_content
                 except json.JSONDecodeError:
-                    # 如果仍然无法解析，返回错误信息
-                    raise ValueError(f"LLM返回的不是有效JSON: {str(e)}, 内容: {content[:500]}...")
+                    # 尝试修复常见的JSON问题
+                    try:
+                        # 尝试添加缺失的结束括号
+                        if cleaned_content.count('{') > cleaned_content.count('}'):
+                            cleaned_content += '}' * (cleaned_content.count('{') - cleaned_content.count('}'))
+                        if cleaned_content.count('[') > cleaned_content.count(']'):
+                            cleaned_content += ']' * (cleaned_content.count('[') - cleaned_content.count(']'))
+
+                        # 再次尝试解析
+                        json.loads(cleaned_content)
+                        return cleaned_content
+                    except json.JSONDecodeError:
+                        # 如果仍然无法解析，返回错误信息
+                        raise ValueError(f"LLM返回的不是有效JSON: {str(e)}, 内容: {content[:500]}...")
         
         return content
 
@@ -220,7 +231,14 @@ async def generate_json(prompt: str, schema_description: Optional[str] = None) -
     try:
         return json.loads(response)
     except json.JSONDecodeError as e:
-        raise ValueError(f"无法解析LLM返回的JSON: {e}")
+        # 尝试清理代码块包裹的JSON
+        try:
+            import re
+            cleaned_response = re.sub(r'^```json\s*', '', response.strip())
+            cleaned_response = re.sub(r'\s*```$', '', cleaned_response)
+            return json.loads(cleaned_response)
+        except json.JSONDecodeError:
+            raise ValueError(f"无法解析LLM返回的JSON: {e}, 内容: {response[:200]}...")
 
 
 async def analyze_requirements(user_input: str) -> Dict[str, Any]:

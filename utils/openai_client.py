@@ -12,9 +12,7 @@ import random
 from typing import Dict, List, Any, Optional, AsyncIterator, Iterator, Union, Callable
 from openai import AsyncOpenAI, OpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
-from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_chunk import ChoiceDelta
-import openai
 
 from config.openai_config import get_openai_config, OpenAIConfig
 
@@ -144,7 +142,7 @@ class RetryManager:
 
 class OpenAIClient:
     """OpenAI SDK封装客户端"""
-    
+
     def __init__(self, config: Optional[OpenAIConfig] = None):
         """
         初始化OpenAI客户端
@@ -174,7 +172,43 @@ class OpenAIClient:
             "total_tokens": 0,
             "total_time": 0.0
         }
-    
+
+        # 全局系统提示词
+        self.global_system_prompt = "如果是JSON输出，最终输出只包含JSON文本，不要使用代码块包裹"
+
+    def _prepare_messages_with_global_system_prompt(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """
+        为消息列表添加全局系统提示词
+
+        Args:
+            messages: 原始消息列表
+
+        Returns:
+            添加了全局系统提示词的消息列表
+        """
+        if not messages:
+            return [{"role": "system", "content": self.global_system_prompt}]
+
+        # 检查是否已有系统消息
+        has_system_message = any(msg.get("role") == "system" for msg in messages)
+
+        if has_system_message:
+            # 如果已有系统消息，在第一个系统消息前添加全局系统提示词
+            prepared_messages = []
+            global_system_added = False
+
+            for msg in messages:
+                if msg.get("role") == "system" and not global_system_added:
+                    # 在第一个系统消息前添加全局系统提示词
+                    prepared_messages.append({"role": "system", "content": self.global_system_prompt})
+                    global_system_added = True
+                prepared_messages.append(msg)
+
+            return prepared_messages
+        else:
+            # 如果没有系统消息，在开头添加全局系统提示词
+            return [{"role": "system", "content": self.global_system_prompt}] + messages
+
     async def chat_completion_async(
         self,
         messages: List[Dict[str, str]],
@@ -196,10 +230,13 @@ class OpenAIClient:
         self.stats["total_requests"] += 1
         
         try:
+            # 准备消息列表（添加全局系统提示词）
+            prepared_messages = self._prepare_messages_with_global_system_prompt(messages)
+
             # 合并配置参数
             params = self.config.to_chat_completion_kwargs()
             params.update(kwargs)
-            params["messages"] = messages
+            params["messages"] = prepared_messages
 
             # 添加工具支持
             if tools and self.config.function_calling_enabled:
@@ -256,10 +293,13 @@ class OpenAIClient:
         self.stats["total_requests"] += 1
         
         try:
+            # 准备消息列表（添加全局系统提示词）
+            prepared_messages = self._prepare_messages_with_global_system_prompt(messages)
+
             # 合并配置参数
             params = self.config.to_chat_completion_kwargs()
             params.update(kwargs)
-            params["messages"] = messages
+            params["messages"] = prepared_messages
             params["stream"] = True
             
             # 添加工具支持
@@ -308,10 +348,13 @@ class OpenAIClient:
         self.stats["total_requests"] += 1
         
         try:
+            # 准备消息列表（添加全局系统提示词）
+            prepared_messages = self._prepare_messages_with_global_system_prompt(messages)
+
             # 合并配置参数
             params = self.config.to_chat_completion_kwargs()
             params.update(kwargs)
-            params["messages"] = messages
+            params["messages"] = prepared_messages
             
             # 添加工具支持
             if tools and self.config.function_calling_enabled:
@@ -365,10 +408,13 @@ class OpenAIClient:
         self.stats["total_requests"] += 1
         
         try:
+            # 准备消息列表（添加全局系统提示词）
+            prepared_messages = self._prepare_messages_with_global_system_prompt(messages)
+
             # 合并配置参数
             params = self.config.to_chat_completion_kwargs()
             params.update(kwargs)
-            params["messages"] = messages
+            params["messages"] = prepared_messages
             params["stream"] = True
             
             # 添加工具支持

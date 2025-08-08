@@ -49,7 +49,6 @@ class ProcessShortPlanningNode(AsyncNode):
             
             # 动态导入避免循环导入
             from ..flows.short_planning_flow import ShortPlanningFlow
-from agent.shared_migration import field_validation_decorator
             
             # 创建短规划流程
             planning_flow = ShortPlanningFlow()

@@ -1,18 +1,15 @@
 """
 GTPlanner CLI模块
 
-新一代基于ReAct模式的CLI界面：
+基于Function Calling架构的现代化CLI界面：
 - 会话管理器 (SessionManager)
-- 流式ReAct显示组件 (StreamingReActDisplay)  
-- ReAct CLI界面 (ReActCLI)
+- GTPlanner CLI界面 (GTPlannerCLI)
 """
 
 from .session_manager import SessionManager
-from .streaming_react_display import StreamingReActDisplay
-from .react_cli import ReActCLI
+from .gtplanner_cli import GTPlannerCLI
 
 __all__ = [
     'SessionManager',
-    'StreamingReActDisplay', 
-    'ReActCLI'
+    'GTPlannerCLI'
 ]

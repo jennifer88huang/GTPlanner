@@ -30,9 +30,9 @@ class ShortPlanningFlow:
         step_generation_node = StepGenerationNode()
         confirmation_formatting_node = ConfirmationFormattingNode()
         
-        # 使用pocketflow的条件转换语法
-        function_analysis_node - "success" >> step_generation_node
-        step_generation_node - "success" >> confirmation_formatting_node
+        # 使用pocketflow的条件转换语法（事件字符串）
+        function_analysis_node - "function_analysis_complete" >> step_generation_node
+        step_generation_node - "step_generation_complete" >> confirmation_formatting_node
         
         # 错误处理：任何节点返回"error"都结束流程
         # pocketflow会自动处理没有后续节点的情况

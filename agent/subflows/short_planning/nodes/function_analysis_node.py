@@ -7,7 +7,6 @@ Function Analysis Node
 import time
 from typing import Dict, Any, List
 from pocketflow import AsyncNode
-from agent.shared_migration import field_validation_decorator
 
 
 class FunctionAnalysisNode(AsyncNode):
@@ -74,7 +73,7 @@ class FunctionAnalysisNode(AsyncNode):
         
         modules_count = len(exec_res["function_modules"]["core_modules"])
         print(f"✅ 功能分析完成，识别了 {modules_count} 个核心功能模块")
-        return "success"
+        return "function_analysis_complete"
     
     def _analyze_core_modules(self, requirements: Dict[str, Any]) -> List[Dict[str, Any]]:
         """分析核心功能模块"""
@@ -108,8 +107,17 @@ class FunctionAnalysisNode(AsyncNode):
         # 如果没有明确的功能特性，从项目描述中推断
         if not modules:
             project_overview = requirements.get("project_overview", {})
-            project_title = project_overview.get("title", "")
-            project_desc = project_overview.get("description", "")
+
+            # 处理project_overview可能是字符串的情况
+            if isinstance(project_overview, str):
+                project_title = ""
+                project_desc = project_overview
+            elif isinstance(project_overview, dict):
+                project_title = project_overview.get("title", "")
+                project_desc = project_overview.get("description", "")
+            else:
+                project_title = ""
+                project_desc = ""
             
             # 基于项目类型推断基础模块
             if any(keyword in (project_title + project_desc).lower() 

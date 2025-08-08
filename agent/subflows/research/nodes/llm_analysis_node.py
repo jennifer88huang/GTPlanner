@@ -13,6 +13,10 @@ from agent.llm_utils import call_llm_async
 class LLMAnalysisNode(AsyncNode):
     """LLM分析节点 - 2c步骤"""
     
+    def __init__(self):
+        super().__init__()
+        self.name = "LLMAnalysisNode"
+    
     async def prep_async(self, shared):
         """准备LLM分析"""
         # 从共享变量中获取URL解析结果
@@ -63,7 +67,7 @@ class LLMAnalysisNode(AsyncNode):
         shared["llm_analysis"] = exec_res["analysis"]
         shared["analyzed_keyword"] = exec_res["keyword"]
         
-        return "success"
+        return "analysis_complete"
     
     async def _analyze_content_with_llm_async(self, content, keyword, requirements):
         """异步使用LLM分析内容"""

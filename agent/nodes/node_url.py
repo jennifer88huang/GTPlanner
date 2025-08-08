@@ -31,6 +31,7 @@ class NodeURL(AsyncNode):
             wait: 重试等待时间
         """
         super().__init__(max_retries=max_retries, wait=wait)
+        self.name = "NodeURL"
 
         # 初始化Jina Web客户端
         try:
@@ -184,7 +185,7 @@ class NodeURL(AsyncNode):
                 shared["url_content"] = exec_res["content"]
                 shared["url_title"] = exec_res["title"]
                 shared["url_metadata"] = exec_res.get("metadata", {})
-                return "success"
+                return "url_parsed"
 
             # 主流程模式：保存到研究发现
             if not hasattr(shared.research_findings, 'url_contents'):
@@ -219,7 +220,7 @@ class NodeURL(AsyncNode):
                 processing_time_ms=exec_res["processing_time"]
             )
 
-            return "success"
+            return "url_parsed"
 
         except Exception as e:
             if hasattr(shared, 'record_error'):

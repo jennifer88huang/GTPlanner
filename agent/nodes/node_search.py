@@ -31,6 +31,7 @@ class NodeSearch(AsyncNode):
             wait: 重试等待时间
         """
         super().__init__(max_retries=max_retries, wait=wait)
+        self.name = "NodeSearch"
         
         # 初始化搜索客户端
         try:
@@ -218,7 +219,7 @@ class NodeSearch(AsyncNode):
                 if search_results:
                     shared["first_search_result"] = search_results[0]
                     shared["all_search_results"] = search_results
-                return "success"
+                return "search_complete"
 
             # 主流程模式：保存到研究发现
             if not hasattr(shared.research_findings, 'search_results'):
@@ -260,7 +261,7 @@ class NodeSearch(AsyncNode):
                 search_time_ms=exec_res["search_time"]
             )
 
-            return "success"
+            return "search_complete"
 
         except Exception as e:
             if hasattr(shared, 'record_error'):

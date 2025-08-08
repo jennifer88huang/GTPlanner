@@ -21,8 +21,12 @@ class ResearchFlow:
         analysis_node = LLMAnalysisNode()
         assembly_node = ResultAssemblyNode()
         
-        # 设置节点连接
-        analysis_node - "success" >> assembly_node
+        # 设置节点名称以用于事件路由
+        analysis_node.name = "llm_analysis"
+        assembly_node.name = "result_assembly"
+        
+        # 设置节点连接（使用来源节点的事件字符串）
+        analysis_node - "analysis_complete" >> assembly_node
         
         # 创建异步流程
         return AsyncFlow(start=analysis_node)

@@ -31,10 +31,10 @@ def create_keyword_research_subflow():
     llm_analysis_node.name = "llm_analysis"
     assembly_node.name = "result_assembly"
     
-    # 使用pocketflow的条件转换语法 - 基于demo最佳实践
-    search_node - "success" >> url_node
-    url_node - "success" >> llm_analysis_node
-    llm_analysis_node - "success" >> assembly_node
+    # 使用pocketflow的条件转换语法 - 事件字符串表示状态
+    search_node - "search_complete" >> url_node
+    url_node - "url_parsed" >> llm_analysis_node
+    llm_analysis_node - "analysis_complete" >> assembly_node
 
     # 错误处理：任何节点返回"error"都结束流程
     # pocketflow会自动处理没有后续节点的情况

@@ -75,7 +75,7 @@ class StepGenerationNode(AsyncNode):
         
         steps_count = len(exec_res["implementation_steps"].get("steps", []))
         print(f"✅ 实现步骤生成完成，包含 {steps_count} 个步骤")
-        return "success"
+        return "step_generation_complete"
     
     async def _generate_steps_with_llm(self, function_modules: Dict[str, Any],
                                      structured_requirements: Dict[str, Any]) -> Dict[str, Any]:
@@ -169,6 +169,7 @@ class StepGenerationNode(AsyncNode):
 3. 交付物具体且可验证
 4. 考虑模块间的依赖关系
 5. 专注于功能实现，不包含部署运维步骤
+6. 直接返回JSON格式，不要使用代码块包裹
 """
         
         return prompt

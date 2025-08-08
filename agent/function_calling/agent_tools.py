@@ -11,8 +11,8 @@ from typing import Dict, List, Any, Optional
 # 导入现有的子Agent流程
 from agent.subflows.requirements_analysis.flows.requirements_analysis_flow import RequirementsAnalysisFlow
 from agent.subflows.short_planning.flows.short_planning_flow import ShortPlanningFlow
-from agent.subflows.research.flows.research_flow import ResearchFlow
 from agent.subflows.architecture.flows.architecture_flow import ArchitectureFlow
+
 
 
 def get_agent_function_definitions() -> List[Dict[str, Any]]:
@@ -41,7 +41,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
             }
         },
         {
-            "type": "function", 
+            "type": "function",
             "function": {
                 "name": "short_planning",
                 "description": "基于需求分析结果生成项目的短期规划，包括开发阶段、里程碑、任务分解和时间估算",
@@ -50,7 +50,40 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
                     "properties": {
                         "structured_requirements": {
                             "type": "object",
-                            "description": "结构化的需求分析结果，通常来自requirements_analysis工具的输出"
+                            "description": "结构化的需求分析结果",
+                            "properties": {
+                                "project_overview": {
+                                    "type": "object",
+                                    "description": "项目概览信息",
+                                    "properties": {
+                                        "title": {"type": "string", "description": "项目标题"},
+                                        "description": {"type": "string", "description": "项目描述"},
+                                        "objectives": {"type": "array", "description": "项目目标"},
+                                        "target_users": {"type": "array", "description": "目标用户"},
+                                        "success_criteria": {"type": "array", "description": "成功标准"}
+                                    },
+                                    "required": ["title", "description"]
+                                },
+                                "functional_requirements": {
+                                    "type": "object",
+                                    "description": "功能需求",
+                                    "properties": {
+                                        "core_features": {
+                                            "type": "array",
+                                            "description": "核心功能列表",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "name": {"type": "string", "description": "功能名称"},
+                                                    "description": {"type": "string", "description": "功能描述"},
+                                                    "priority": {"type": "string", "description": "优先级"}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "required": ["project_overview", "functional_requirements"]
                         }
                     },
                     "required": ["structured_requirements"]
@@ -60,17 +93,27 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
         {
             "type": "function",
             "function": {
-                "name": "research", 
-                "description": "进行技术调研和解决方案研究，包括技术选型、架构模式、最佳实践等",
+                "name": "research",
+                "description": "基于关键词列表进行技术调研和解决方案研究，职责专一，只负责搜索和分析",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "research_requirements": {
+                        "keywords": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "需要调研的关键词列表，例如：['React框架', 'Node.js后端', '数据库设计']"
+                        },
+                        "focus_areas": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "调研关注点，例如：['技术选型', '性能优化', '最佳实践', '架构设计']"
+                        },
+                        "project_context": {
                             "type": "string",
-                            "description": "需要调研的技术需求和问题描述"
+                            "description": "项目背景信息，帮助调研更有针对性"
                         }
                     },
-                    "required": ["research_requirements"]
+                    "required": ["keywords", "focus_areas"]
                 }
             }
         },
@@ -178,6 +221,8 @@ async def _execute_requirements_analysis(arguments: Dict[str, Any]) -> Dict[str,
 
 async def _execute_short_planning(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """执行短期规划"""
+    print(f"🔍 [DEBUG] _execute_short_planning 接收到的arguments: {arguments}")
+
     structured_requirements = arguments.get("structured_requirements")
 
     if not structured_requirements:
@@ -185,6 +230,8 @@ async def _execute_short_planning(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "success": False,
             "error": "structured_requirements is required"
         }
+
+    print(f"🔍 [DEBUG] 原始structured_requirements: {structured_requirements}")
 
     from agent.shared import shared_state
 
@@ -210,46 +257,79 @@ async def _execute_short_planning(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def _execute_research(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """执行技术调研"""
-    research_requirements = arguments.get("research_requirements", "")
+    """执行技术调研 - 使用ProcessResearch节点"""
+    print(f"🔍 [DEBUG] _execute_research 接收到的arguments类型: {type(arguments)}")
+    print(f"🔍 [DEBUG] _execute_research 接收到的arguments内容: {arguments}")
 
-    if not research_requirements:
+    keywords = arguments.get("keywords", [])
+    focus_areas = arguments.get("focus_areas", [])
+    project_context = arguments.get("project_context", "")
+
+    # 参数验证
+    if not keywords:
         return {
             "success": False,
-            "error": "research_requirements is required"
+            "error": "keywords is required and cannot be empty"
         }
 
-    from agent.shared import shared_state
-
-    # 利用pocketflow设计：提前在字典中写入数据，格式化为流程期望的格式
-    shared_state.data["research_requirements"] = research_requirements
-    # ResearchFlow期望structured_requirements，所以我们创建一个基础结构
-    shared_state.data["structured_requirements"] = {
-        "project_overview": {
-            "title": "技术调研项目",
-            "description": research_requirements
-        },
-        "functional_requirements": {
-            "core_features": []
-        }
-    }
-
-    # 创建并执行异步流程（使用pocketflow字典）
-    flow = ResearchFlow()
-    success = await flow.run_async(shared_state.data)
-
-    if success:
-        return {
-            "success": True,
-            "result": shared_state.research_findings,
-            "tool_name": "research"
-        }
-    else:
-        error_msg = shared_state.data.get('last_error', {}).get('error_message', "技术调研执行失败")
+    if not focus_areas:
         return {
             "success": False,
-            "error": error_msg
+            "error": "focus_areas is required and cannot be empty"
         }
+
+    try:
+        print(f"🔍 开始技术调研")
+        print(f"📋 关键词: {keywords}")
+        print(f"🎯 关注点: {focus_areas}")
+        print(f"📝 项目背景: {project_context}")
+
+        from agent.shared import shared_state
+
+        # 利用pocketflow设计：提前在字典中写入数据
+        shared_state.data["research_keywords"] = keywords
+        shared_state.data["focus_areas"] = focus_areas
+        shared_state.data["project_context"] = project_context
+
+        # 创建并执行ProcessResearch节点
+        from agent.subflows.research.nodes.process_research_node import ProcessResearch
+
+        process_node = ProcessResearch()
+
+        # 执行prep阶段
+        prep_result = await process_node.prep_async(shared_state.data)
+
+        # 执行exec阶段
+        exec_result = await process_node.exec_async(prep_result)
+
+        # 执行post阶段
+        post_result = await process_node.post_async(shared_state.data, prep_result, exec_result)
+
+        # 检查执行结果
+        if exec_result.get("processing_success", False):
+            return {
+                "success": True,
+                "result": exec_result.get("result"),  # 直接从exec_result获取研究结果
+                "tool_name": "research",
+                "keywords_processed": len(keywords),
+                "focus_areas": focus_areas
+            }
+        else:
+            error_msg = exec_result.get("error", "研究处理失败")
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
+    except Exception as e:
+        print(f"❌ 技术调研执行失败: {e}")
+        return {
+            "success": False,
+            "error": f"Research execution failed: {str(e)}"
+        }
+
+
+
 
 
 async def _execute_architecture_design(arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -345,9 +425,13 @@ async def call_short_planning(structured_requirements: Dict[str, Any]) -> Dict[s
     return await execute_agent_tool("short_planning", {"structured_requirements": structured_requirements})
 
 
-async def call_research(research_requirements: str) -> Dict[str, Any]:
-    """便捷的技术调研调用"""
-    return await execute_agent_tool("research", {"research_requirements": research_requirements})
+async def call_research(keywords: List[str], focus_areas: List[str], project_context: str = "") -> Dict[str, Any]:
+    """便捷的技术调研调用 - 基于关键词和关注点"""
+    return await execute_agent_tool("research", {
+        "keywords": keywords,
+        "focus_areas": focus_areas,
+        "project_context": project_context
+    })
 
 
 async def call_architecture_design(

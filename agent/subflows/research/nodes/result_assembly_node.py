@@ -11,6 +11,10 @@ from pocketflow import AsyncNode
 class ResultAssemblyNode(AsyncNode):
     """结果组装节点 - 2d步骤"""
     
+    def __init__(self):
+        super().__init__()
+        self.name = "ResultAssemblyNode"
+    
     async def prep_async(self, shared):
         """准备结果组装"""
         # 从共享变量中获取所有必要数据
@@ -59,5 +63,5 @@ class ResultAssemblyNode(AsyncNode):
         }
 
         print(f"✅ 研究结果组装完成，关键词: {research_keywords}")
-
-        return "success"
+        
+        return "assembly_complete"

@@ -7,7 +7,6 @@ Confirmation Formatting Node
 import time
 from typing import Dict, Any, List
 from pocketflow import AsyncNode
-from agent.shared_migration import field_validation_decorator
 
 
 class ConfirmationFormattingNode(AsyncNode):
@@ -80,7 +79,7 @@ class ConfirmationFormattingNode(AsyncNode):
         steps_count = len(confirmation_doc.get("structure", {}).get("implementation_steps", []))
         
         print(f"✅ 确认文档生成完成，包含 {steps_count} 个实现步骤，文档长度: {content_length} 字符")
-        return "success"
+        return "confirmation_formatting_complete"
     
     def _generate_confirmation_document(self, implementation_steps: Dict[str, Any],
                                       function_modules: Dict[str, Any],

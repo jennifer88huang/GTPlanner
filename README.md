@@ -120,42 +120,65 @@ export LLM_API_KEY="your-api-key-here"
 
 ### 🖥️ CLI Mode
 
-For developers who prefer the command line, GTPlanner offers a powerful command-line interface that supports both **interactive mode** and **direct execution mode**.
+GTPlanner provides a modern, Function Calling-based CLI with real-time streaming output and comprehensive session management.
 
 ![GTPlanner CLI](assets/cil.png)
 
+#### Quick Start
+
+**Simple launcher:**
+```bash
+python gtplanner.py
+```
+
+**Direct CLI access:**
+```bash
+python cli/gtplanner_cli.py
+```
+
 #### Interactive Mode
 
-This is the recommended way for first-time CLI users, as it guides you through the entire process.
-
-Start the interactive CLI:
+Start the interactive CLI for a conversational experience:
 ```bash
-uv run python main.py --interactive
+python gtplanner.py
+# or
+python cli/gtplanner_cli.py
 ```
-Or use the batch script `start_cli.bat` on Windows.
 
-**Example Workflow:**
-1.  After starting, select a language.
-2.  Enter your project requirements in natural language.
-3.  (Optional) Specify an output directory.
-4.  The tool will generate a step-by-step plan and wait for your feedback for iterative refinement.
-5.  Enter 'q' to save and exit.
+**Features:**
+- 🔄 **Real-time streaming**: See AI thinking and tool execution in real-time
+- 💾 **Session management**: Automatic conversation history persistence
+- 🤖 **Function Calling**: Native OpenAI Function Calling support
+- 📊 **Multiple tools**: Requirements analysis, research, architecture design
 
-#### Non-Interactive Mode (Direct Execution)
+#### Direct Execution Mode
 
-For automated scripts or quick generation tasks, you can provide input directly via command-line arguments for a one-step process.
-
-**Example Usage:**
+Process requirements directly without entering interactive mode:
 ```bash
-uv run python main.py --input "Summarize the WeChat group chat and create user profiles for members" --output-dir "wechat_analyzer" --lang "en"
+python gtplanner.py "Design a user management system"
+python cli/gtplanner_cli.py "Analyze e-commerce platform requirements"
 ```
+
+#### Session Management
+
+**Load existing session:**
+```bash
+python gtplanner.py --load <session_id>
+```
+
+**Available commands in interactive mode:**
+- `/help` - Show available commands
+- `/new` - Create new session
+- `/sessions` - List all sessions
+- `/load <id>` - Load specific session
+- `/delete <id>` - Delete specific session
+- `/stats` - Show performance statistics
+- `/verbose` - Toggle detailed mode
+- `/quit` - Exit CLI
 
 **Common Parameters:**
--   `--interactive`: Starts interactive mode.
--   `--input "..."`: Directly input your requirement string.
--   `--output-dir "..."`: Specify the directory to save the document (defaults to `PRD`).
--   `--output "..."`: Specify the exact output filename (overrides `--output-dir`).
--   `--lang <en|zh>`: Set the language (defaults to `en`).
+- `--verbose, -v`: Show detailed processing information
+- `--load <session_id>`: Load specific conversation session
 
 ### 🌐 FastAPI Backend
 

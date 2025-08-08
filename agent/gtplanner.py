@@ -6,7 +6,7 @@ GTPlanner 主入口类
 
 from typing import Dict, Any, Optional
 from .shared import get_shared_state, reset_shared_state
-from .flows import OrchestratorReActFlow
+from .flows import ReActOrchestratorRefactored
 
 
 class GTPlanner:
@@ -23,7 +23,7 @@ class GTPlanner:
             reset_shared_state()
             
         self.shared_state = get_shared_state()
-        self.orchestrator_flow = OrchestratorReActFlow()
+        self.orchestrator = ReActOrchestratorRefactored()
         
     def process_user_request(self, user_input: str, **kwargs) -> Dict[str, Any]:
         """
