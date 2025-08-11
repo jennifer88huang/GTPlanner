@@ -13,6 +13,7 @@ Architecture Flow - 重构版本
 """
 
 from pocketflow import AsyncFlow
+from pocketflow_tracing import trace_flow
 from ..nodes.agent_requirements_analysis_node import AgentRequirementsAnalysisNode
 from ..nodes.node_identification_node import NodeIdentificationNode
 from ..nodes.flow_design_node import FlowDesignNode
@@ -20,6 +21,33 @@ from ..nodes.data_structure_design_node import DataStructureDesignNode
 from ..nodes.document_generation_node import DocumentGenerationNode
 from ..nodes.node_design_dispatcher_node import NodeDesignDispatcherNode, NodeDesignAggregatorNode
 
+
+@trace_flow(flow_name="ArchitectureFlow")
+class TracedArchitectureFlow(AsyncFlow):
+    """带有tracing的架构设计流程"""
+
+    async def prep_async(self, shared):
+        """流程级准备"""
+        print("🏗️ 启动架构设计流程...")
+        shared["flow_start_time"] = __import__('asyncio').get_event_loop().time()
+
+        return {
+            "flow_id": "architecture_flow",
+            "start_time": shared["flow_start_time"]
+        }
+
+    async def post_async(self, shared, prep_result, exec_result):
+        """流程级后处理"""
+        flow_duration = __import__('asyncio').get_event_loop().time() - prep_result["start_time"]
+
+        shared["flow_metadata"] = {
+            "flow_id": prep_result["flow_id"],
+            "duration": flow_duration,
+            "status": "completed"
+        }
+
+        print(f"✅ 架构设计流程完成，耗时: {flow_duration:.2f}秒")
+        return exec_result
 
 
 def create_architecture_flow():
@@ -58,8 +86,10 @@ def create_architecture_flow():
     node_design_dispatcher - "dispatch_complete" >> node_design_aggregator
     node_design_aggregator - "aggregation_complete" >> document_generation
 
-    # 创建并返回AsyncFlow，从Agent需求分析开始
-    return AsyncFlow(start=agent_analysis)
+    # 创建并返回带tracing的AsyncFlow，从Agent需求分析开始
+    flow = TracedArchitectureFlow()
+    flow.start_node = agent_analysis
+    return flow
 
 
 class ArchitectureFlow:

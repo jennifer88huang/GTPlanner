@@ -42,7 +42,6 @@ class ReActOrchestratorRefactored(AsyncNode):
         self.message_builder = MessageBuilder()
         self.tool_executor = ToolExecutor()
         self.state_manager = StateManager()
-        # DecisionEngine已移除，让LLM完全负责决策
         self.stream_handler = StreamHandler(self.available_tools, self.tool_executor)
 
         # 性能统计

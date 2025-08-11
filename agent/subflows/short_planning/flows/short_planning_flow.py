@@ -8,9 +8,38 @@ FunctionAnalysisNode → StepGenerationNode → ConfirmationFormattingNode
 """
 
 from pocketflow import AsyncFlow
+from pocketflow_tracing import trace_flow
 from ..nodes.function_analysis_node import FunctionAnalysisNode
 from ..nodes.step_generation_node import StepGenerationNode
 from ..nodes.confirmation_formatting_node import ConfirmationFormattingNode
+
+
+@trace_flow(flow_name="ShortPlanningFlow")
+class TracedShortPlanningFlow(AsyncFlow):
+    """带有tracing的短规划流程"""
+
+    async def prep_async(self, shared):
+        """流程级准备"""
+        print("🚀 启动短规划流程...")
+        shared["flow_start_time"] = __import__('asyncio').get_event_loop().time()
+
+        return {
+            "flow_id": "short_planning",
+            "start_time": shared["flow_start_time"]
+        }
+
+    async def post_async(self, shared, prep_result, exec_result):
+        """流程级后处理"""
+        flow_duration = __import__('asyncio').get_event_loop().time() - prep_result["start_time"]
+
+        shared["flow_metadata"] = {
+            "flow_id": prep_result["flow_id"],
+            "duration": flow_duration,
+            "status": "completed"
+        }
+
+        print(f"✅ 短规划流程完成，耗时: {flow_duration:.2f}秒")
+        return exec_result
 
 
 class ShortPlanningFlow:
@@ -37,8 +66,9 @@ class ShortPlanningFlow:
         # 错误处理：任何节点返回"error"都结束流程
         # pocketflow会自动处理没有后续节点的情况
         
-        # 创建异步流程（因为包含异步节点）
-        self.flow = AsyncFlow(start=function_analysis_node)
+        # 创建带tracing的异步流程
+        self.flow = TracedShortPlanningFlow()
+        self.flow.start_node = function_analysis_node
     
     async def run_async(self, shared: dict) -> str:
         """
@@ -57,8 +87,8 @@ class ShortPlanningFlow:
             if not self._validate_input(shared):
                 raise ValueError("输入数据验证失败")
 
-            # 执行异步pocketflow流程
-            result = await self.flow._run_async(shared)
+            # 执行异步pocketflow流程（带tracing）
+            result = await self.flow.run_async(shared)
 
             print("✅ 异步短规划流程执行完成")
             return result

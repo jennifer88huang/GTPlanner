@@ -5,8 +5,37 @@ Research Agent主流程
 """
 
 from pocketflow import AsyncFlow
+from pocketflow_tracing import trace_flow
 from ..nodes.llm_analysis_node import LLMAnalysisNode
 from ..nodes.result_assembly_node import ResultAssemblyNode
+
+
+@trace_flow(flow_name="ResearchFlow")
+class TracedResearchFlow(AsyncFlow):
+    """带有tracing的研究调研流程"""
+
+    async def prep_async(self, shared):
+        """流程级准备"""
+        print("🔄 启动研究调研流程...")
+        shared["flow_start_time"] = __import__('asyncio').get_event_loop().time()
+
+        return {
+            "flow_id": "research_flow",
+            "start_time": shared["flow_start_time"]
+        }
+
+    async def post_async(self, shared, prep_result, exec_result):
+        """流程级后处理"""
+        flow_duration = __import__('asyncio').get_event_loop().time() - prep_result["start_time"]
+
+        shared["flow_metadata"] = {
+            "flow_id": prep_result["flow_id"],
+            "duration": flow_duration,
+            "status": "completed"
+        }
+
+        print(f"✅ 研究调研流程完成，耗时: {flow_duration:.2f}秒")
+        return exec_result
 
 
 class ResearchFlow:
@@ -28,8 +57,10 @@ class ResearchFlow:
         # 设置节点连接（使用来源节点的事件字符串）
         analysis_node - "analysis_complete" >> assembly_node
         
-        # 创建异步流程
-        return AsyncFlow(start=analysis_node)
+        # 创建带tracing的异步流程
+        flow = TracedResearchFlow()
+        flow.start_node = analysis_node
+        return flow
 
     async def run_async(self, shared: dict) -> bool:
         """
