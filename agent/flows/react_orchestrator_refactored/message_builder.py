@@ -1,258 +1,245 @@
 """
-消息构建器
+消息构建器 - 基于统一上下文管理
 
-负责构建Function Calling对话消息，分离消息构建逻辑。
+负责构建Function Calling对话消息，现在基于统一上下文管理器获取数据。
 """
 
 from typing import Dict, List, Any
-from .constants import MessageRoles, SystemPrompts, DefaultValues, StateKeys
+from core.unified_context import get_context
+from .constants import MessageRoles, SystemPrompts, StateKeys
 
 
 class MessageBuilder:
-    """消息构建器类"""
-    
+    """消息构建器类 - 基于统一上下文"""
+
     def __init__(self):
         self.system_prompt = SystemPrompts.FUNCTION_CALLING_SYSTEM_PROMPT
+        self.context = get_context()
     
-    def build_conversation_messages(
-        self, 
-        user_message: str, 
-        state_info: str, 
-        shared_data: Dict[str, Any]
-    ) -> List[Dict[str, str]]:
-        """
-        构建Function Calling对话消息
-        
-        Args:
-            user_message: 用户消息
-            state_info: 状态信息
-            shared_data: 共享数据
-            
-        Returns:
-            消息列表
-        """
-        messages = []
-        
-        # 添加系统消息
-        messages.append({
-            "role": MessageRoles.SYSTEM,
-            "content": self.system_prompt
-        })
-        
-        # 添加历史对话
-        self._add_history_messages(messages, shared_data)
-        
-        # 添加当前用户消息和状态信息
-        if user_message:
-            current_content = f"用户消息: {user_message}\n\n当前状态:\n{state_info}"
-            messages.append({
-                "role": MessageRoles.USER,
-                "content": current_content
-            })
-        
-        return messages
-    
-    def _add_history_messages(self, messages: List[Dict], shared_data: Dict[str, Any]) -> None:
-        """
-        添加历史对话消息
-        
-        Args:
-            messages: 消息列表
-            shared_data: 共享数据
-        """
-        dialogue_history = shared_data.get(StateKeys.DIALOGUE_HISTORY, {})
-        history_messages = dialogue_history.get("messages", [])
-        
-        # 只保留最近的几轮对话，避免上下文过长
-        recent_messages = (
-            history_messages[-DefaultValues.MAX_HISTORY_MESSAGES:] 
-            if len(history_messages) > DefaultValues.MAX_HISTORY_MESSAGES 
-            else history_messages
-        )
-        
-        for msg in recent_messages:
-            if msg.get("role") in [MessageRoles.USER, MessageRoles.ASSISTANT]:
-                # 构建消息内容，包含工具调用信息
-                content = msg["content"]
-
-                # 如果是助手消息且包含工具调用信息，添加到内容中
-                if (msg.get("role") == MessageRoles.ASSISTANT and
-                    msg.get("metadata", {}).get("tool_calls")):
-
-                    tool_calls = msg["metadata"]["tool_calls"]
-                    if tool_calls:
-                        tool_info = self._format_tool_calls_for_context(tool_calls)
-                        content = f"{content}\n\n[工具调用记录: {tool_info}]"
-
-                messages.append({
-                    "role": msg["role"],
-                    "content": content
-                })
-    
-    def build_tool_result_messages(
-        self, 
-        messages: List[Dict], 
-        collected_content: str,
-        tool_calls_detected: List[Any],
-        tool_results: List[Dict[str, Any]]
-    ) -> List[Dict]:
-        """
-        构建包含工具结果的消息
-        
-        Args:
-            messages: 原始消息列表
-            collected_content: 收集的内容
-            tool_calls_detected: 检测到的工具调用
-            tool_results: 工具执行结果
-            
-        Returns:
-            包含工具结果的消息列表
-        """
-        messages_with_results = messages.copy()
-        
-        # 添加助手的工具调用消息
-        assistant_message = {
-            "role": MessageRoles.ASSISTANT, 
-            "content": collected_content
-        }
-        
-        if tool_calls_detected:
-            assistant_message["tool_calls"] = [
-                {
-                    "id": getattr(tc, 'id', f"call_{i}"),
-                    "type": "function",
-                    "function": {
-                        "name": getattr(tc.function, 'name', 'unknown'),
-                        "arguments": getattr(tc.function, 'arguments', '{}')
-                    }
-                } for i, tc in enumerate(tool_calls_detected)
-            ]
-        
-        messages_with_results.append(assistant_message)
-        
-        # 添加工具结果消息
-        for tool_result in tool_results:
-            import json
-            messages_with_results.append({
-                "role": MessageRoles.TOOL,
-                "tool_call_id": tool_result.get("call_id", "unknown"),
-                "content": json.dumps(tool_result.get("result", {}), ensure_ascii=False)
-            })
-        
-        return messages_with_results
-    
-    def set_system_prompt(self, prompt: str) -> None:
-        """
-        设置系统提示词
-
-        Args:
-            prompt: 新的系统提示词
-        """
-        self.system_prompt = prompt
-
-    def _format_tool_calls_for_context(self, tool_calls: List[Dict[str, Any]]) -> str:
-        """
-        格式化工具调用信息用于上下文传递
-
-        Args:
-            tool_calls: 工具调用列表
-
-        Returns:
-            格式化的工具调用信息字符串
-        """
-        if not tool_calls:
-            return "无"
-
-        tool_info_parts = []
-        for tool_call in tool_calls:
-            tool_name = tool_call.get("tool_name", "未知工具")
-            success = tool_call.get("success", False)
-            status = "成功" if success else "失败"
-
-            # 添加简要的结果信息
-            result_summary = ""
-            if success and tool_call.get("result"):
-                result = tool_call["result"]
-                if isinstance(result, dict):
-                    # 提取关键信息
-                    if "project_overview" in result:
-                        result_summary = " - 已生成需求分析"
-                    elif "milestones" in result:
-                        result_summary = " - 已生成项目规划"
-                    elif "topics" in result:
-                        result_summary = " - 已完成技术调研"
-                    elif "architecture" in result:
-                        result_summary = " - 已生成架构设计"
-
-            tool_info_parts.append(f"{tool_name}({status}){result_summary}")
-
-        return ", ".join(tool_info_parts)
-
+   
     def build_enhanced_conversation_messages(
         self,
         user_message: str,
         state_info: str,
         shared_data: Dict[str, Any]
-    ) -> List[Dict[str, str]]:
+    ) -> List[Dict[str, Any]]:
         """
-        构建增强的Function Calling对话消息，包含工具执行历史
+        构建增强的对话消息：系统提示 + 优化历史 + 当前用户消息
 
         Args:
-            user_message: 用户消息
-            state_info: 状态信息
+            user_message: 最新用户输入
+            state_info: 状态描述信息
             shared_data: 共享数据
 
         Returns:
-            消息列表
+            OpenAI Chat Completions 所需的消息列表
         """
-        messages = []
+        messages: List[Dict[str, Any]] = []
 
-        # 添加系统消息
+        # 1) 系统消息（包含系统提示与状态信息）
+        system_content_parts: List[str] = [self.system_prompt]
+        if state_info:
+            system_content_parts.append("\n\n—— 状态信息 ——\n" + state_info)
+
         messages.append({
             "role": MessageRoles.SYSTEM,
-            "content": self.system_prompt
+            "content": "\n".join(system_content_parts)
         })
 
-        # 添加工具执行历史摘要到系统消息中
-        tool_history = self._build_tool_execution_context(shared_data)
-        print(f"🔍 [DEBUG] 工具执行历史: {tool_history}")
-        if tool_history:
-            messages.append({
-                "role": MessageRoles.SYSTEM,
-                "content": f"工具执行历史摘要：\n{tool_history}"
-            })
+        # 2) 添加优化后的历史消息（自动附带历史工具调用及其tool结果）
+        self._add_optimized_history_messages(messages, shared_data, max_rounds=3)
 
-        # 添加历史对话
-        self._add_history_messages(messages, shared_data)
-
-        # 添加当前用户消息和状态信息
+        # 3) 当前用户消息
         if user_message:
-            current_content = f"用户消息: {user_message}\n\n当前状态:\n{state_info}"
             messages.append({
                 "role": MessageRoles.USER,
-                "content": current_content
+                "content": user_message
             })
 
-        print(f"🔍 [DEBUG] 构建的消息数量: {len(messages)}")
-        print(f"🔍 [DEBUG] 最后一条消息内容预览: {messages[-1]['content'][:200]}...")
+        # 校验
+        self._validate_messages(messages)
 
-        # 调试：打印所有消息的角色和长度
-        for i, msg in enumerate(messages):
-            print(f"🔍 [DEBUG] 消息{i+1}: {msg['role']}, 长度: {len(msg['content'])}")
+        # 调试输出（与现有日志风格保持一致）
+        try:
+            print(f"🔍 [MessageBuilder] 构建的消息数量: {len(messages)}")
+            for idx, msg in enumerate(messages):
+                print(f"🔍 [MessageBuilder] 消息{idx}: {msg.get('role', '')}")
+        except Exception:
+            # 调试输出失败不应影响主流程
+            pass
 
         return messages
+
+
+    def _add_optimized_history_messages(self, messages: List[Dict], shared_data: Dict[str, Any], max_rounds: int = 3) -> None:
+        """
+        添加优化的历史对话消息，限制上下文长度
+
+        Args:
+            messages: 消息列表
+            shared_data: 共享数据
+            max_rounds: 最大对话轮数
+        """
+        # 从统一上下文获取消息历史
+        context_messages = self.context.get_messages(limit=max_rounds * 4)
+
+        if not context_messages:
+            return
+
+        # 转换为兼容格式
+        recent_messages = []
+        for msg in context_messages:
+            recent_messages.append({
+                "role": msg.role.value,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+                "metadata": msg.metadata or {}
+            })
+
+        # 🔧 优化：按照OpenAI标准格式处理历史消息
+        for msg in recent_messages:
+            if msg.get("role") not in [MessageRoles.USER, MessageRoles.ASSISTANT]:
+                continue
+
+            # 构建基础消息
+            message_dict = {
+                "role": msg["role"],
+                "content": msg.get("content", "")
+            }
+
+            # 🔧 修复：正确处理assistant消息中的工具调用
+            if (msg.get("role") == MessageRoles.ASSISTANT and
+                msg.get("metadata", {}).get("tool_calls")):
+
+                tool_calls = msg["metadata"]["tool_calls"]
+                if tool_calls:
+                    # 转换为OpenAI Function Calling标准格式
+                    openai_tool_calls = self._convert_to_openai_tool_calls(tool_calls)
+
+                    if openai_tool_calls:
+                        message_dict["tool_calls"] = openai_tool_calls
+                        messages.append(message_dict)
+
+                        # 添加对应的工具结果消息
+                        self._add_tool_result_messages(messages, tool_calls)
+                        continue
+
+            # 普通消息直接添加
+            messages.append(message_dict)
+
+    def _convert_to_openai_tool_calls(self, tool_calls: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        将内部工具调用格式转换为OpenAI标准格式
+
+        Args:
+            tool_calls: 内部工具调用列表
+
+        Returns:
+            OpenAI标准格式的工具调用列表
+        """
+        openai_tool_calls = []
+
+        for tc in tool_calls:
+            if not tc.get("success", False):  # 只包含成功的工具调用
+                continue
+
+            import json
+            # 确保arguments是JSON字符串格式
+            arguments = tc.get("arguments", {})
+            if isinstance(arguments, dict):
+                arguments_str = json.dumps(arguments, ensure_ascii=False)
+            else:
+                arguments_str = str(arguments)
+
+            openai_tool_calls.append({
+                "id": tc.get("call_id", f"call_{len(openai_tool_calls)}"),
+                "type": "function",
+                "function": {
+                    "name": tc.get("tool_name", "unknown"),
+                    "arguments": arguments_str
+                }
+            })
+
+        return openai_tool_calls
+
+    def _add_tool_result_messages(self, messages: List[Dict], tool_calls: List[Dict[str, Any]]) -> None:
+        """
+        添加工具结果消息
+
+        Args:
+            messages: 消息列表
+            tool_calls: 工具调用列表
+        """
+        for i, tc in enumerate(tool_calls):
+            if not tc.get("success", False):
+                continue
+
+            import json
+            # 确保tool_call_id与上面的id匹配
+            call_id = tc.get("call_id", f"call_{i}")
+            tool_result = tc.get("result", {})
+
+            # 确保content是字符串格式
+            if isinstance(tool_result, dict):
+                content = json.dumps(tool_result, ensure_ascii=False)
+            else:
+                content = str(tool_result)
+
+            messages.append({
+                "role": MessageRoles.TOOL,
+                "tool_call_id": call_id,
+                "content": content
+            })
+
+    def _validate_messages(self, messages: List[Dict]) -> None:
+        """
+        验证消息格式的正确性
+
+        Args:
+            messages: 消息列表
+        """
+        for i, msg in enumerate(messages):
+            role = msg.get("role")
+
+            # 验证必需字段
+            if not role:
+                print(f"⚠️ [MessageBuilder] 消息{i}缺少role字段")
+                continue
+
+            if role not in [MessageRoles.SYSTEM, MessageRoles.USER, MessageRoles.ASSISTANT, MessageRoles.TOOL]:
+                print(f"⚠️ [MessageBuilder] 消息{i}包含无效role: {role}")
+
+            # 验证tool消息格式
+            if role == MessageRoles.TOOL:
+                if not msg.get("tool_call_id"):
+                    print(f"⚠️ [MessageBuilder] Tool消息{i}缺少tool_call_id")
+                if not msg.get("content"):
+                    print(f"⚠️ [MessageBuilder] Tool消息{i}缺少content")
+
+            # 验证assistant消息中的tool_calls格式
+            if role == MessageRoles.ASSISTANT and "tool_calls" in msg:
+                tool_calls = msg["tool_calls"]
+                if not isinstance(tool_calls, list):
+                    print(f"⚠️ [MessageBuilder] Assistant消息{i}的tool_calls不是列表格式")
+                else:
+                    for j, tc in enumerate(tool_calls):
+                        if not tc.get("id"):
+                            print(f"⚠️ [MessageBuilder] Tool call {j}缺少id")
+                        if not tc.get("function", {}).get("name"):
+                            print(f"⚠️ [MessageBuilder] Tool call {j}缺少function.name")
 
     def _build_tool_execution_context(self, shared_data: Dict[str, Any]) -> str:
         """
         构建工具执行上下文信息
 
         Args:
-            shared_data: 共享数据
+            shared_data: 共享数据（保持兼容性，但实际使用统一上下文）
 
         Returns:
             工具执行上下文字符串
         """
-        tool_history = shared_data.get('tool_execution_history', [])
+        # 从统一上下文获取工具执行历史
+        tool_history = self.context.tool_history
         if not tool_history:
             return ""
 
@@ -279,6 +266,6 @@ class MessageBuilder:
             time_str = time.strftime("%H:%M:%S", time.localtime(timestamp))
             context_parts.append(f"- {record['tool_name']} (执行时间: {time_str})")
 
-        context_parts.append("\n请避免重复调用已成功执行的工具，除非用户明确要求重新执行。")
+        context_parts.append("\n注意：避免重复调用相同的工具，但可以根据用户需求调用其他不同的工具。如果用户明确同意或要求执行多个工具，应该按计划执行。")
 
         return "\n".join(context_parts)

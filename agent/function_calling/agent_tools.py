@@ -9,7 +9,6 @@ Agent Function Calling工具包装器
 from typing import Dict, List, Any, Optional
 
 # 导入现有的子Agent流程
-from agent.subflows.requirements_analysis.flows.requirements_analysis_flow import RequirementsAnalysisFlow
 from agent.subflows.short_planning.flows.short_planning_flow import ShortPlanningFlow
 from agent.subflows.architecture.flows.architecture_flow import ArchitectureFlow
 
@@ -26,31 +25,14 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
         {
             "type": "function",
             "function": {
-                "name": "requirements_analysis",
-                "description": "分析用户需求并生成结构化的需求文档，包括项目概述、功能需求、非功能需求等",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "user_input": {
-                            "type": "string",
-                            "description": "用户的原始需求描述，可以是自然语言的项目描述、功能要求或业务需求"
-                        }
-                    },
-                    "required": ["user_input"]
-                }
-            }
-        },
-        {
-            "type": "function",
-            "function": {
                 "name": "short_planning",
-                "description": "基于需求分析结果生成项目的短期规划，包括开发阶段、里程碑、任务分解和时间估算",
+                "description": "基于结构化的项目需求，生成一份精炼的、用于和用户确认项目核心范围与颗粒度的短文档",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "structured_requirements": {
                             "type": "object",
-                            "description": "结构化的需求分析结果",
+                            "description": "结构化的项目需求数据",
                             "properties": {
                                 "project_overview": {
                                     "type": "object",
@@ -127,7 +109,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
                     "properties": {
                         "structured_requirements": {
                             "type": "object",
-                            "description": "项目需求信息，通常来自requirements_analysis工具的输出"
+                            "description": "项目需求信息，包含项目概览和功能需求等结构化数据"
                         },
                         "confirmation_document": {
                             "type": "object",
@@ -159,9 +141,7 @@ async def execute_agent_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[
         工具执行结果
     """
     try:
-        if tool_name == "requirements_analysis":
-            return await _execute_requirements_analysis(arguments)
-        elif tool_name == "short_planning":
+        if tool_name == "short_planning":
             return await _execute_short_planning(arguments)
         elif tool_name == "research":
             return await _execute_research(arguments)
@@ -179,77 +159,44 @@ async def execute_agent_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[
         }
 
 
-async def _execute_requirements_analysis(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """执行需求分析"""
-    user_input = arguments.get("user_input", "")
-
-    if not user_input:
-        return {
-            "success": False,
-            "error": "user_input is required"
-        }
-
-    from agent.shared import shared_state
-
-    # 利用pocketflow设计：提前在字典中写入数据，格式化为流程期望的格式
-    shared_state.data["dialogue_history"] = {
-        "messages": [
-            {"role": "user", "content": user_input}
-        ]
-    }
-    shared_state.data["user_intent"] = {
-        "primary_goal": "用户需求分析"
-    }
-
-    # 创建并执行异步流程（使用pocketflow字典）
-    flow = RequirementsAnalysisFlow()
-    success = await flow.run_async(shared_state.data)
-
-    if success:
-        return {
-            "success": True,
-            "result": shared_state.structured_requirements,
-            "tool_name": "requirements_analysis"
-        }
-    else:
-        error_msg = shared_state.data.get('last_error', {}).get('error_message', "需求分析执行失败")
-        return {
-            "success": False,
-            "error": error_msg
-        }
-
 
 async def _execute_short_planning(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """执行短期规划"""
-    print(f"🔍 [DEBUG] _execute_short_planning 接收到的arguments: {arguments}")
-
+    user_input = arguments.get("user_input", "")
     structured_requirements = arguments.get("structured_requirements")
 
-    if not structured_requirements:
+    if not user_input and not structured_requirements:
         return {
             "success": False,
-            "error": "structured_requirements is required"
+            "error": "user_input or structured_requirements is required"
         }
-
-    print(f"🔍 [DEBUG] 原始structured_requirements: {structured_requirements}")
 
     from agent.shared import shared_state
 
-    # 利用pocketflow设计：提前在字典中写入数据
-    shared_state.data["structured_requirements"] = structured_requirements
+    # 创建pocketflow字典格式的数据
+    flow_data = {
+        "user_input": user_input,
+        "structured_requirements": structured_requirements or {}
+    }
 
     # 创建并执行异步流程（使用pocketflow字典）
     flow = ShortPlanningFlow()
-    success = await flow.run_async(shared_state.data)
+    success = await flow.run_async(flow_data)
 
     if success:
+        # 从flow_data中获取结果
+        confirmation_document = flow_data.get("confirmation_document", {})
+
+        # 更新shared_state
+        shared_state.set_value("confirmation_document", confirmation_document)
+
         return {
             "success": True,
-            "result": shared_state.data.get("confirmation_document"),
+            "result": confirmation_document,
             "tool_name": "short_planning"
         }
     else:
-        error_msg = shared_state.data.get('last_error', {}).get('error_message', "短期规划执行失败")
+        error_msg = flow_data.get('last_error', {}).get('error_message', "短期规划执行失败")
         return {
             "success": False,
             "error": error_msg
@@ -258,9 +205,6 @@ async def _execute_short_planning(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 async def _execute_research(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """执行技术调研 - 使用ProcessResearch节点"""
-    print(f"🔍 [DEBUG] _execute_research 接收到的arguments类型: {type(arguments)}")
-    print(f"🔍 [DEBUG] _execute_research 接收到的arguments内容: {arguments}")
-
     keywords = arguments.get("keywords", [])
     focus_areas = arguments.get("focus_areas", [])
     project_context = arguments.get("project_context", "")
@@ -284,12 +228,12 @@ async def _execute_research(arguments: Dict[str, Any]) -> Dict[str, Any]:
         print(f"🎯 关注点: {focus_areas}")
         print(f"📝 项目背景: {project_context}")
 
-        from agent.shared import shared_state
-
-        # 利用pocketflow设计：提前在字典中写入数据
-        shared_state.data["research_keywords"] = keywords
-        shared_state.data["focus_areas"] = focus_areas
-        shared_state.data["project_context"] = project_context
+        # 创建pocketflow字典格式的数据
+        flow_data = {
+            "research_keywords": keywords,
+            "focus_areas": focus_areas,
+            "project_context": project_context
+        }
 
         # 创建并执行ProcessResearch节点
         from agent.subflows.research.nodes.process_research_node import ProcessResearch
@@ -297,13 +241,13 @@ async def _execute_research(arguments: Dict[str, Any]) -> Dict[str, Any]:
         process_node = ProcessResearch()
 
         # 执行prep阶段
-        prep_result = await process_node.prep_async(shared_state.data)
+        prep_result = await process_node.prep_async(flow_data)
 
         # 执行exec阶段
         exec_result = await process_node.exec_async(prep_result)
 
         # 执行post阶段
-        post_result = await process_node.post_async(shared_state.data, prep_result, exec_result)
+        await process_node.post_async(flow_data, prep_result, exec_result)
 
         # 检查执行结果
         if exec_result.get("processing_success", False):
@@ -346,25 +290,34 @@ async def _execute_architecture_design(arguments: Dict[str, Any]) -> Dict[str, A
 
     from agent.shared import shared_state
 
-    # 利用pocketflow设计：提前在字典中写入数据
-    shared_state.data["structured_requirements"] = structured_requirements
+    # 创建pocketflow字典格式的数据
+    flow_data = {
+        "structured_requirements": structured_requirements
+    }
+
     if confirmation_document:
-        shared_state.data["confirmation_document"] = confirmation_document
+        flow_data["confirmation_document"] = confirmation_document
     if research_findings:
-        shared_state.data["research_findings"] = research_findings
+        flow_data["research_findings"] = research_findings
 
     # 创建并执行异步流程（使用pocketflow字典）
     flow = ArchitectureFlow()
-    success = await flow.run_async(shared_state.data)
+    success = await flow.run_async(flow_data)
 
     if success:
+        # 从flow_data中获取结果
+        agent_design_document = flow_data.get("agent_design_document", {})
+
+        # 更新shared_state
+        shared_state.set_value("agent_design_document", agent_design_document)
+
         return {
             "success": True,
-            "result": shared_state.data.get("agent_design_document"),
+            "result": agent_design_document,
             "tool_name": "architecture_design"
         }
     else:
-        error_msg = shared_state.data.get('last_error', {}).get('error_message', "架构设计执行失败")
+        error_msg = flow_data.get('last_error', {}).get('error_message', "架构设计执行失败")
         return {
             "success": False,
             "error": error_msg
@@ -415,11 +368,6 @@ def validate_tool_arguments(tool_name: str, arguments: Dict[str, Any]) -> Dict[s
 
 
 # 便捷函数
-async def call_requirements_analysis(user_input: str) -> Dict[str, Any]:
-    """便捷的需求分析调用"""
-    return await execute_agent_tool("requirements_analysis", {"user_input": user_input})
-
-
 async def call_short_planning(structured_requirements: Dict[str, Any]) -> Dict[str, Any]:
     """便捷的短期规划调用"""
     return await execute_agent_tool("short_planning", {"structured_requirements": structured_requirements})

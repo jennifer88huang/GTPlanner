@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
 from agent.function_calling import (
     get_agent_function_definitions,
     execute_agent_tool,
-    call_requirements_analysis
+    call_research
 )
 from utils.openai_client import get_openai_client
 
@@ -48,7 +48,7 @@ async def test_simple_llm_call():
         messages = [
             {
                 "role": "system",
-                "content": "你是GTPlanner助手。当用户提出项目需求时，使用requirements_analysis工具来分析需求。"
+                "content": "你是GTPlanner助手。当用户提出项目需求时，使用research工具来调研相关技术。"
             },
             {
                 "role": "user",

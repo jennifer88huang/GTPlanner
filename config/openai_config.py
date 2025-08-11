@@ -53,8 +53,50 @@ class OpenAIConfig:
     
     def __post_init__(self):
         """配置验证和后处理"""
+        self._coerce_types()
         self._validate_config()
         self._set_defaults()
+
+    def _coerce_types(self) -> None:
+        """在加载配置后进行类型纠正，防止环境变量/配置文件以字符串形式注入导致运行期类型错误"""
+        def to_int(value, default=None):
+            if isinstance(value, int) or value is None:
+                return value if value is not None else default
+            try:
+                return int(value)
+            except Exception:
+                return default if default is not None else value
+
+        def to_float(value, default=None):
+            if isinstance(value, float) or isinstance(value, int) or value is None:
+                return float(value) if value is not None else default
+            try:
+                return float(value)
+            except Exception:
+                return default if default is not None else value
+
+        def to_bool(value, default=None):
+            if isinstance(value, bool) or value is None:
+                return value if value is not None else default
+            if isinstance(value, str):
+                v = value.strip().lower()
+                if v in {"true", "1", "yes", "y", "on"}:
+                    return True
+                if v in {"false", "0", "no", "n", "off"}:
+                    return False
+            return default if default is not None else value
+
+        # 基础数值类型
+        self.temperature = to_float(self.temperature, 0.0)
+        self.top_p = to_float(self.top_p, 1.0)
+        self.max_tokens = to_int(self.max_tokens)
+        self.timeout = to_float(self.timeout, 120.0)
+        self.max_retries = to_int(self.max_retries, 3)
+        self.retry_delay = to_float(self.retry_delay, 2.0)
+        self.parallel_tool_calls = to_bool(self.parallel_tool_calls, True)
+        self.stream_enabled = to_bool(self.stream_enabled, True)
+        self.stream_chunk_size = to_int(self.stream_chunk_size, 1024)
+        self.seed = to_int(self.seed)
     
     def _validate_config(self):
         """验证配置参数"""

@@ -12,8 +12,7 @@ from typing import Dict, Any
 from utils.openai_client import get_openai_client
 from agent.function_calling import (
     get_agent_function_definitions,
-    execute_agent_tool,
-    call_requirements_analysis
+    execute_agent_tool
 )
 
 
@@ -27,11 +26,11 @@ class TestFunctionCallingIntegration:
     
     def test_tool_definitions_format(self):
         """测试工具定义格式"""
-        assert len(self.tools) == 4
-        
+        assert len(self.tools) == 3
+
         tool_names = [tool["function"]["name"] for tool in self.tools]
-        expected_names = ["requirements_analysis", "short_planning", "research", "architecture_design"]
-        
+        expected_names = ["short_planning", "research", "architecture_design"]
+
         for name in expected_names:
             assert name in tool_names
         
@@ -51,10 +50,10 @@ class TestFunctionCallingIntegration:
             messages = [
                 {
                     "role": "system",
-                    "content": "你是GTPlanner助手。当用户提出项目需求时，使用requirements_analysis工具来分析需求。"
+                    "content": "你是GTPlanner助手。当用户提出项目需求时，使用research工具来调研相关技术。"
                 },
                 {
-                    "role": "user", 
+                    "role": "user",
                     "content": "我想开发一个简单的待办事项管理应用"
                 }
             ]
@@ -85,7 +84,7 @@ class TestFunctionCallingIntegration:
                     print(f"工具参数: {tool_call.function.arguments}")
                     
                     # 验证工具调用格式
-                    assert tool_call.function.name in ["requirements_analysis", "short_planning", "research", "architecture_design"]
+                    assert tool_call.function.name in ["short_planning", "research", "architecture_design"]
                     
                     # 尝试解析参数
                     try:
@@ -108,19 +107,19 @@ class TestFunctionCallingIntegration:
             messages = [
                 {
                     "role": "system",
-                    "content": "你是GTPlanner助手。用户提出需求时，必须使用requirements_analysis工具分析需求。"
+                    "content": "你是GTPlanner助手。用户提出需求时，必须使用research工具调研相关技术。"
                 },
                 {
                     "role": "user",
                     "content": "我需要开发一个在线书店系统"
                 }
             ]
-            
+
             # 第一步：获取LLM的工具调用
             response = await self.client.chat_completion_async(
                 messages=messages,
                 tools=self.tools,
-                tool_choice={"type": "function", "function": {"name": "requirements_analysis"}}  # 强制调用
+                tool_choice={"type": "function", "function": {"name": "research"}}  # 强制调用
             )
             
             choice = response.choices[0]
@@ -191,30 +190,7 @@ class TestFunctionCallingIntegration:
         except Exception as e:
             pytest.skip(f"Function Calling流程测试失败: {e}")
     
-    @pytest.mark.asyncio
-    async def test_requirements_analysis_tool_direct(self):
-        """直接测试需求分析工具"""
-        try:
-            result = await call_requirements_analysis(
-                "我想开发一个简单的博客系统，支持文章发布和评论功能"
-            )
-            
-            print(f"需求分析结果: {result}")
-            
-            # 验证结果格式
-            assert "success" in result
-            
-            if result["success"]:
-                assert "result" in result
-                assert "tool_name" in result
-                assert result["tool_name"] == "requirements_analysis"
-                print("✅ 需求分析工具直接调用成功")
-            else:
-                print(f"❌ 需求分析工具执行失败: {result['error']}")
-                
-        except Exception as e:
-            pytest.skip(f"需求分析工具测试失败: {e}")
-    
+
     @pytest.mark.asyncio
     async def test_streaming_function_call(self):
         """测试流式Function Calling"""
@@ -226,7 +202,7 @@ class TestFunctionCallingIntegration:
             messages = [
                 {
                     "role": "system",
-                    "content": "你是GTPlanner助手。用户提出需求时，使用requirements_analysis工具分析。"
+                    "content": "你是GTPlanner助手。用户提出需求时，使用research工具调研。"
                 },
                 {
                     "role": "user",
@@ -306,7 +282,7 @@ if __name__ == "__main__":
         elif test_name == "flow":
             asyncio.run(test_instance.test_function_call_execution_flow())
         elif test_name == "direct":
-            asyncio.run(test_instance.test_requirements_analysis_tool_direct())
+            print("direct test has been removed")
         elif test_name == "stream":
             asyncio.run(test_instance.test_streaming_function_call())
         elif test_name == "openai":

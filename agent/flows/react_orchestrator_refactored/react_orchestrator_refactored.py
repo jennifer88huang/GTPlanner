@@ -57,21 +57,14 @@ class ReActOrchestratorRefactored(AsyncNode):
     async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """异步准备ReAct执行环境"""
         try:
-            print(f"🔍 [DEBUG] 准备阶段开始，shared类型: {type(shared)}")
-            print(f"🔍 [DEBUG] shared是否为None: {shared is None}")
-
             # 获取最新用户消息
-            print(f"🔍 [DEBUG] 调用get_user_message_from_history...")
             user_message = self.state_manager.get_user_message_from_history(shared)
-            print(f"🔍 [DEBUG] 用户消息: {user_message}")
 
             # 获取当前状态
             current_stage = shared.get(StateKeys.CURRENT_STAGE, DefaultValues.DEFAULT_STAGE)
 
             # 构建状态描述
-            print(f"🔍 [DEBUG] 调用build_state_description...")
             state_info = self.state_manager.build_state_description(shared, user_message)
-            print(f"🔍 [DEBUG] build_state_description完成")
 
             return {
                 "success": True,
@@ -82,9 +75,6 @@ class ReActOrchestratorRefactored(AsyncNode):
             }
 
         except Exception as e:
-            print(f"🔍 [DEBUG] 准备阶段异常: {e}")
-            import traceback
-            traceback.print_exc()
             return {"error": f"{ErrorMessages.REACT_PREP_FAILED}: {str(e)}"}
 
     async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
@@ -105,24 +95,17 @@ class ReActOrchestratorRefactored(AsyncNode):
                 user_message, state_info, shared_data
             )
 
-            print(f"🔍 [DEBUG] 准备调用LLM，消息数量: {len(messages)}")
-            print(f"🔍 [DEBUG] 可用工具数量: {len(self.available_tools)}")
-
             # 检查是否有流式回调
             stream_callback = shared_data.get(StateKeys.STREAM_CALLBACK)
 
             if stream_callback:
                 # 使用流式Function Calling
-                print(f"🔍 [DEBUG] 使用流式Function Calling...")
                 result = await self.stream_handler.execute_with_function_calling_stream(
                     messages, stream_callback, shared_data
                 )
-                print(f"🔍 [DEBUG] 流式Function Calling完成")
             else:
                 # 使用标准Function Calling
-                print(f"🔍 [DEBUG] 使用标准Function Calling...")
                 result = await self._execute_with_function_calling(messages, shared_data)
-                print(f"🔍 [DEBUG] 标准Function Calling完成")
 
             # 更新性能统计
             self.performance_stats["successful_requests"] += 1
@@ -158,27 +141,17 @@ class ReActOrchestratorRefactored(AsyncNode):
             # 更新ReAct循环计数
             self.state_manager.increment_react_cycle(shared)
 
-            # 添加AI回复到对话历史
-            user_message = exec_res.get("user_message", "")
+            # 🔧 修复：移除重复的消息添加逻辑
+            # 消息添加现在统一在CLI层处理，避免重复添加
             tool_calls = exec_res.get("tool_calls", [])
-            reasoning = exec_res.get("reasoning", "")
-
-            if user_message:
-                self.state_manager.add_assistant_message_to_history(
-                    shared, user_message, tool_calls, reasoning
-                )
 
             # 处理工具调用结果
             if tool_calls:
-                print(f"🔍 [DEBUG] 处理 {len(tool_calls)} 个工具调用结果")
                 for tool_call in tool_calls:
                     tool_name = tool_call.get("tool_name")
                     tool_result = tool_call.get("result")
                     tool_args = tool_call.get("arguments", {})
                     execution_time = tool_call.get("execution_time")
-
-                    print(f"🔍 [DEBUG] 工具: {tool_name}, 成功: {tool_result.get('success') if tool_result else 'None'}")
-                    print(f"🔍 [DEBUG] 工具调用完整结构: {tool_call}")
 
                     # 记录工具执行历史
                     if tool_name and tool_result:
@@ -187,14 +160,10 @@ class ReActOrchestratorRefactored(AsyncNode):
                         )
 
                     # 更新共享状态（仅成功的工具调用）
-                    print(f"🔍 [DEBUG] 准备更新共享状态: tool_name={tool_name}, tool_result存在={bool(tool_result)}, 成功={tool_result.get('success') if tool_result else 'None'}")
                     if tool_name and tool_result and tool_result.get("success"):
-                        print(f"🔍 [DEBUG] 调用update_shared_state_with_tool_result")
                         self.state_manager.update_shared_state_with_tool_result(
                             shared, tool_name, tool_result
                         )
-                    else:
-                        print(f"🔍 [DEBUG] 跳过状态更新，条件不满足")
 
             # 简化路由：总是等待用户，让LLM在回复中自然引导下一步
             return "wait_for_user"
@@ -211,33 +180,19 @@ class ReActOrchestratorRefactored(AsyncNode):
     ) -> Dict[str, Any]:
         """使用Function Calling执行ReAct逻辑 - 支持混合模式"""
         try:
-            # 这些调试信息不再直接打印，避免干扰CLI界面
-            # print(LogMessages.PREPARING_OPENAI_CALL.format(len(self.available_tools)))
-            # print(LogMessages.MESSAGE_COUNT.format(len(messages)))
+         
 
             # 启用并行工具调用
-            print(f"🔍 [DEBUG] 开始调用OpenAI API...")
             response = await self.openai_client.chat_completion_async(
                 messages=messages,
                 tools=self.available_tools,
                 tool_choice="auto",
                 parallel_tool_calls=True
             )
-            print(f"🔍 [DEBUG] OpenAI API调用成功")
-
-            print("🔍 [DEBUG] 收到OpenAI响应")
 
             # 处理响应
             choice = response.choices[0]
             message = choice.message
-
-            print(f"🔍 [DEBUG] LLM原生输出内容: {message.content}")
-            print(f"🔍 [DEBUG] 是否有工具调用: {bool(message.tool_calls)}")
-            if message.tool_calls:
-                print(f"🔍 [DEBUG] 工具调用数量: {len(message.tool_calls)}")
-                for i, tool_call in enumerate(message.tool_calls):
-                    print(f"🔍 [DEBUG] 工具{i+1}: {tool_call.function.name}")
-            print("🔍 [DEBUG] =" * 50)
             
             # 提取助手回复
             assistant_message = message.content or ""
@@ -247,7 +202,7 @@ class ReActOrchestratorRefactored(AsyncNode):
 
             # 检查标准的OpenAI Function Calling格式
             if message.tool_calls:
-                # print(LogMessages.TOOL_CALLS_DETECTED.format(len(message.tool_calls)))
+
                 tool_calls = await self.tool_executor.execute_tools_parallel(message.tool_calls)
 
             # 如果没有标准格式的工具调用，检查自定义格式

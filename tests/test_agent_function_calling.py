@@ -10,8 +10,7 @@ from agent.function_calling import (
     get_agent_function_definitions,
     execute_agent_tool,
     get_tool_by_name,
-    validate_tool_arguments,
-    call_requirements_analysis
+    validate_tool_arguments
 )
 
 
@@ -24,35 +23,35 @@ class TestAgentFunctionDefinitions:
         
         # 验证返回的是列表
         assert isinstance(definitions, list)
-        assert len(definitions) == 4
-        
+        assert len(definitions) == 3
+
         # 验证每个定义的基本结构
-        expected_tools = ["requirements_analysis", "short_planning", "research", "architecture_design"]
+        expected_tools = ["short_planning", "research", "architecture_design"]
         actual_tools = [tool["function"]["name"] for tool in definitions]
-        
+
         for expected_tool in expected_tools:
             assert expected_tool in actual_tools
-        
+
         # 验证第一个工具的详细结构
-        req_analysis_tool = next(
-            tool for tool in definitions 
-            if tool["function"]["name"] == "requirements_analysis"
+        short_planning_tool = next(
+            tool for tool in definitions
+            if tool["function"]["name"] == "short_planning"
         )
-        
-        assert req_analysis_tool["type"] == "function"
-        assert "description" in req_analysis_tool["function"]
-        assert "parameters" in req_analysis_tool["function"]
-        assert req_analysis_tool["function"]["parameters"]["type"] == "object"
-        assert "user_input" in req_analysis_tool["function"]["parameters"]["properties"]
-        assert "user_input" in req_analysis_tool["function"]["parameters"]["required"]
+
+        assert short_planning_tool["type"] == "function"
+        assert "description" in short_planning_tool["function"]
+        assert "parameters" in short_planning_tool["function"]
+        assert short_planning_tool["function"]["parameters"]["type"] == "object"
+        assert "structured_requirements" in short_planning_tool["function"]["parameters"]["properties"]
+        assert "structured_requirements" in short_planning_tool["function"]["parameters"]["required"]
     
     def test_get_tool_by_name(self):
         """测试根据名称获取工具"""
         # 获取存在的工具
-        tool = get_tool_by_name("requirements_analysis")
+        tool = get_tool_by_name("short_planning")
         assert tool is not None
-        assert tool["function"]["name"] == "requirements_analysis"
-        
+        assert tool["function"]["name"] == "short_planning"
+
         # 获取不存在的工具
         tool = get_tool_by_name("nonexistent_tool")
         assert tool is None
@@ -60,15 +59,15 @@ class TestAgentFunctionDefinitions:
     def test_validate_tool_arguments(self):
         """测试工具参数验证"""
         # 有效参数
-        result = validate_tool_arguments("requirements_analysis", {"user_input": "test"})
+        result = validate_tool_arguments("short_planning", {"structured_requirements": {}})
         assert result["valid"] is True
         assert len(result["errors"]) == 0
-        
+
         # 缺少必需参数
-        result = validate_tool_arguments("requirements_analysis", {})
+        result = validate_tool_arguments("short_planning", {})
         assert result["valid"] is False
-        assert "Missing required parameter: user_input" in result["errors"]
-        
+        assert "Missing required parameter: structured_requirements" in result["errors"]
+
         # 不存在的工具
         result = validate_tool_arguments("nonexistent_tool", {})
         assert result["valid"] is False
@@ -86,13 +85,7 @@ class TestAgentToolExecution:
         assert result["success"] is False
         assert "Unknown tool" in result["error"]
     
-    @pytest.mark.asyncio
-    async def test_execute_requirements_analysis_missing_param(self):
-        """测试需求分析缺少参数"""
-        result = await execute_agent_tool("requirements_analysis", {})
-        
-        assert result["success"] is False
-        assert "user_input is required" in result["error"]
+
     
     @pytest.mark.asyncio
     async def test_execute_short_planning_missing_param(self):
@@ -118,27 +111,6 @@ class TestAgentToolExecution:
         assert result["success"] is False
         assert "structured_requirements is required" in result["error"]
     
-    @pytest.mark.asyncio
-    async def test_call_requirements_analysis_convenience(self):
-        """测试需求分析便捷函数"""
-        # 注意：这个测试可能会实际调用LLM，在真实环境中可能需要mock
-        try:
-            result = await call_requirements_analysis("我想开发一个简单的待办事项应用")
-            
-            # 验证返回结构
-            assert "success" in result
-            assert "tool_name" in result or "error" in result
-            
-            if result["success"]:
-                assert "result" in result
-                assert result["tool_name"] == "requirements_analysis"
-            else:
-                # 如果失败，应该有错误信息
-                assert "error" in result
-                
-        except Exception as e:
-            # 如果因为环境问题（如没有配置LLM）而失败，这是可以接受的
-            pytest.skip(f"Skipping due to environment issue: {e}")
 
 
 class TestFunctionCallingIntegration:
@@ -181,7 +153,7 @@ class TestFunctionCallingIntegration:
         """测试工具名称一致性"""
         definitions = get_agent_function_definitions()
         
-        expected_names = ["requirements_analysis", "short_planning", "research", "architecture_design"]
+        expected_names = ["short_planning", "research", "architecture_design"]
         actual_names = [tool["function"]["name"] for tool in definitions]
         
         assert set(expected_names) == set(actual_names)
@@ -189,11 +161,7 @@ class TestFunctionCallingIntegration:
     def test_parameter_validation_comprehensive(self):
         """测试全面的参数验证"""
         test_cases = [
-            # requirements_analysis
-            ("requirements_analysis", {"user_input": "test"}, True),
-            ("requirements_analysis", {}, False),
-            
-            # short_planning  
+            # short_planning
             ("short_planning", {"structured_requirements": {}}, True),
             ("short_planning", {}, False),
             

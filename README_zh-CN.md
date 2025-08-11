@@ -229,16 +229,14 @@ GTPlanner 使用基于 PocketFlow 构建的异步节点架构：
     -   支持迭代优化
     -   包含审查和定稿节点
 
-2.  **Main Requirement Engine** (`cli_flow.py`)
-    -   完整的文档生成流水线
-    -   带有多阶段处理和反馈循环
+2.  **Function Calling System** (`agent/function_calling/`)
+    -   基于OpenAI Function Calling的智能工具调用
+    -   需求分析、研究、架构设计等专业工具
 
-3.  **Node Implementations** (`nodes.py`)
-    -   `AsyncInputProcessingNode`: 处理用户输入
-    -   `AsyncRequirementsAnalysisNode`: 提取和分类需求
-    -   `AsyncDesignOptimizationNode`: 提出改进和优化建议
-    -   `AsyncDocumentationGenerationNode`: 创建结构化文档
-    -   `AsyncFeedbackProcessingNode`: 管理迭代优化过程
+3.  **Agent System** (`agent/`)
+    -   专业化的Agent子流程
+    -   原子能力节点
+    -   统一的状态管理
 
 ### 流程图
 
@@ -265,17 +263,21 @@ flowchart TD
 
 ```
 GTPlanner/
-├── main.py                    # 功能完整的 CLI 主入口
-├── cli.py                     # 简化的 CLI 入口
-├── cli_flow.py               # 主要的需求引擎流程定义
+├── gtplanner.py               # 主要的 CLI 启动脚本
 ├── short_planner_flow.py     # 短规划流程的实现
-├── filename_flow.py          # 自动文件名生成
 ├── nodes.py                  # 核心异步节点的实现
 ├── fastapi_main.py           # FastAPI 后端服务
 ├── settings.toml             # 配置文件
 ├── pyproject.toml            # 项目元数据和依赖
-├── requirements.txt          # Python 依赖
-├── start_cli.bat            # Windows CLI 启动脚本
+├── cli/                       # 现代化CLI实现
+│   ├── gtplanner_cli.py      # 基于Function Calling的CLI
+│   └── session_manager.py    # 会话管理
+├── agent/                     # 核心Agent系统
+│   ├── flows/                # 主要编排流程
+│   ├── subflows/             # 专业化Agent子流程
+│   ├── nodes/                # 原子能力节点
+│   ├── function_calling/     # Function Calling工具
+│   └── shared.py             # 共享状态管理
 ├── api/                      # API 实现
 │   └── v1/
 │       └── planning.py       # 规划端点

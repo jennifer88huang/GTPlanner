@@ -16,7 +16,6 @@ GTPlanner CLI
 """
 
 import sys
-import os
 import asyncio
 import argparse
 import time
@@ -31,7 +30,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm
 from rich.markdown import Markdown
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+
 from rich.live import Live
 from rich.layout import Layout
 from rich.text import Text
@@ -176,21 +175,16 @@ class GTPlannerCLI:
 
             # 🔧 关键修复：同步工具执行历史和结果数据到会话管理器
             if 'tool_execution_history' in self.session_state:
-                print(f"🔍 [DEBUG] 同步工具执行历史到会话管理器，历史记录数: {len(self.session_state['tool_execution_history'])}")
                 self.session_manager.sync_tool_execution_history(self.session_state['tool_execution_history'])
 
             # 🔧 新增：同步工具结果数据
-            print(f"🔍 [DEBUG] 同步工具结果数据到会话管理器")
             self.session_manager.sync_tool_result_data(self.session_state)
 
             # 显示结果并保存到会话
             user_message = exec_result.get("user_message", "")
             tool_calls = exec_result.get("tool_calls", [])
 
-            print(f"🔍 [DEBUG] CLI收到exec_result键: {list(exec_result.keys())}")
-            print(f"🔍 [DEBUG] CLI收到tool_calls数量: {len(tool_calls)}")
-            if tool_calls:
-                print(f"🔍 [DEBUG] CLI第一个tool_call: {tool_calls[0]}")
+
 
             if user_message:
                 # 停止Live显示
@@ -282,76 +276,128 @@ class GTPlannerCLI:
             if not content.strip():
                 return
 
-            # 过滤掉不需要的信息
-            if any(skip in content for skip in [
-                "🔧 准备调用OpenAI API",
-                "🤔 正在分析您的请求",
-                "工具数量:",
-                "准备调用OpenAI API"
-            ]):
+            # 过滤掉空内容
+            if not content.strip():
                 return
 
-            # 检测工具调用开始
-            if "🔧 开始执行" in content:
+            # 检测工具执行状态标记
+            if content.startswith("__TOOL_START__"):
                 has_tool_calls = True
                 # 提取工具名称
-                parts = content.split("🔧 开始执行")
-                if len(parts) > 1:
-                    current_tool = parts[1].strip()
-                    tool_start_time = time.time()
+                tool_name = content.replace("__TOOL_START__", "").strip()
+                current_tool = tool_name
+                tool_start_time = time.time()
 
-                    # 显示美化的工具执行状态
-                    tool_panel = Panel(
-                        Text(f"🔧 正在执行工具: {current_tool}", style="bold yellow"),
-                        border_style="yellow",
-                        box=ROUNDED
-                    )
-                    self.console.print(tool_panel)
+                # 停止当前的AI回复显示（如果有的话）
+                if live_display:
+                    try:
+                        live_display.stop()
+                    except Exception:
+                        pass
+                    live_display = None
+
+                # 显示美化的工具执行状态
+                tool_panel = Panel(
+                    Text(f"🔧 正在执行工具: {tool_name}", style="bold yellow"),
+                    border_style="yellow",
+                    box=ROUNDED
+                )
+                self.console.print(tool_panel)
                 return
 
-            # 检测工具执行完成
-            if "✅" in content and ("执行成功" in content or "执行完成" in content) and current_tool:
-                # 计算执行时间
-                if tool_start_time:
-                    execution_time = time.time() - tool_start_time
-                    success_text = Text()
-                    success_text.append("✅ ", style="bold green")
-                    success_text.append(f"工具 {current_tool} 执行完成", style="green")
-                    success_text.append(f" ({execution_time:.1f}s)", style="dim")
+            # 检测工具执行完成标记
+            if content.startswith("__TOOL_END__"):
+                parts = content.replace("__TOOL_END__", "").split("__")
+                if len(parts) >= 3:
+                    tool_name = parts[0]
+                    success = parts[1] == "True"
+                    execution_time = float(parts[2])
 
-                    success_panel = Panel(
-                        Align.center(success_text),
-                        border_style="green",
-                        box=ROUNDED
-                    )
-                    self.console.print(success_panel)
+                    if success:
+                        success_text = Text()
+                        success_text.append("✅ ", style="bold green")
+                        success_text.append(f"工具 {tool_name} 执行完成", style="green")
+                        success_text.append(f" ({execution_time:.1f}s)", style="dim")
+
+                        success_panel = Panel(
+                            Align.center(success_text),
+                            border_style="green",
+                            box=ROUNDED
+                        )
+                        self.console.print(success_panel)
+                    else:
+                        error_text = Text()
+                        error_text.append("❌ ", style="bold red")
+                        error_text.append(f"工具 {tool_name} 执行失败", style="red")
+                        error_text.append(f" ({execution_time:.1f}s)", style="dim")
+
+                        error_panel = Panel(
+                            Align.center(error_text),
+                            border_style="red",
+                            box=ROUNDED
+                        )
+                        self.console.print(error_panel)
+
                 current_tool = None
                 tool_start_time = None
                 return
 
-            # 检测最终响应开始
-            if "📝" in content:
-                in_final_response = True
-                ai_content_buffer = ""  # 重置缓冲区
+            # 检测新AI回复段落开始标记
+            if content.startswith("__NEW_AI_REPLY__"):
+                # 停止当前的Live显示
+                if live_display:
+                    try:
+                        live_display.stop()
+                    except Exception:
+                        pass
+                    live_display = None
+
+                # 重置AI回复状态，准备开始新的回复段落
+                ai_response_started = False
+                ai_content_buffer = ""
+                in_final_response = True  # 标记这是最终回复
                 return
 
-            # 在详细模式下显示所有流式内容
-            if self.verbose:
-                if in_final_response:
-                    ai_content_buffer += content
+            # 检测AI回复内容（非状态标记的普通内容）
+            if not content.startswith("__") and content.strip():
+                # 如果有工具调用但还没有进入最终回复阶段，这是初始回复
+                # 如果已经进入最终回复阶段，这是基于工具结果的回复
+                if has_tool_calls and not in_final_response:
+                    # 这是初始回复，工具调用前的内容
+                    pass  # 继续正常处理
+                elif has_tool_calls and in_final_response:
+                    # 这是最终回复，基于工具结果的内容
+                    pass  # 继续正常处理
+
+                # 在详细模式下显示所有流式内容
+                if self.verbose:
+                    if in_final_response or not has_tool_calls:
+                        ai_content_buffer += content
+                    else:
+                        self.console.print(content, end="")
                 else:
-                    self.console.print(content, end="")
-            else:
-                # 在简洁模式下的处理
-                if in_final_response:
-                    # 如果是第一次进入AI回复阶段，创建Live显示
-                    if not ai_response_started:
+                    # 在简洁模式下的统一处理
+                    # 显示AI回复的条件：
+                    # 1. 没有工具调用（直接回复）
+                    # 2. 有工具调用但在最终回复阶段（基于工具结果的回复）
+                    should_show_ai_reply = not has_tool_calls or (has_tool_calls and in_final_response)
+
+                    if should_show_ai_reply and not ai_response_started:
+                        # 第一次开始AI回复，创建Live显示
                         ai_response_started = True
-                        ai_content_buffer = ""
+                        ai_content_buffer = content
+
+                        # 停止任何现有的Live显示
+                        if live_display:
+                            try:
+                                live_display.stop()
+                            except Exception:
+                                pass
+                            live_display = None
 
                         # 创建初始面板
                         initial_panel = Panel(
-                            Text("🤖 正在回复...", style="dim"),
+                            Text(content if content.strip() else "🤖 正在回复...", style="white"),
                             title="[bold cyan]🤖 AI 回复[/bold cyan]",
                             border_style="cyan",
                             box=ROUNDED,
@@ -359,69 +405,41 @@ class GTPlannerCLI:
                         )
 
                         # 启动Live显示
-                        live_display = Live(
-                            initial_panel,
-                            console=self.console,
-                            refresh_per_second=10,
-                            transient=False
-                        )
-                        live_display.start()
+                        try:
+                            live_display = Live(
+                                initial_panel,
+                                console=self.console,
+                                refresh_per_second=10,
+                                transient=False
+                            )
+                            live_display.start()
+                        except Exception:
+                            # 如果Live显示创建失败，回退到普通打印
+                            live_display = None
+                            self.console.print(initial_panel)
+                    elif should_show_ai_reply and ai_response_started:
+                        # 继续更新AI回复内容
+                        ai_content_buffer += content
 
-                    # 更新AI回复内容
-                    ai_content_buffer += content
-
-                    # 动态更新Live显示
-                    if live_display:
-                        updated_panel = Panel(
-                            Text(ai_content_buffer, style="white"),
-                            title="[bold cyan]🤖 AI 回复[/bold cyan]",
-                            border_style="cyan",
-                            box=ROUNDED,
-                            padding=(0, 1)
-                        )
-                        live_display.update(updated_panel)
-                elif any(marker in content for marker in ["🔄", "💭"]):
-                    # 显示处理状态（简化显示）
-                    if "🔄" in content:
-                        self.console.print("🔄 [dim]处理中...[/dim]")
-                    elif "💭" in content:
-                        self.console.print("💭 [dim]整理结果...[/dim]")
-                elif not has_tool_calls and not ai_response_started:
-                    # 如果没有工具调用，开始Live显示AI回复
-                    ai_response_started = True
-                    ai_content_buffer = content
-
-                    # 创建初始面板
-                    initial_panel = Panel(
-                        Text(content, style="white"),
-                        title="[bold cyan]🤖 AI 回复[/bold cyan]",
-                        border_style="cyan",
-                        box=ROUNDED,
-                        padding=(0, 1)
-                    )
-
-                    # 启动Live显示
-                    live_display = Live(
-                        initial_panel,
-                        console=self.console,
-                        refresh_per_second=10,
-                        transient=False
-                    )
-                    live_display.start()
-                elif not has_tool_calls and ai_response_started:
-                    # 继续更新AI回复内容
-                    ai_content_buffer += content
-
-                    # 动态更新Live显示
-                    if live_display:
-                        updated_panel = Panel(
-                            Text(ai_content_buffer, style="white"),
-                            title="[bold cyan]🤖 AI 回复[/bold cyan]",
-                            border_style="cyan",
-                            box=ROUNDED,
-                            padding=(0, 1)
-                        )
-                        live_display.update(updated_panel)
+                        # 动态更新Live显示
+                        if live_display:
+                            try:
+                                updated_panel = Panel(
+                                    Text(ai_content_buffer, style="white"),
+                                    title="[bold cyan]🤖 AI 回复[/bold cyan]",
+                                    border_style="cyan",
+                                    box=ROUNDED,
+                                    padding=(0, 1)
+                                )
+                                live_display.update(updated_panel)
+                            except Exception:
+                                # 如果更新失败，停止Live显示并回退到普通打印
+                                try:
+                                    live_display.stop()
+                                except Exception:
+                                    pass
+                                live_display = None
+                                self.console.print(content, end="")
 
         # 返回回调函数和相关方法
         def get_ai_content():
@@ -430,8 +448,13 @@ class GTPlannerCLI:
         def stop_live_display():
             nonlocal live_display
             if live_display:
-                live_display.stop()
-                live_display = None
+                try:
+                    live_display.stop()
+                except Exception:
+                    # 忽略停止时的异常
+                    pass
+                finally:
+                    live_display = None
 
         stream_callback.get_ai_content = get_ai_content
         stream_callback.stop_live_display = stop_live_display
@@ -480,26 +503,7 @@ class GTPlannerCLI:
 
         self.console.print(panel)
 
-    def _show_tool_execution(self, tool_name: str, start_time: float):
-        """显示工具执行状态，带有动态加载效果"""
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[bold blue]🔧 执行工具:[/bold blue]"),
-            TextColumn(f"[bold green]{tool_name}[/bold green]"),
-            TimeElapsedColumn(),
-            console=self.console,
-            transient=True
-        ) as progress:
-            task = progress.add_task("", total=None)
 
-            # 这里可以添加实际的工具执行逻辑
-            # 现在只是为了演示效果
-            import time
-            while True:
-                time.sleep(0.1)
-                # 检查工具是否完成（这里需要实际的完成检查逻辑）
-                if time.time() - start_time > 1:  # 临时的完成条件
-                    break
 
     def _show_completion_status(self, tool_calls: list):
         """显示美化的完成状态"""

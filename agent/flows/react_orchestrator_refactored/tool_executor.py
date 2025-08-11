@@ -10,7 +10,7 @@ import asyncio
 from typing import Dict, List, Any, Optional, Callable
 from agent.function_calling import execute_agent_tool, validate_tool_arguments
 from .constants import (
-    LogMessages, ErrorMessages, StreamFeedback, 
+    ErrorMessages,
     DefaultValues, ToolCallPatterns
 )
 
@@ -44,13 +44,13 @@ class ToolExecutor:
         if not tool_calls:
             return []
         
-        ##print(LogMessages.TOOL_CALLS_DETECTED.format(len(tool_calls)))
+
         
         # 创建异步任务
         tasks = []
-        for i, tool_call in enumerate(tool_calls):
+        for tool_call in tool_calls:
             tool_name = tool_call.function.name
-            print(LogMessages.PROCESSING_TOOL_CALL.format(i+1, tool_name))
+
             
             try:
                 arguments = json.loads(tool_call.function.arguments)
@@ -64,7 +64,7 @@ class ToolExecutor:
                 print(f"⚠️ {ErrorMessages.TOOL_VALIDATION_FAILED}: {validation['errors']}")
                 continue
             
-            print(LogMessages.TOOL_VALIDATION_SUCCESS.format(tool_name))
+
             
             # 创建异步任务
             if stream_callback:
@@ -121,7 +121,7 @@ class ToolExecutor:
                 print(f"⚠️ {ErrorMessages.TOOL_VALIDATION_FAILED}: {validation['errors']}")
                 continue
             
-            print(LogMessages.TOOL_VALIDATION_SUCCESS.format(tool_name))
+
             
             # 创建异步任务
             if stream_callback:
@@ -159,7 +159,7 @@ class ToolExecutor:
             工具执行结果
         """
         try:
-            print(LogMessages.TOOL_EXECUTION_START.format(tool_name))
+
             start_time = time.time()
             
             tool_result = await execute_agent_tool(tool_name, arguments)
@@ -217,14 +217,6 @@ class ToolExecutor:
             工具执行结果
         """
         try:
-            if stream_callback:
-                # 显示工具调用开始
-                await stream_callback(StreamFeedback.TOOL_START.format(tool_name) + "\n")
-                
-                # 显示参数信息（简化版）
-                if arguments:
-                    param_summary = self._summarize_tool_arguments(arguments)
-                    await stream_callback(StreamFeedback.TOOL_PARAMS.format(param_summary) + "\n")
             
             # 记录开始时间
             start_time = time.time()
@@ -239,25 +231,10 @@ class ToolExecutor:
             self.execution_stats["total_executions"] += 1
             self.execution_stats["total_execution_time"] += execution_time
             
-            if stream_callback:
-                if tool_result.get("success"):
-                    await stream_callback(
-                        StreamFeedback.TOOL_SUCCESS.format(tool_name, execution_time) + "\n"
-                    )
-                    self.execution_stats["successful_executions"] += 1
-                    
-                    # 显示结果摘要
-                    result_summary = self._summarize_tool_result(tool_result.get("result", {}))
-                    if result_summary:
-                        await stream_callback(
-                            StreamFeedback.RESULT_SUMMARY.format(result_summary) + "\n"
-                        )
-                else:
-                    error_msg = tool_result.get("error", "未知错误")
-                    await stream_callback(
-                        StreamFeedback.TOOL_FAILED.format(tool_name, error_msg) + "\n"
-                    )
-                    self.execution_stats["failed_executions"] += 1
+            if tool_result.get("success"):
+                self.execution_stats["successful_executions"] += 1
+            else:
+                self.execution_stats["failed_executions"] += 1
             
             return {
                 "tool_name": tool_name,
@@ -269,10 +246,6 @@ class ToolExecutor:
             }
             
         except Exception as e:
-            if stream_callback:
-                await stream_callback(
-                    StreamFeedback.TOOL_EXCEPTION.format(tool_name, str(e)) + "\n"
-                )
             
             self.execution_stats["total_executions"] += 1
             self.execution_stats["failed_executions"] += 1

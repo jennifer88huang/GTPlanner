@@ -284,17 +284,21 @@ flowchart TD
 
 ```
 GTPlanner/
-├── main.py                    # Fully-featured CLI main entry point
-├── cli.py                     # Simplified CLI entry point
-├── cli_flow.py                # Main requirement engine flow definition
+├── gtplanner.py               # Main CLI launcher script
 ├── short_planner_flow.py      # Short planner flow implementation
-├── filename_flow.py           # Automatic filename generation
 ├── nodes.py                   # Core asynchronous node implementations
 ├── fastapi_main.py            # FastAPI backend service
 ├── settings.toml              # Configuration file
 ├── pyproject.toml             # Project metadata and dependencies
-├── requirements.txt           # Python dependencies
-├── start_cli.bat              # Windows CLI startup script
+├── cli/                       # Modern CLI implementation
+│   ├── gtplanner_cli.py      # Function Calling-based CLI
+│   └── session_manager.py    # Session management
+├── agent/                     # Core agent system
+│   ├── flows/                # Main orchestration flows
+│   ├── subflows/             # Specialized agent subflows
+│   ├── nodes/                # Atomic capability nodes
+│   ├── function_calling/     # Function calling tools
+│   └── shared.py             # Shared state management
 ├── api/                       # API implementation
 │   └── v1/
 │       └── planning.py       # Planning endpoints

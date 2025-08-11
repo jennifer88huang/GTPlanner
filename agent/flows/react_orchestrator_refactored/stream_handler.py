@@ -8,7 +8,7 @@ import json
 import asyncio
 from typing import Dict, List, Any, Optional, Callable
 from utils.openai_client import get_openai_client
-from .constants import LogMessages, MessageRoles
+from .constants import MessageRoles
 from .tool_executor import ToolExecutor
 from .message_builder import MessageBuilder
 
@@ -40,20 +40,10 @@ class StreamHandler:
             执行结果
         """
         try:
-            print(f"🔍 [DEBUG] StreamHandler开始执行...")
-            print(f"🔍 [DEBUG] 消息数量: {len(messages)}, 工具数量: {len(self.available_tools)}")
-
-            # 调试：检查工具定义
-            for i, tool in enumerate(self.available_tools):
-                tool_name = tool.get('function', {}).get('name', 'unknown')
-                print(f"🔍 [DEBUG] 工具{i+1}: {tool_name}")
-
             # 第一步：流式获取LLM的初始响应和工具调用决策
-            if stream_callback:
-                await stream_callback(LogMessages.STREAM_ANALYZING_REQUEST + "\n")
+            print(f"🔍 [StreamHandler] 发送给LLM的消息数量: {len(messages)}, 工具数量: {len(self.available_tools)}")
 
             # 使用流式调用获取响应
-            print(f"🔍 [DEBUG] 开始调用OpenAI流式API...")
             response = await self.openai_client.chat_completion_async(
                 messages=messages,
                 tools=self.available_tools,
@@ -61,27 +51,31 @@ class StreamHandler:
                 parallel_tool_calls=True,
                 stream=True  # 启用流式响应
             )
-            print(f"🔍 [DEBUG] OpenAI流式API调用成功")
             
             # 处理流式响应
-            print(f"🔍 [DEBUG] 开始处理流式响应...")
-            collected_content, tool_calls_detected = await self._process_stream_response(
+            collected_content, tool_calls_detected, tool_calls_buffer = await self._process_stream_response(
                 response, stream_callback
             )
-            print(f"🔍 [DEBUG] 流式响应处理完成，内容长度: {len(collected_content)}, 工具调用数: {len(tool_calls_detected)}")
+
+            # 🔧 修复：正确显示工具调用缓冲区内容
+            print(f"🔍 [StreamHandler] 工具调用缓冲区内容: {tool_calls_buffer}")
+            print(f"🔍 [StreamHandler] 最终检测到的工具调用数量: {len(tool_calls_detected)}")
+            print(f"🔍 [StreamHandler] 是否检测到工具调用: {len(tool_calls_detected) > 0}")
+
+            # 🔧 新增：验证工具调用格式
+            if tool_calls_detected:
+                self._validate_tool_calls(tool_calls_detected)
             
             # 第二步：如果检测到工具调用，进行流式工具执行
             tool_results = []
             if tool_calls_detected:
-                if stream_callback:
-                    await stream_callback(
-                        f"\n\n{LogMessages.STREAM_TOOL_EXECUTION_START.format(len(tool_calls_detected))}\n"
-                    )
-                
-                # 并行执行工具调用，提供实时反馈
+                print(f"🔍 [StreamHandler] 开始执行 {len(tool_calls_detected)} 个工具调用")
+                # 并行执行工具调用，状态标记在执行器内部发送
                 tool_results = await self._execute_tools_with_stream_feedback(
                     tool_calls_detected, stream_callback
                 )
+            else:
+                print(f"🔍 [StreamHandler] 没有检测到工具调用，跳过工具执行")
             
             # 第三步：如果有工具结果，获取最终响应
             final_user_message = await self._get_final_response(
@@ -113,26 +107,28 @@ class StreamHandler:
             }
     
     async def _process_stream_response(
-        self, 
-        response, 
+        self,
+        response,
         stream_callback: Optional[Callable]
-    ) -> tuple[str, List[Any]]:
+    ) -> tuple[str, List[Any], Dict]:
         """
         处理流式响应
-        
+
         Args:
             response: OpenAI流式响应
             stream_callback: 流式回调函数
-            
+
         Returns:
-            (收集的内容, 检测到的工具调用)
+            (收集的内容, 检测到的工具调用, 工具调用缓冲区)
         """
         collected_content = ""
         tool_calls_detected = []
-        
+        tool_calls_buffer = {}  # 用于累积流式工具调用
+
+        print(f"🔍 [StreamHandler] 开始处理流式响应")
+
         if hasattr(response, '__aiter__'):
             # 处理流式响应
-            # print("🔍 [DEBUG] 开始处理流式响应")
             async for chunk in response:
                 if hasattr(chunk, 'choices') and chunk.choices:
                     choice = chunk.choices[0]
@@ -141,17 +137,50 @@ class StreamHandler:
                     # 处理内容流
                     if hasattr(delta, 'content') and delta.content:
                         collected_content += delta.content
-                        # print(f"🔍 [DEBUG] 流式内容片段: '{delta.content}'")
                         if stream_callback:
                             await stream_callback(delta.content)
 
-                    # 检测工具调用
+                    # 检测工具调用（流式累积）
                     if hasattr(delta, 'tool_calls') and delta.tool_calls:
-                        # print(f"🔍 [DEBUG] 检测到工具调用片段: {len(delta.tool_calls)}")
-                        for tool_call in delta.tool_calls:
-                            if hasattr(tool_call, 'function'):
-                                # print(f"🔍 [DEBUG] 工具调用: {tool_call.function.name if tool_call.function.name else '未知'}")
-                                tool_calls_detected.append(tool_call)
+                        for tool_call_delta in delta.tool_calls:
+                            if hasattr(tool_call_delta, 'index'):
+                                index = tool_call_delta.index
+
+                                # 初始化或更新工具调用缓冲区
+                                if index not in tool_calls_buffer:
+                                    tool_calls_buffer[index] = {
+                                        'id': getattr(tool_call_delta, 'id', f'call_{index}'),
+                                        'function': {
+                                            'name': '',
+                                            'arguments': ''
+                                        }
+                                    }
+
+                                # 累积工具调用信息
+                                if hasattr(tool_call_delta, 'function') and tool_call_delta.function:
+                                    func_delta = tool_call_delta.function
+                                    if hasattr(func_delta, 'name') and func_delta.name:
+                                        tool_calls_buffer[index]['function']['name'] = func_delta.name
+                                    if hasattr(func_delta, 'arguments') and func_delta.arguments:
+                                        tool_calls_buffer[index]['function']['arguments'] += func_delta.arguments
+
+            # 转换缓冲区为最终的工具调用列表
+            print(f"🔍 [StreamHandler] 工具调用缓冲区内容: {tool_calls_buffer}")
+            for index, tool_call_data in tool_calls_buffer.items():
+                # 创建模拟的工具调用对象
+                class MockToolCall:
+                    def __init__(self, data):
+                        self.id = data['id']
+                        self.function = MockFunction(data['function'])
+
+                class MockFunction:
+                    def __init__(self, func_data):
+                        self.name = func_data['name']
+                        self.arguments = func_data['arguments']
+
+                if tool_call_data['function']['name']:  # 只添加有名称的工具调用
+                    print(f"🔍 [StreamHandler] 添加工具调用: {tool_call_data['function']['name']}")
+                    tool_calls_detected.append(MockToolCall(tool_call_data))
         else:
             # 非流式响应的回退处理
             choice = response.choices[0]
@@ -163,17 +192,33 @@ class StreamHandler:
             if hasattr(message, 'tool_calls') and message.tool_calls:
                 tool_calls_detected = message.tool_calls
         
-        # print(f"🔍 [DEBUG] 流式响应处理完成:")
-        # print(f"🔍 [DEBUG] - 收集的内容长度: {len(collected_content)}")
-        # print(f"🔍 [DEBUG] - 收集的内容: '{collected_content[:100]}{'...' if len(collected_content) > 100 else ''}'")
-        # print(f"🔍 [DEBUG] - 检测到的工具调用数量: {len(tool_calls_detected)}")
-        # for i, tool_call in enumerate(tool_calls_detected):
-        #     if hasattr(tool_call, 'function') and tool_call.function:
-        #         print(f"🔍 [DEBUG] - 工具{i+1}: {tool_call.function.name}")
-        # print("🔍 [DEBUG] " + "=" * 50)
+        return collected_content, tool_calls_detected, tool_calls_buffer
 
-        return collected_content, tool_calls_detected
-    
+    def _validate_tool_calls(self, tool_calls: List[Any]) -> None:
+        """
+        验证工具调用格式的正确性
+
+        Args:
+            tool_calls: 工具调用列表
+        """
+        for i, tc in enumerate(tool_calls):
+            if not hasattr(tc, 'id'):
+                print(f"⚠️ [StreamHandler] 工具调用{i}缺少id属性")
+            if not hasattr(tc, 'function'):
+                print(f"⚠️ [StreamHandler] 工具调用{i}缺少function属性")
+                continue
+            if not hasattr(tc.function, 'name'):
+                print(f"⚠️ [StreamHandler] 工具调用{i}的function缺少name属性")
+            if not hasattr(tc.function, 'arguments'):
+                print(f"⚠️ [StreamHandler] 工具调用{i}的function缺少arguments属性")
+            else:
+                # 验证arguments是否为有效JSON
+                try:
+                    import json
+                    json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    print(f"⚠️ [StreamHandler] 工具调用{i}的arguments不是有效JSON: {tc.function.arguments}")
+
     async def _execute_tools_with_stream_feedback(
         self,
         tool_calls: List[Any],
@@ -199,14 +244,18 @@ class StreamHandler:
                 tool_name = getattr(function, 'name', 'unknown')
                 arguments_str = getattr(function, 'arguments', '{}')
                 call_id = getattr(tool_call, 'id', f"call_{i}")
-                
+
                 try:
                     arguments = json.loads(arguments_str) if arguments_str else {}
                 except json.JSONDecodeError:
                     arguments = {}
-                
+
+                # 发送工具开始状态
+                if stream_callback and tool_name != 'unknown':
+                    await stream_callback(f"__TOOL_START__{tool_name}")
+
                 # 创建工具执行任务
-                task = self.tool_executor._execute_single_tool_with_stream_feedback(
+                task = self._execute_single_tool_with_status(
                     call_id, tool_name, arguments, stream_callback
                 )
                 tasks.append(task)
@@ -257,24 +306,49 @@ class StreamHandler:
         final_user_message = collected_content
         
         if tool_results:
-            # 构建包含工具结果的消息
-            messages_with_results = self.message_builder.build_tool_result_messages(
-                messages, collected_content, tool_calls_detected, tool_results
-            )
-            
-            # 获取最终响应
+            # 发送新回复段落开始标记
             if stream_callback:
-                await stream_callback(f"\n{LogMessages.STREAM_ORGANIZING_RESULTS}\n")
-            
+                await stream_callback("__NEW_AI_REPLY__")
+
+            # 🔧 修复：直接构建包含工具结果的消息
+            messages_with_results = messages.copy()
+
+            # 添加助手的工具调用消息
+            assistant_message = {
+                "role": "assistant",
+                "content": collected_content
+            }
+
+            if tool_calls_detected:
+                assistant_message["tool_calls"] = [
+                    {
+                        "id": getattr(tc, 'id', f"call_{i}"),
+                        "type": "function",
+                        "function": {
+                            "name": getattr(tc.function, 'name', 'unknown'),
+                            "arguments": getattr(tc.function, 'arguments', '{}')
+                        }
+                    } for i, tc in enumerate(tool_calls_detected)
+                ]
+
+            messages_with_results.append(assistant_message)
+
+            # 添加工具结果消息
+            for tool_result in tool_results:
+                import json
+                messages_with_results.append({
+                    "role": "tool",
+                    "tool_call_id": tool_result.get("call_id", "unknown"),
+                    "content": json.dumps(tool_result.get("result", {}), ensure_ascii=False)
+                })
+
+            # 获取最终响应
             final_response = await self.openai_client.chat_completion_async(
                 messages=messages_with_results,
                 stream=True
             )
-            
+
             # 流式输出最终响应
-            if stream_callback:
-                await stream_callback(f"\n{LogMessages.STREAM_FINAL_RESPONSE}")
-            
             final_content = ""
             if hasattr(final_response, '__aiter__'):
                 async for chunk in final_response:
@@ -290,11 +364,43 @@ class StreamHandler:
                 final_content = choice.message.content or ""
                 if stream_callback:
                     await stream_callback(final_content)
-            
+
             final_user_message = final_content
         
         return final_user_message
-    
+
+    async def _execute_single_tool_with_status(
+        self,
+        call_id: str,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        stream_callback: Optional[Callable]
+    ) -> Dict[str, Any]:
+        """
+        执行单个工具并发送状态更新
+
+        Args:
+            call_id: 调用ID
+            tool_name: 工具名称
+            arguments: 工具参数
+            stream_callback: 流式回调函数
+
+        Returns:
+            工具执行结果
+        """
+        # 执行工具
+        result = await self.tool_executor._execute_single_tool_with_stream_feedback(
+            call_id, tool_name, arguments, stream_callback
+        )
+
+        # 发送工具完成状态
+        if stream_callback:
+            success = result.get("success", False)
+            execution_time = result.get("execution_time", 0)
+            await stream_callback(f"__TOOL_END__{tool_name}__{success}__{execution_time:.1f}")
+
+        return result
+
     def _determine_next_action_from_tools(self, tool_results: List[Dict[str, Any]]) -> str:
         """
         根据工具执行结果确定下一步行动

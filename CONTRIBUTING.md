@@ -66,7 +66,7 @@ Before you begin, ensure you have the following installed:
 5. **Verify Installation**
    ```bash
    # Test CLI
-   uv run python main.py --help
+   uv run python gtplanner.py --help
 
    # Test FastAPI backend
    uv run python fastapi_main.py &
@@ -491,7 +491,7 @@ cd GTPlanner
 uv sync
 
 # Testing
-uv run python main.py
+uv run python gtplanner.py
 uv run python fastapi_main.py
 cd mcp && uv run python mcp_service.py
 
@@ -506,11 +506,12 @@ mypy .
 
 ```
 GTPlanner/
-├── main.py              # CLI entry point
-├── cli_flow.py          # Main processing flow
+├── gtplanner.py         # CLI launcher
 ├── short_planner_flow.py # Quick planning flow
 ├── nodes.py             # Core async nodes
 ├── fastapi_main.py      # API server
+├── cli/gtplanner_cli.py # Modern CLI
+├── agent/               # Agent system
 ├── api/v1/planning.py   # API endpoints
 ├── mcp/mcp_service.py   # MCP service
 ├── utils/               # Utility functions

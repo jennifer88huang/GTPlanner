@@ -225,16 +225,14 @@ GTPlannerは、PocketFlow上に構築された非同期ノードベースのア�
     -   反復的な最適化をサポート
     -   レビューおよび最終化ノードを含む
 
-2.  **Main Requirement Engine** (`cli_flow.py`)
-    -   完全なドキュメント生成パイプライン
-    -   多段階処理とフィードバックループを備える
+2.  **Function Calling System** (`agent/function_calling/`)
+    -   OpenAI Function Callingベースのインテリジェントツール呼び出し
+    -   要件分析、研究、アーキテクチャ設計などの専門ツール
 
-3.  **Node Implementations** (`nodes.py`)
-    -   `AsyncInputProcessingNode`: ユーザー入力を処理
-    -   `AsyncRequirementsAnalysisNode`: 要件を抽出し分類
-    -   `AsyncDesignOptimizationNode`: 改善と最適化案を提示
-    -   `AsyncDocumentationGenerationNode`: 構造化されたドキュメントを作成
-    -   `AsyncFeedbackProcessingNode`: 反復的な最適化プロセスを管理
+3.  **Agent System** (`agent/`)
+    -   専門化されたAgentサブフロー
+    -   原子能力ノード
+    -   統一された状態管理
 
 ### フローチャート
 
@@ -261,17 +259,21 @@ flowchart TD
 
 ```
 GTPlanner/
-├── main.py                    # フル機能のCLIメインエントリポイント
-├── cli.py                     # シンプルなCLIエントリポイント
-├── cli_flow.py                # 主要な要件エンジンのフロー定義
+├── gtplanner.py               # メインCLI起動スクリプト
 ├── short_planner_flow.py      # 短期計画フローの実装
-├── filename_flow.py           # 自動ファイル名生成
 ├── nodes.py                   # 主要な非同期ノードの実装
 ├── fastapi_main.py            # FastAPIバックエンドサービス
 ├── settings.toml              # 設定ファイル
 ├── pyproject.toml             # プロジェクトメタデータと依存関係
-├── requirements.txt           # Pythonの依存関係
-├── start_cli.bat              # Windows CLI起動スクリプト
+├── cli/                       # モダンCLI実装
+│   ├── gtplanner_cli.py      # Function CallingベースのCLI
+│   └── session_manager.py    # セッション管理
+├── agent/                     # コアAgentシステム
+│   ├── flows/                # メイン編成フロー
+│   ├── subflows/             # 専門化されたAgentサブフロー
+│   ├── nodes/                # 原子能力ノード
+│   ├── function_calling/     # Function Callingツール
+│   └── shared.py             # 共有状態管理
 ├── api/                       # API実装
 │   └── v1/
 │       └── planning.py       # 計画エンドポイント
