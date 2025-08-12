@@ -20,10 +20,8 @@ import hashlib
 import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Union, Callable
-from pathlib import Path
 from dataclasses import dataclass, asdict
 from enum import Enum
-import threading
 
 
 class MessageRole(Enum):
@@ -71,137 +69,108 @@ class Message:
 
 
 class UnifiedContext:
-    """GTPlanner统一上下文管理器"""
-    
+    """GTPlanner统一上下文管理器（无状态版本）"""
+
     _instance = None
-    _lock = threading.Lock()
-    
-    def __new__(cls, *args, **kwargs):
-        """单例模式"""
+
+    def __new__(cls):
+        """简化的单例模式"""
         if cls._instance is None:
-            with cls._lock:
-                if cls._instance is None:
-                    cls._instance = super().__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
     
-    def __init__(self, sessions_dir: str = ".gtplanner_sessions"):
-        """初始化统一上下文管理器"""
+    def __init__(self):
+        """初始化统一上下文管理器（无状态版本）"""
         if hasattr(self, '_initialized'):
             return
         
-        self.sessions_dir = Path(sessions_dir)
-        self.sessions_dir.mkdir(exist_ok=True)
-        
-        # 当前会话数据
+        # 🔧 重构：无状态设计，数据由CLI层传入
+        # 当前处理的会话数据（临时，仅在处理期间有效）
         self.session_id: Optional[str] = None
-        self.messages: List[Message] = []
+        self.messages: List[Message] = []  # 临时消息列表
+        self.llm_context: List[Message] = []  # 临时LLM上下文（由CLI层压缩后传入）
         self.project_state: Dict[str, Any] = {}
         self.tool_history: List[Dict[str, Any]] = []
         self.stage: ProjectStage = ProjectStage.INITIALIZATION
-        
-        # 去重缓存
+
+        # 临时去重缓存
         self.message_hashes: set = set()
-        
+
+        # 会话元数据（临时）
+        self.session_metadata: Dict[str, Any] = {}
+
         # 回调函数
         self.change_callbacks: List[Callable] = []
-        
-        # 会话元数据
-        self.session_metadata = {
-            "created_at": datetime.now().isoformat(),
-            "last_updated": datetime.now().isoformat(),
-            "title": "新会话"
-        }
-        
+
         self._initialized = True
-    
-    # ========== 会话管理 ==========
-    
-    def create_session(self, title: str = "新会话") -> str:
-        """创建新会话"""
-        self.session_id = str(uuid.uuid4())[:8]
+
+    # ========== 无状态数据处理 ==========
+
+    def load_context_from_cli(self, context_data: Dict[str, Any]) -> None:
+        """
+        从CLI层加载上下文数据（无状态处理）
+
+        Args:
+            context_data: CLI层传递的压缩后上下文数据
+        """
+        # 清空当前状态
         self.messages.clear()
-        self.project_state.clear()
-        self.tool_history.clear()
-        self.message_hashes.clear()
-        self.stage = ProjectStage.INITIALIZATION
-        
-        now = datetime.now().isoformat()
-        self.session_metadata = {
-            "created_at": now,
-            "last_updated": now,
-            "title": title
+        self.llm_context.clear()
+
+        # 加载基本信息
+        self.session_id = context_data.get("session_id")
+        self.stage = ProjectStage(context_data.get("stage", "initialization"))
+        self.project_state = context_data.get("project_state", {}).copy()
+        self.tool_history = context_data.get("tool_history", []).copy()
+        self.session_metadata = context_data.get("metadata", {}).copy()
+
+        # 加载消息（CLI层已压缩）
+        for msg_data in context_data.get("messages", []):
+            message = Message(
+                id=msg_data.get("id", str(uuid.uuid4())),
+                role=MessageRole(msg_data["role"]),
+                content=msg_data["content"],
+                timestamp=msg_data["timestamp"],
+                metadata=msg_data.get("metadata"),
+                tool_calls=msg_data.get("tool_calls")
+            )
+            # 同时添加到messages和llm_context（CLI层已处理压缩）
+            self.messages.append(message)
+            self.llm_context.append(message)
+
+        self._notify_change("context_loaded", {
+            "session_id": self.session_id,
+            "message_count": len(self.messages),
+            "stage": self.stage.value
+        })
+
+    def get_context_for_cli(self) -> Dict[str, Any]:
+        """
+        获取上下文数据返回给CLI层（用于持久化）
+
+        Returns:
+            包含新增数据的上下文字典
+        """
+        # 构建返回数据
+        messages_data = []
+        for msg in self.messages:
+            messages_data.append({
+                "id": msg.id,
+                "role": msg.role.value,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+                "metadata": msg.metadata,
+                "tool_calls": msg.tool_calls
+            })
+
+        return {
+            "session_id": self.session_id,
+            "stage": self.stage.value,
+            "messages": messages_data,
+            "project_state": self.project_state.copy(),
+            "tool_history": self.tool_history.copy(),
+            "metadata": self.session_metadata.copy()
         }
-        
-        self._notify_change("session_created", {"session_id": self.session_id})
-        return self.session_id
-    
-    def load_session(self, session_id: str) -> bool:
-        """加载会话"""
-        session_file = self.sessions_dir / f"{session_id}.json"
-        
-        if not session_file.exists():
-            return False
-        
-        try:
-            with open(session_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            self.session_id = session_id
-            self.stage = ProjectStage(data.get("stage", "initialization"))
-            self.project_state = data.get("project_state", {})
-            self.tool_history = data.get("tool_history", [])
-            self.session_metadata = data.get("metadata", {})
-            
-            # 重建消息
-            self.messages.clear()
-            self.message_hashes.clear()
-            
-            for msg_data in data.get("messages", []):
-                message = Message(
-                    id=msg_data.get("id", str(uuid.uuid4())),
-                    role=MessageRole(msg_data["role"]),
-                    content=msg_data["content"],
-                    timestamp=msg_data["timestamp"],
-                    metadata=msg_data.get("metadata"),
-                    tool_calls=msg_data.get("tool_calls")
-                )
-                self.messages.append(message)
-                self.message_hashes.add(message.content_hash)
-            
-            self._notify_change("session_loaded", {"session_id": session_id})
-            return True
-            
-        except Exception as e:
-            print(f"❌ 加载会话失败: {e}")
-            return False
-    
-    def save_session(self) -> bool:
-        """保存当前会话"""
-        if not self.session_id:
-            return False
-        
-        try:
-            session_file = self.sessions_dir / f"{self.session_id}.json"
-            
-            self.session_metadata["last_updated"] = datetime.now().isoformat()
-            
-            data = {
-                "session_id": self.session_id,
-                "stage": self.stage.value,
-                "messages": [msg.to_dict() for msg in self.messages],
-                "project_state": self.project_state,
-                "tool_history": self.tool_history,
-                "metadata": self.session_metadata
-            }
-            
-            with open(session_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ 保存会话失败: {e}")
-            return False
     
     # ========== 消息管理 ==========
     
@@ -231,15 +200,16 @@ class UnifiedContext:
             print(f"🔄 跳过重复消息: {message.content_hash[:8]}")
             return None
         
+        # 🔧 重构：无状态处理，直接添加到临时列表
         self.messages.append(message)
-        self.message_hashes.add(message.content_hash)
-        
+        self.llm_context.append(message)
+
         self._notify_change("message_added", {
             "message_id": message.id,
             "role": role.value,
             "content_preview": content[:50] + "..." if len(content) > 50 else content
         })
-        
+
         return message.id
     
     def get_messages(
@@ -354,21 +324,24 @@ class UnifiedContext:
     def add_assistant_message(
         self,
         content: str,
-        tool_calls: Optional[List[Dict[str, Any]]] = None
+        tool_calls: Optional[List[Dict[str, Any]]] = None,
+        metadata: Optional[Dict[str, Any]] = None
     ) -> Optional[str]:
         """添加助手消息"""
-        metadata = None
+        final_metadata = metadata.copy() if metadata else {}
         if tool_calls:
-            metadata = {
-                "agent_source": "react_orchestrator",
+            final_metadata.update({
                 "tool_calls": tool_calls,
                 "confidence": 0.9
-            }
-        
+            })
+            # 如果没有指定agent_source，使用默认值
+            if "agent_source" not in final_metadata:
+                final_metadata["agent_source"] = "react_orchestrator"
+
         return self.add_message(
             MessageRole.ASSISTANT,
             content,
-            metadata=metadata,
+            metadata=final_metadata if final_metadata else None,
             tool_calls=tool_calls
         )
     
@@ -415,6 +388,12 @@ class UnifiedContext:
         if callback in self.change_callbacks:
             self.change_callbacks.remove(callback)
 
+    # ========== 清理完成：压缩功能已移至CLI层 ==========
+
+
+
+
+
 
 # 全局实例
 context = UnifiedContext()
@@ -426,14 +405,6 @@ def get_context() -> UnifiedContext:
     return context
 
 
-def create_session(title: str = "新会话") -> str:
-    """创建新会话"""
-    return context.create_session(title)
-
-
-def add_user_message(content: str) -> Optional[str]:
-    """添加用户消息"""
-    return context.add_user_message(content)
 
 
 def add_assistant_message(content: str, tool_calls: Optional[List[Dict[str, Any]]] = None) -> Optional[str]:
@@ -454,3 +425,8 @@ def get_state(key: str, default: Any = None) -> Any:
 def record_tool_execution(tool_name: str, arguments: Dict[str, Any], result: Dict[str, Any], execution_time: Optional[float] = None) -> str:
     """记录工具执行"""
     return context.record_tool_execution(tool_name, arguments, result, execution_time)
+
+
+def cleanup_context():
+    """清理上下文资源"""
+    context.cleanup()

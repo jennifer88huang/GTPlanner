@@ -122,17 +122,11 @@ class AgentRequirementsAnalysisNode(AsyncNode):
         research_findings = prep_result.get("research_findings", {})
         user_input = prep_result.get("user_input", "")
         
-        # 提取项目信息
-        project_overview = structured_requirements.get("project_overview", {})
-        functional_requirements = structured_requirements.get("functional_requirements", {})
-        
+
         prompt = f"""你是一个专业的AI Agent设计专家。请基于已经结构化的需求分析，明确要设计的Agent类型和核心功能。
 
-**项目概述：**
-{json.dumps(project_overview, indent=2, ensure_ascii=False)}
-
-**功能需求：**
-{json.dumps(functional_requirements, indent=2, ensure_ascii=False)}
+**结构化需求：**
+{json.dumps(structured_requirements, indent=2, ensure_ascii=False)}
 
 **研究发现：**
 {research_findings.get('research_summary', '无研究发现')}
@@ -162,7 +156,7 @@ class AgentRequirementsAnalysisNode(AsyncNode):
 
 请确保分析结果专注于Agent的核心能力和处理逻辑，为后续的Flow和Node设计提供清晰的指导。
 
-**重要：请严格按照上述JSON格式输出，不要添加任何额外的文字说明、代码块标记或其他内容。直接输出纯JSON数据。**"""
+**重要：请严格按照上述JSON格式输出，确保字段完全正确，不要添加任何额外的文字说明、代码块标记或其他内容。直接输出纯JSON数据。**"""
         
         return prompt
     

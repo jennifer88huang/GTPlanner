@@ -75,10 +75,9 @@ flow = ShortPlanningFlow()
 # 准备共享数据
 shared = {
     "structured_requirements": {
-        "project_overview": {
-            "title": "用户管理系统",
-            "description": "一个完整的用户管理系统"
-        }
+        "project_name": "用户管理系统",
+        "main_functionality": "用户管理和权限控制",
+        "technical_requirements": ["Python", "Flask", "SQLite"]
     }
 }
 

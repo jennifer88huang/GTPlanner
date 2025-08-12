@@ -145,7 +145,6 @@ class ArchitectureFlow:
                 print("❌ structured_requirements 必须是字典类型")
                 return False
             
-            print("✅ 输入数据验证通过")
             return True
             
         except Exception as e:

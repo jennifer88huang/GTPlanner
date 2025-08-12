@@ -130,9 +130,7 @@ class DocumentGenerationNode(AsyncNode):
         detailed_nodes = prep_result["detailed_nodes"]
         structured_requirements = prep_result.get("structured_requirements", {})
         
-        # 提取项目信息
-        project_overview = structured_requirements.get("project_overview", {})
-        project_title = project_overview.get("title", "AI Agent项目")
+        project_title = structured_requirements.get("project_name", "AI Agent项目")
         
         prompt = f"""你是一个专业的AI助手，擅长编写基于pocketflow的Agent设计文档。请根据以下完整的设计结果，生成一份高质量的Agent设计文档。
 

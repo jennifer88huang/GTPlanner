@@ -64,25 +64,22 @@ class NodeSearch(AsyncNode):
             准备结果字典
         """
         try:
-            # 从pocketflow字典共享变量获取搜索配置
+            # 🔧 支持单个关键词输入
+            current_keyword = shared.get("current_keyword")
             search_keywords = shared.get("search_keywords", [])
             search_type = shared.get("search_type", "web")
             max_results = shared.get("max_results", self.default_max_results)
             language = shared.get("language", self.default_language)
 
-            # 如果没有提供关键词，从共享状态中提取
-            if not search_keywords:
+            # 优先使用单个关键词，如果没有则使用关键词列表
+            if current_keyword:
+                search_keywords = [current_keyword]
+            elif not search_keywords:
                 search_keywords = self._extract_keywords_from_shared_state(shared)
-            
+
             # 验证输入
             if not search_keywords:
-                return {
-                    "error": "No search keywords provided",
-                    "search_keywords": [],
-                    "search_type": search_type,
-                    "max_results": max_results,
-                    "language": language
-                }
+                return self._create_error_result("No search keywords provided", search_type)
             
             # 优化关键词
             optimized_keywords = self._optimize_keywords(search_keywords)
@@ -97,13 +94,7 @@ class NodeSearch(AsyncNode):
             }
             
         except Exception as e:
-            return {
-                "error": f"Search preparation failed: {str(e)}",
-                "search_keywords": [],
-                "search_type": "web",
-                "max_results": self.default_max_results,
-                "language": self.default_language
-            }
+            return self._create_error_result(f"Search preparation failed: {str(e)}")
     
     async def exec_async(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -135,8 +126,8 @@ class NodeSearch(AsyncNode):
             for keyword in search_keywords:
                 try:
                     if self.search_available and self.search_client:
-                        # 使用真实搜索API
-                        results = self.search_client.search_simple(keyword, count=max_results)
+                        # 使用真实搜索API - 异步调用
+                        results = await self.search_client.search_simple(keyword, count=max_results)
 
                         # 转换为标准格式
                         formatted_results = []
@@ -253,12 +244,15 @@ class NodeSearch(AsyncNode):
             })
 
             # 添加系统消息记录搜索结果
+            metadata = {
+                "agent_source": "NodeSearch",
+                "keywords_count": prep_res["keyword_count"],
+                "results_count": exec_res["total_found"],
+                "search_time_ms": exec_res["search_time"]
+            }
             shared.add_system_message(
                 f"搜索完成，找到 {exec_res['total_found']} 个相关结果",
-                agent_source="NodeSearch",
-                keywords_count=prep_res["keyword_count"],
-                results_count=exec_res["total_found"],
-                search_time_ms=exec_res["search_time"]
+                metadata=metadata
             )
 
             return "search_complete"
@@ -285,7 +279,15 @@ class NodeSearch(AsyncNode):
             "total_found": 0
         }
 
-
+    def _create_error_result(self, error_message: str, search_type: str = "web") -> Dict[str, Any]:
+        """创建标准错误结果字典"""
+        return {
+            "error": error_message,
+            "search_keywords": [],
+            "search_type": search_type,
+            "max_results": self.default_max_results,
+            "language": self.default_language
+        }
 
     def _classify_source_type(self, url: str) -> str:
         """分类信息源类型"""
@@ -324,16 +326,7 @@ class NodeSearch(AsyncNode):
         if hasattr(shared, 'user_intent') and shared.user_intent.extracted_keywords:
             keywords.extend(shared.user_intent.extracted_keywords)
 
-        # 从结构化需求中提取关键词
-        if hasattr(shared, 'structured_requirements'):
-            # 从项目标题中提取
-            if shared.structured_requirements.project_overview.title:
-                keywords.append(shared.structured_requirements.project_overview.title)
-
-            # 从核心功能中提取
-            for feature in shared.structured_requirements.functional_requirements.core_features:
-                if hasattr(feature, 'name'):
-                    keywords.append(feature.name)
+        # 注意：结构化需求相关代码已删除，因为需求分析子工作流已取消
 
         # 去重并返回
         return list(set(keywords))[:5]  # 最多返回5个关键词

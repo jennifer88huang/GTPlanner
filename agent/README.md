@@ -9,29 +9,29 @@ agent/
 ├── __init__.py                 # 模块主入口
 ├── gtplanner.py               # GTPlanner主控制器
 ├── shared.py                  # 系统级共享状态管理
-├── agent_doc.md              # 系统架构设计文档
-├── README.md                 # 项目说明文档
-├── nodes/                    # 原子能力节点
+├── llm_utils.py               # LLM调用工具
+├── README.md                  # 项目说明文档
+├── tracing_guide.md           # Tracing使用指南
+├── nodes/                     # 原子能力节点
 │   ├── __init__.py
-│   ├── node_req.py          # 需求解析节点
-│   ├── node_search.py       # 搜索引擎节点
-│   ├── node_url.py          # URL解析节点
-│   ├── node_recall.py       # 文档召回节点
-│   ├── node_compress.py     # 上下文压缩节点
-│   └── node_output.py       # 输出文档节点
-├── subflows/                 # 专业Agent子流程
+│   ├── node_search.py         # 搜索引擎节点
+│   ├── node_url.py            # URL解析节点
+│   ├── node_compress.py       # 上下文压缩节点
+│   └── node_output.py         # 输出文档节点
+├── subflows/                  # 专业Agent子流程
 │   ├── __init__.py
-│   ├── requirements_analysis_flow.py    # 需求分析Agent子流程
-│   ├── short_planning_flow.py          # 短规划Agent子流程
-│   ├── research_flow.py                # 研究调研Agent子流程
-│   ├── architecture_flow.py            # 架构设计Agent子流程
-│   └── documentation_flow.py           # 文档生成Agent子流程
-├── flows/                    # 主控制流程
+│   ├── architecture/          # 架构设计Agent子流程
+│   ├── research/              # 研究调研Agent子流程
+│   └── short_planning/        # 短规划Agent子流程
+├── flows/                     # 主控制流程
 │   ├── __init__.py
-│   └── orchestrator_react_flow.py     # Orchestrator ReAct循环流程
-└── utils/                    # 工具函数
-    ├── search.py            # 搜索相关工具
-    └── web.py               # 网络相关工具
+│   └── react_orchestrator_refactored/  # ReAct主控制器（重构版）
+├── function_calling/          # Function Calling工具包装
+│   ├── __init__.py
+│   └── agent_tools.py         # Agent工具定义
+└── utils/                     # 工具函数
+    ├── URL_to_Markdown.py     # URL转Markdown工具
+    └── search.py              # 搜索相关工具
 ```
 
 ## 核心组件
@@ -43,22 +43,25 @@ agent/
 
 ### 2. 原子能力节点 (nodes/)
 每个节点实现特定的原子操作，基于pocketflow.Node：
-- **NodeReq**: 从自然语言中提取结构化需求
-- **NodeSearch**: 执行网络搜索并返回结果
-- **NodeURL**: 解析网页内容并提取信息
-- **NodeRecall**: 从知识库召回相关文档
-- **NodeCompress**: 压缩长文本保留关键信息
-- **NodeOutput**: 生成最终的文档文件
+- **node_search.py**: 执行网络搜索并返回结果
+- **node_url.py**: 解析网页内容并提取信息
+- **node_compress.py**: 压缩长文本保留关键信息
+- **node_output.py**: 生成最终的文档文件
 
 ### 3. 专业Agent子流程 (subflows/)
 每个子流程协调相关节点完成复杂业务逻辑：
-- **RequirementsAnalysisFlow**: 需求分析处理流程
-- **ShortPlanningFlow**: 短规划生成和确认流程
-- **ResearchFlow**: 信息研究和综合流程
-- **ArchitectureFlow**: 架构设计和文档生成流程（集成了文档生成功能）
+- **architecture/**: 架构设计和文档生成流程
+- **research/**: 信息研究和综合流程
+- **short_planning/**: 短规划生成和确认流程
 
 ### 4. 主控制流程 (flows/)
-- **OrchestratorReActFlow**: 实现ReAct循环（思考-行动-观察）
+- **react_orchestrator_refactored/**: 实现ReAct循环（思考-行动-观察）的重构版本
+
+### 5. Function Calling工具 (function_calling/)
+- **agent_tools.py**: Agent工具定义和包装，提供统一的工具调用接口
+
+### 6. LLM工具 (llm_utils.py)
+- 提供统一的LLM调用接口和管理功能
 
 ## 设计原则
 

@@ -11,14 +11,11 @@ GTPlanner 专业Agent子流程模块
 """
 
 # 导入已实现的Agent
-from .research import ResearchFlow, ProcessResearch
+from .research import ResearchFlow
+from .architecture import ArchitectureFlow
 
 # 暂时注释掉未实现的导入
 # from .short_planning_flow import ShortPlanningFlow
-from .architecture import ArchitectureFlow
-
-# 导入research子模块
-from .research import ResearchFlow
 
 __all__ = [
     # 'ShortPlanningFlow',

@@ -256,32 +256,53 @@ class NodeIdentificationNode(AsyncNode):
     def _parse_node_list(self, node_list: str) -> list:
         """解析Node识别结果"""
         try:
+            # 🔧 添加调试信息
+            print(f"🔍 LLM返回的原始结果: {str(node_list)[:500]}...")
+
             # 尝试解析JSON
             if isinstance(node_list, str):
                 parsed_result = json.loads(node_list)
             else:
                 parsed_result = node_list
-            
+
+            print(f"🔍 解析后的结果类型: {type(parsed_result)}")
+            print(f"🔍 解析后的结果键: {list(parsed_result.keys()) if isinstance(parsed_result, dict) else 'Not a dict'}")
+
             # 获取nodes列表
             nodes = parsed_result.get("nodes", [])
-            
+
             if not nodes:
+                print(f"⚠️ 没有找到nodes字段，完整结果: {parsed_result}")
                 raise Exception("没有识别到任何Node")
-            
+
+            print(f"🔍 找到 {len(nodes)} 个Node")
+
             # 验证每个Node的必需字段
             for i, node in enumerate(nodes):
+                print(f"🔍 检查Node {i}: {list(node.keys()) if isinstance(node, dict) else type(node)}")
+
+                if not isinstance(node, dict):
+                    raise Exception(f"Node {i} 不是字典类型: {type(node)}")
+
                 if "node_name" not in node:
+                    print(f"⚠️ Node {i} 缺少node_name字段，包含的字段: {list(node.keys())}")
                     raise Exception(f"Node {i} 缺少node_name字段")
+
+                # 补充缺失的字段
                 if "purpose" not in node:
                     node["purpose"] = "待定义目的"
                 if "node_type" not in node:
                     node["node_type"] = "Node"
                 if "responsibility" not in node:
                     node["responsibility"] = "待定义职责"
-            
+
+            print(f"✅ Node识别验证通过，共 {len(nodes)} 个Node")
             return nodes
-            
+
         except json.JSONDecodeError as e:
+            print(f"❌ JSON解析失败: {e}")
+            print(f"原始结果: {node_list}")
             raise Exception(f"Node识别JSON解析失败: {e}")
         except Exception as e:
+            print(f"❌ Node识别解析失败: {e}")
             raise Exception(f"Node识别结果解析失败: {e}")

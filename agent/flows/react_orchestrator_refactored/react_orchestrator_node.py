@@ -1,8 +1,8 @@
 """
-重构后的ReAct Orchestrator Node
+ReAct Orchestrator Node
 
-基于Function Calling的ReAct主控制器，采用模块化设计，降低代码复杂度。
-将原来的单一大类拆分为多个专门的组件，每个组件负责特定的功能。
+基于Function Calling的ReAct主控制器节点，采用模块化设计。
+负责处理单次ReAct推理和决策逻辑。
 """
 
 import time
@@ -24,13 +24,13 @@ from .state_manager import StateManager
 from .stream_handler import StreamHandler
 
 
-class ReActOrchestratorRefactored(AsyncNode):
-    """重构后的ReAct主控制器 - 模块化设计"""
+class ReActOrchestratorNode(AsyncNode):
+    """ReAct主控制器节点 - 模块化设计"""
 
     def __init__(self):
         super().__init__()
-        self.name = "ReActOrchestratorRefactored"
-        self.description = "基于Function Calling的模块化ReAct主控制器"
+        self.name = "ReActOrchestratorNode"
+        self.description = "基于Function Calling的模块化ReAct主控制器节点"
 
         # 初始化OpenAI客户端
         self.openai_client = get_openai_client()
@@ -131,7 +131,7 @@ class ReActOrchestratorRefactored(AsyncNode):
         prep_res: Dict[str, Any],
         exec_res: Dict[str, Any]
     ) -> str:
-        """异步更新共享状态 - 简化版，让LLM完全负责决策"""
+        """异步更新共享状态 - 新架构：通过统一消息管理层"""
         try:
             if "error" in exec_res:
                 shared["react_error"] = exec_res["error"]
@@ -140,11 +140,37 @@ class ReActOrchestratorRefactored(AsyncNode):
             # 更新ReAct循环计数
             self.state_manager.increment_react_cycle(shared)
 
-            # 🔧 修复：移除重复的消息添加逻辑
-            # 消息添加现在统一在CLI层处理，避免重复添加
+            # 🔧 新架构：Agent层将结果传递给统一消息管理层
+            assistant_message = exec_res.get("user_message", "")
             tool_calls = exec_res.get("tool_calls", [])
 
-            # 处理工具调用结果
+            # 如果有助手消息或工具调用，都需要添加到统一管理层
+            if assistant_message or tool_calls:
+                # 通过统一消息管理层添加助手回复
+                from core.unified_context import get_context
+                context = get_context()
+                
+                # 如果没有文本回复但有工具调用，生成一个总结性回复
+                if not assistant_message and tool_calls:
+                    successful_tools = [tc.get("tool_name") for tc in tool_calls if tc.get("success")]
+                    if successful_tools:
+                        assistant_message = f"我已经为您执行了以下操作：{', '.join(successful_tools)}。请查看结果。"
+                    else:
+                        assistant_message = "我尝试执行了一些操作，但遇到了问题。"
+                
+                context.add_assistant_message(assistant_message, tool_calls)
+                
+                # 记录工具执行到统一管理层
+                for tool_call in tool_calls:
+                    if tool_call.get("success"):
+                        context.record_tool_execution(
+                            tool_name=tool_call.get("tool_name", ""),
+                            arguments=tool_call.get("arguments", {}),
+                            result=tool_call.get("result", {}),
+                            execution_time=tool_call.get("execution_time")
+                        )
+
+            # 处理工具调用结果（更新shared状态）
             if tool_calls:
                 for tool_call in tool_calls:
                     tool_name = tool_call.get("tool_name")
@@ -152,7 +178,7 @@ class ReActOrchestratorRefactored(AsyncNode):
                     tool_args = tool_call.get("arguments", {})
                     execution_time = tool_call.get("execution_time")
 
-                    # 记录工具执行历史
+                    # 记录工具执行历史到shared（向后兼容）
                     if tool_name and tool_result:
                         self.state_manager.record_tool_execution(
                             shared, tool_name, tool_args, tool_result, execution_time
@@ -179,8 +205,6 @@ class ReActOrchestratorRefactored(AsyncNode):
     ) -> Dict[str, Any]:
         """使用Function Calling执行ReAct逻辑 - 支持混合模式"""
         try:
-         
-
             # 启用并行工具调用
             response = await self.openai_client.chat_completion_async(
                 messages=messages,
@@ -201,7 +225,6 @@ class ReActOrchestratorRefactored(AsyncNode):
 
             # 检查标准的OpenAI Function Calling格式
             if message.tool_calls:
-
                 tool_calls = await self.tool_executor.execute_tools_parallel(message.tool_calls)
 
             # 如果没有标准格式的工具调用，检查自定义格式
@@ -231,7 +254,6 @@ class ReActOrchestratorRefactored(AsyncNode):
                 "user_message": ErrorMessages.GENERIC_ERROR,
                 "decision_success": False
             }
-
 
     def _build_simple_reasoning(
         self,
@@ -277,7 +299,6 @@ class ReActOrchestratorRefactored(AsyncNode):
         stats = self.performance_stats.copy()
         stats.update({
             "tool_executor_stats": self.tool_executor.get_execution_stats()
-            # DecisionEngine已移除，LLM负责所有决策
         })
         return stats
 

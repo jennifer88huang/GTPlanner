@@ -1,110 +1,275 @@
 """
-会话管理器 - 基于统一上下文管理
+会话管理器 - CLI层本地文件管理
 
-为GTPlanner CLI提供会话管理功能，现在基于统一上下文管理器实现：
-1. 会话创建和恢复
-2. 对话历史管理
-3. 会话列表管理
-4. 与统一上下文的集成
+为GTPlanner CLI提供会话管理功能，重构后的职责：
+1. 本地会话文件管理
+2. 上下文压缩处理
+3. 向统一消息管理层传递压缩后的数据
+4. 会话列表管理
 
-重构后的设计更加简洁，消除了重复代码。
+不再依赖统一上下文的持久化功能。
 """
 
 import json
+import uuid
+import asyncio
+from pathlib import Path
+from datetime import datetime
 from typing import Dict, List, Any, Optional
-from core.unified_context import get_context, UnifiedContext
+from cli.context_compressor import get_cli_compressor, Message
 
 
 class SessionManager:
-    """GTPlanner CLI会话管理器 - 基于统一上下文"""
+    """GTPlanner CLI会话管理器 - 本地文件管理"""
 
     def __init__(self, sessions_dir: str = ".gtplanner_sessions"):
         """
         初始化会话管理器
 
         Args:
-            sessions_dir: 会话存储目录（传递给统一上下文）
+            sessions_dir: 本地会话存储目录
         """
-        # 获取统一上下文实例
-        self.context = get_context()
+        self.sessions_dir = Path(sessions_dir)
+        self.sessions_dir.mkdir(exist_ok=True)
 
-        # 如果需要自定义目录，重新初始化上下文
-        if sessions_dir != ".gtplanner_sessions":
-            self.context = UnifiedContext(sessions_dir)
+        # 当前会话数据
+        self.current_session_id: Optional[str] = None
+        self.current_session_data: Dict[str, Any] = {}
 
-        # 当前会话ID（从统一上下文获取）
-        self.current_session_id = self.context.session_id
+        # 获取压缩器
+        self.compressor = get_cli_compressor()
 
     def create_new_session(self, user_name: Optional[str] = None) -> str:
         """创建新会话"""
+        session_id = str(uuid.uuid4())[:8]
         title = f"{user_name}的会话" if user_name else "新会话"
-        session_id = self.context.create_session(title)
+
+        # 初始化会话数据
+        self.current_session_data = {
+            "session_id": session_id,
+            "title": title,
+            "stage": "initialization",
+            "messages": [],
+            "project_state": {},
+            "tool_history": [],
+            "metadata": {
+                "created_at": datetime.now().isoformat(),
+                "last_updated": datetime.now().isoformat(),
+                "user_name": user_name
+            }
+        }
 
         # 设置用户信息到项目状态
         if user_name:
-            self.context.update_state("user_name", user_name)
+            self.current_session_data["project_state"]["user_name"] = user_name
 
         self.current_session_id = session_id
         return session_id
 
     def load_session(self, session_id: str) -> bool:
-        """加载指定会话"""
-        success = self.context.load_session(session_id)
-        if success:
+        """从本地文件加载会话"""
+        session_file = self.sessions_dir / f"{session_id}.json"
+
+        if not session_file.exists():
+            return False
+
+        try:
+            with open(session_file, 'r', encoding='utf-8') as f:
+                self.current_session_data = json.load(f)
+
             self.current_session_id = session_id
-        return success
+            return True
+
+        except Exception as e:
+            print(f"❌ 加载会话失败: {e}")
+            return False
 
     def save_session(self) -> bool:
-        """保存当前会话"""
-        return self.context.save_session()
+        """保存当前会话到本地文件"""
+        if not self.current_session_id or not self.current_session_data:
+            return False
 
-    def add_user_message(self, content: str) -> Optional[str]:
-        """添加用户消息"""
-        return self.context.add_user_message(content)
+        try:
+            session_file = self.sessions_dir / f"{self.current_session_id}.json"
 
-    def add_assistant_message(self, content: str, tool_calls: Optional[List[Dict]] = None) -> Optional[str]:
-        """添加AI助手消息"""
-        return self.context.add_assistant_message(content, tool_calls)
+            # 更新最后修改时间
+            self.current_session_data["metadata"]["last_updated"] = datetime.now().isoformat()
+
+            with open(session_file, 'w', encoding='utf-8') as f:
+                json.dump(self.current_session_data, f, indent=2, ensure_ascii=False)
+
+            return True
+
+        except Exception as e:
+            print(f"❌ 保存会话失败: {e}")
+            return False
+
+    def add_user_message(self, content: str) -> str:
+        """
+        添加用户消息到当前会话
+
+        Args:
+            content: 用户消息内容
+
+        Returns:
+            消息ID
+        """
+        if not self.current_session_data:
+            raise ValueError("没有活跃的会话")
+
+        message_id = str(uuid.uuid4())
+        message = {
+            "id": message_id,
+            "role": "user",
+            "content": content,
+            "timestamp": datetime.now().isoformat(),
+            "metadata": None,
+            "tool_calls": None
+        }
+
+        self.current_session_data["messages"].append(message)
+        self.current_session_data["metadata"]["last_updated"] = datetime.now().isoformat()
+
+        return message_id
+
+    def add_assistant_message(self, content: str, metadata: Optional[Dict[str, Any]] = None,
+                            tool_calls: Optional[List[Dict[str, Any]]] = None) -> str:
+        """
+        添加助手消息到当前会话
+
+        Args:
+            content: 助手消息内容
+            metadata: 消息元数据
+            tool_calls: 工具调用信息
+
+        Returns:
+            消息ID
+        """
+        if not self.current_session_data:
+            raise ValueError("没有活跃的会话")
+
+        message_id = str(uuid.uuid4())
+        message = {
+            "id": message_id,
+            "role": "assistant",
+            "content": content,
+            "timestamp": datetime.now().isoformat(),
+            "metadata": metadata,
+            "tool_calls": tool_calls
+        }
+
+        self.current_session_data["messages"].append(message)
+        self.current_session_data["metadata"]["last_updated"] = datetime.now().isoformat()
+
+        return message_id
+
+    async def get_compressed_context_for_agent(self) -> Dict[str, Any]:
+        """
+        获取压缩后的上下文数据，用于传递给统一消息管理层
+
+        Returns:
+            压缩后的上下文数据
+        """
+        if not self.current_session_data:
+            return {}
+
+        # 转换消息格式
+        messages = []
+        for msg_data in self.current_session_data["messages"]:
+            message = Message(
+                id=msg_data["id"],
+                role=msg_data["role"],
+                content=msg_data["content"],
+                timestamp=msg_data["timestamp"],
+                metadata=msg_data.get("metadata"),
+                tool_calls=msg_data.get("tool_calls")
+            )
+            messages.append(message)
+
+        # 异步压缩消息
+        compressed_messages = await self.compressor.compress_messages_async(messages)
+
+        # 转换回字典格式
+        compressed_msg_dicts = []
+        for msg in compressed_messages:
+            compressed_msg_dicts.append({
+                "id": msg.id,
+                "role": msg.role,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+                "metadata": msg.metadata,
+                "tool_calls": msg.tool_calls
+            })
+
+        # 构建压缩后的上下文
+        compressed_context = {
+            "session_id": self.current_session_id,
+            "stage": self.current_session_data.get("stage", "initialization"),
+            "messages": compressed_msg_dicts,
+            "project_state": self.current_session_data.get("project_state", {}),
+            "tool_history": self.current_session_data.get("tool_history", []),
+            "metadata": self.current_session_data.get("metadata", {})
+        }
+
+        return compressed_context
 
     def get_session_data(self) -> Dict[str, Any]:
         """获取当前会话数据（兼容旧接口）"""
-        if not self.context.session_id:
+        if not self.current_session_data:
             return {}
 
-        # 转换为旧格式以保持兼容性
-        messages = []
-        for msg in self.context.messages:
-            msg_dict = {
-                "role": msg.role.value,
-                "content": msg.content,
-                "timestamp": msg.timestamp
-            }
-            if msg.metadata:
-                msg_dict["metadata"] = msg.metadata
-            messages.append(msg_dict)
-
         return {
-            "dialogue_history": {"messages": messages},
-            "current_stage": self.context.stage.value,
-            "structured_requirements": self.context.get_state("structured_requirements"),
-            "confirmation_document": self.context.get_state("planning_document"),
-            "research_findings": self.context.get_state("research_findings"),
-            "agent_design_document": self.context.get_state("architecture_document"),
-            "tool_execution_history": self.context.tool_history
+            "dialogue_history": {"messages": self.current_session_data.get("messages", [])},
+            "current_stage": self.current_session_data.get("stage", "initialization"),
+            "structured_requirements": self.current_session_data.get("project_state", {}).get("structured_requirements"),
+            "confirmation_document": self.current_session_data.get("project_state", {}).get("planning_document"),
+            "research_findings": self.current_session_data.get("project_state", {}).get("research_findings"),
+            "agent_design_document": self.current_session_data.get("project_state", {}).get("architecture_document"),
+            "tool_execution_history": self.current_session_data.get("tool_history", [])
         }
+
+    def update_project_state(self, key: str, value: Any) -> None:
+        """更新项目状态"""
+        if not self.current_session_data:
+            raise ValueError("没有活跃的会话")
+
+        if "project_state" not in self.current_session_data:
+            self.current_session_data["project_state"] = {}
+
+        self.current_session_data["project_state"][key] = value
+        self.current_session_data["metadata"]["last_updated"] = datetime.now().isoformat()
+
+    def update_stage(self, stage: str) -> None:
+        """更新当前阶段"""
+        if not self.current_session_data:
+            raise ValueError("没有活跃的会话")
+
+        self.current_session_data["stage"] = stage
+        self.current_session_data["metadata"]["last_updated"] = datetime.now().isoformat()
+
+    def add_tool_execution(self, tool_execution: Dict[str, Any]) -> None:
+        """添加工具执行记录"""
+        if not self.current_session_data:
+            raise ValueError("没有活跃的会话")
+
+        if "tool_history" not in self.current_session_data:
+            self.current_session_data["tool_history"] = []
+
+        self.current_session_data["tool_history"].append(tool_execution)
+        self.current_session_data["metadata"]["last_updated"] = datetime.now().isoformat()
 
     def list_sessions(self) -> List[Dict[str, Any]]:
         """列出所有会话"""
         sessions = []
 
-        for session_file in self.context.sessions_dir.glob("*.json"):
+        for session_file in self.sessions_dir.glob("*.json"):
             try:
                 with open(session_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
 
                 sessions.append({
                     "session_id": data["session_id"],
-                    "title": data.get("metadata", {}).get("title", "未命名会话"),
+                    "title": data.get("title", data.get("metadata", {}).get("title", "未命名会话")),
                     "stage": data.get("stage", "initialization"),
                     "created_at": data.get("metadata", {}).get("created_at", ""),
                     "last_updated": data.get("metadata", {}).get("last_updated", ""),
@@ -124,11 +289,15 @@ class SessionManager:
 
     def has_active_session(self) -> bool:
         """检查是否有活跃会话"""
-        return self.current_session_id is not None
+        return self.current_session_id is not None and bool(self.current_session_data)
 
     def get_conversation_summary(self, max_messages: int = 10) -> str:
         """获取对话摘要"""
-        recent_messages = self.context.get_messages(limit=max_messages)
+        if not self.current_session_data:
+            return "无对话历史"
+
+        messages = self.current_session_data.get("messages", [])
+        recent_messages = messages[-max_messages:] if len(messages) > max_messages else messages
 
         if not recent_messages:
             return "无对话历史"
@@ -136,48 +305,78 @@ class SessionManager:
         summary_parts = []
         for msg in recent_messages:
             role_name = {"user": "用户", "assistant": "助手", "system": "系统"}.get(
-                msg.role.value, msg.role.value
+                msg["role"], msg["role"]
             )
 
             # 截断长消息
-            content = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+            content = msg["content"][:100] + "..." if len(msg["content"]) > 100 else msg["content"]
             summary_parts.append(f"{role_name}: {content}")
 
         return "\n".join(summary_parts)
 
     def get_session_info(self) -> Dict[str, Any]:
         """获取会话信息摘要"""
-        return self.context.get_context_summary()
+        if not self.current_session_data:
+            return {}
+
+        messages = self.current_session_data.get("messages", [])
+        return {
+            "session_id": self.current_session_id,
+            "stage": self.current_session_data.get("stage", "initialization"),
+            "message_count": len(messages),
+            "tool_execution_count": len(self.current_session_data.get("tool_history", [])),
+            "created_at": self.current_session_data.get("metadata", {}).get("created_at", ""),
+            "last_updated": self.current_session_data.get("metadata", {}).get("last_updated", "")
+        }
 
     def cleanup_duplicate_messages(self) -> int:
         """清理重复消息"""
-        if not self.context.session_id:
+        if not self.current_session_data:
             return 0
 
-        original_count = len(self.context.messages)
+        messages = self.current_session_data.get("messages", [])
+        original_count = len(messages)
 
         # 使用内容哈希去重
         seen_hashes = set()
         unique_messages = []
 
-        for msg in self.context.messages:
-            if msg.content_hash not in seen_hashes:
-                seen_hashes.add(msg.content_hash)
+        for msg in messages:
+            # 简单的内容哈希
+            content_hash = hash(f"{msg['role']}:{msg['content']}")
+            if content_hash not in seen_hashes:
+                seen_hashes.add(content_hash)
                 unique_messages.append(msg)
 
-        self.context.messages = unique_messages
-
-        # 重建缓存
-        self.context.message_hashes.clear()
-        for msg in unique_messages:
-            self.context.message_hashes.add(msg.content_hash)
-
+        self.current_session_data["messages"] = unique_messages
         cleaned_count = original_count - len(unique_messages)
 
         if cleaned_count > 0:
             print(f"🧹 已清理 {cleaned_count} 条重复消息")
+            self.current_session_data["metadata"]["last_updated"] = datetime.now().isoformat()
 
         return cleaned_count
+
+    def delete_session(self, session_id: str) -> bool:
+        """删除指定会话"""
+        session_file = self.sessions_dir / f"{session_id}.json"
+
+        if not session_file.exists():
+            return False
+
+        try:
+            session_file.unlink()
+
+            # 如果删除的是当前会话，清空当前状态
+            if session_id == self.current_session_id:
+                self.current_session_id = None
+                self.current_session_data = {}
+
+            return True
+
+        except Exception as e:
+            print(f"❌ 删除会话失败: {e}")
+            return False
 
     def sync_tool_execution_history(self, tool_history: List[Dict[str, Any]]) -> None:
         """
@@ -186,10 +385,18 @@ class SessionManager:
         Args:
             tool_history: 工具执行历史列表
         """
-        # 将工具历史同步到统一上下文
+        if not self.current_session_data:
+            return
+
+        # 将工具历史同步到当前会话
+        current_tool_history = self.current_session_data.get("tool_history", [])
+
         for tool_record in tool_history:
-            if tool_record not in self.context.tool_history:
-                self.context.tool_history.append(tool_record)
+            if tool_record not in current_tool_history:
+                current_tool_history.append(tool_record)
+
+        self.current_session_data["tool_history"] = current_tool_history
+        self.current_session_data["metadata"]["last_updated"] = datetime.now().isoformat()
 
     def sync_tool_result_data(self, session_state: Dict[str, Any]) -> None:
         """
@@ -198,7 +405,10 @@ class SessionManager:
         Args:
             session_state: 会话状态数据
         """
-        # 同步各种工具结果到统一上下文
+        if not self.current_session_data:
+            return
+
+        # 同步各种工具结果到项目状态
         result_mappings = {
             "structured_requirements": "structured_requirements",
             "confirmation_document": "planning_document",
@@ -206,15 +416,11 @@ class SessionManager:
             "agent_design_document": "architecture_document"
         }
 
-        for session_key, context_key in result_mappings.items():
+        for session_key, project_key in result_mappings.items():
             if session_key in session_state and session_state[session_key]:
-                self.context.update_state(context_key, session_state[session_key])
+                self.update_project_state(project_key, session_state[session_key])
 
-    def save_current_session(self) -> bool:
-        """
-        保存当前会话（兼容CLI调用）
-
-        Returns:
-            是否保存成功
-        """
-        return self.save_session()
+    def cleanup(self):
+        """清理资源"""
+        if hasattr(self, 'compressor'):
+            self.compressor.cleanup()

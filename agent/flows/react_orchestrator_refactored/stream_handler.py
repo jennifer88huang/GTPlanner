@@ -41,7 +41,6 @@ class StreamHandler:
         """
         try:
             # 第一步：流式获取LLM的初始响应和工具调用决策
-            print(f"🔍 [StreamHandler] 发送给LLM的消息数量: {len(messages)}, 工具数量: {len(self.available_tools)}")
 
             # 使用流式调用获取响应
             response = await self.openai_client.chat_completion_async(
@@ -53,15 +52,11 @@ class StreamHandler:
             )
             
             # 处理流式响应
-            collected_content, tool_calls_detected, tool_calls_buffer = await self._process_stream_response(
+            initial_response, tool_calls_detected, tool_calls_buffer = await self._process_stream_response(
                 response, stream_callback
             )
 
-            # 🔧 修复：正确显示工具调用缓冲区内容
-            print(f"🔍 [StreamHandler] 工具调用缓冲区内容: {tool_calls_buffer}")
-            print(f"🔍 [StreamHandler] 最终检测到的工具调用数量: {len(tool_calls_detected)}")
-            print(f"🔍 [StreamHandler] 是否检测到工具调用: {len(tool_calls_detected) > 0}")
-
+          
             # 🔧 新增：验证工具调用格式
             if tool_calls_detected:
                 self._validate_tool_calls(tool_calls_detected)
@@ -69,28 +64,25 @@ class StreamHandler:
             # 第二步：如果检测到工具调用，进行流式工具执行
             tool_results = []
             if tool_calls_detected:
-                print(f"🔍 [StreamHandler] 开始执行 {len(tool_calls_detected)} 个工具调用")
                 # 并行执行工具调用，状态标记在执行器内部发送
                 tool_results = await self._execute_tools_with_stream_feedback(
                     tool_calls_detected, stream_callback
                 )
-            else:
-                print(f"🔍 [StreamHandler] 没有检测到工具调用，跳过工具执行")
+          
             
             # 第三步：如果有工具结果，获取最终响应
             final_user_message = await self._get_final_response(
-                messages, collected_content, tool_calls_detected, 
+                messages, initial_response, tool_calls_detected,
                 tool_results, stream_callback
             )
             
             # 构建返回结果
             return {
-                "user_message": final_user_message,
+                "user_message": final_user_message,  # 最终的AI回复（可能基于工具结果）
                 "tool_calls": tool_results,
-                "next_action": self._determine_next_action_from_tools(tool_results),
                 "decision_success": True,
                 "execution_mode": "stream_advanced",
-                "collected_content": collected_content
+                "initial_response": initial_response  # 重命名：AI的初始响应（可能包含工具调用决策）
             }
             
         except Exception as e:
@@ -101,7 +93,6 @@ class StreamHandler:
             return {
                 "error": f"Stream function calling failed: {str(e)}",
                 "user_message": "抱歉，处理您的请求时遇到了问题，请稍后再试。",
-                "next_action": "user_interaction",
                 "decision_success": False,
                 "execution_mode": "stream_error"
             }
@@ -121,12 +112,11 @@ class StreamHandler:
         Returns:
             (收集的内容, 检测到的工具调用, 工具调用缓冲区)
         """
-        collected_content = ""
+        initial_response = ""
         tool_calls_detected = []
         tool_calls_buffer = {}  # 用于累积流式工具调用
 
-        print(f"🔍 [StreamHandler] 开始处理流式响应")
-
+      
         if hasattr(response, '__aiter__'):
             # 处理流式响应
             async for chunk in response:
@@ -136,7 +126,7 @@ class StreamHandler:
 
                     # 处理内容流
                     if hasattr(delta, 'content') and delta.content:
-                        collected_content += delta.content
+                        initial_response += delta.content
                         if stream_callback:
                             await stream_callback(delta.content)
 
@@ -165,7 +155,6 @@ class StreamHandler:
                                         tool_calls_buffer[index]['function']['arguments'] += func_delta.arguments
 
             # 转换缓冲区为最终的工具调用列表
-            print(f"🔍 [StreamHandler] 工具调用缓冲区内容: {tool_calls_buffer}")
             for index, tool_call_data in tool_calls_buffer.items():
                 # 创建模拟的工具调用对象
                 class MockToolCall:
@@ -179,20 +168,19 @@ class StreamHandler:
                         self.arguments = func_data['arguments']
 
                 if tool_call_data['function']['name']:  # 只添加有名称的工具调用
-                    print(f"🔍 [StreamHandler] 添加工具调用: {tool_call_data['function']['name']}")
                     tool_calls_detected.append(MockToolCall(tool_call_data))
         else:
             # 非流式响应的回退处理
             choice = response.choices[0]
             message = choice.message
             if message.content:
-                collected_content = message.content
+                initial_response = message.content
                 if stream_callback:
-                    await stream_callback(collected_content)
+                    await stream_callback(initial_response)
             if hasattr(message, 'tool_calls') and message.tool_calls:
                 tool_calls_detected = message.tool_calls
-        
-        return collected_content, tool_calls_detected, tool_calls_buffer
+
+        return initial_response, tool_calls_detected, tool_calls_buffer
 
     def _validate_tool_calls(self, tool_calls: List[Any]) -> None:
         """
@@ -285,7 +273,7 @@ class StreamHandler:
     async def _get_final_response(
         self,
         messages: List[Dict],
-        collected_content: str,
+        initial_response: str,
         tool_calls_detected: List[Any],
         tool_results: List[Dict[str, Any]],
         stream_callback: Optional[Callable]
@@ -295,15 +283,15 @@ class StreamHandler:
         
         Args:
             messages: 原始消息列表
-            collected_content: 收集的内容
+            initial_response: AI的初始响应内容
             tool_calls_detected: 检测到的工具调用
             tool_results: 工具执行结果
             stream_callback: 流式回调函数
-            
+
         Returns:
             最终用户消息
         """
-        final_user_message = collected_content
+        final_user_message = initial_response
         
         if tool_results:
             # 发送新回复段落开始标记
@@ -316,7 +304,7 @@ class StreamHandler:
             # 添加助手的工具调用消息
             assistant_message = {
                 "role": "assistant",
-                "content": collected_content
+                "content": initial_response
             }
 
             if tool_calls_detected:
@@ -401,28 +389,4 @@ class StreamHandler:
 
         return result
 
-    def _determine_next_action_from_tools(self, tool_results: List[Dict[str, Any]]) -> str:
-        """
-        根据工具执行结果确定下一步行动
-        
-        Args:
-            tool_results: 工具执行结果列表
-            
-        Returns:
-            下一步行动类型
-        """
-        if not tool_results:
-            return "user_interaction"
-        
-        # 检查是否有工具执行失败
-        failed_tools = [tr for tr in tool_results if not tr.get("success", False)]
-        if failed_tools:
-            # 如果有工具失败，但不是全部失败，继续用户交互
-            if len(failed_tools) < len(tool_results):
-                return "user_interaction"
-            else:
-                # 全部失败，可能需要重试或用户交互
-                return "user_interaction"
-        
-        # 所有工具都成功执行，继续用户交互
-        return "user_interaction"
+

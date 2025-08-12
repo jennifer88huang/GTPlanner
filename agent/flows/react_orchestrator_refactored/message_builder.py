@@ -46,8 +46,8 @@ class MessageBuilder:
             "content": "\n".join(system_content_parts)
         })
 
-        # 2) 添加优化后的历史消息（自动附带历史工具调用及其tool结果）
-        self._add_optimized_history_messages(messages, shared_data, max_rounds=3)
+        # 2) 添加智能优化的历史消息（基于压缩后的上下文）
+        self._add_intelligent_history_messages(messages, shared_data)
 
         # 3) 当前用户消息
         if user_message:
@@ -59,36 +59,28 @@ class MessageBuilder:
         # 校验
         self._validate_messages(messages)
 
-        # 调试输出（与现有日志风格保持一致）
-        try:
-            print(f"🔍 [MessageBuilder] 构建的消息数量: {len(messages)}")
-            for idx, msg in enumerate(messages):
-                print(f"🔍 [MessageBuilder] 消息{idx}: {msg.get('role', '')}")
-        except Exception:
-            # 调试输出失败不应影响主流程
-            pass
+       
 
         return messages
 
 
-    def _add_optimized_history_messages(self, messages: List[Dict], shared_data: Dict[str, Any], max_rounds: int = 3) -> None:
+    def _add_intelligent_history_messages(self, messages: List[Dict], shared_data: Dict[str, Any]) -> None:
         """
-        添加优化的历史对话消息，限制上下文长度
+        添加智能优化的历史对话消息，使用LLM上下文（已压缩）
 
         Args:
             messages: 消息列表
             shared_data: 共享数据
-            max_rounds: 最大对话轮数
         """
-        # 从统一上下文获取消息历史
-        context_messages = self.context.get_messages(limit=max_rounds * 4)
+        # 从统一上下文获取LLM上下文（已经过智能压缩）
+        llm_context_messages = self.context.llm_context
 
-        if not context_messages:
+        if not llm_context_messages:
             return
 
         # 转换为兼容格式
         recent_messages = []
-        for msg in context_messages:
+        for msg in llm_context_messages:
             recent_messages.append({
                 "role": msg.role.value,
                 "content": msg.content,
@@ -96,7 +88,7 @@ class MessageBuilder:
                 "metadata": msg.metadata or {}
             })
 
-        # 🔧 优化：按照OpenAI标准格式处理历史消息
+        # 按照OpenAI标准格式处理历史消息
         for msg in recent_messages:
             if msg.get("role") not in [MessageRoles.USER, MessageRoles.ASSISTANT]:
                 continue
@@ -107,7 +99,7 @@ class MessageBuilder:
                 "content": msg.get("content", "")
             }
 
-            # 🔧 修复：正确处理assistant消息中的工具调用
+            # 正确处理assistant消息中的工具调用
             if (msg.get("role") == MessageRoles.ASSISTANT and
                 msg.get("metadata", {}).get("tool_calls")):
 
@@ -228,44 +220,4 @@ class MessageBuilder:
                         if not tc.get("function", {}).get("name"):
                             print(f"⚠️ [MessageBuilder] Tool call {j}缺少function.name")
 
-    def _build_tool_execution_context(self, shared_data: Dict[str, Any]) -> str:
-        """
-        构建工具执行上下文信息
-
-        Args:
-            shared_data: 共享数据（保持兼容性，但实际使用统一上下文）
-
-        Returns:
-            工具执行上下文字符串
-        """
-        # 从统一上下文获取工具执行历史
-        tool_history = self.context.tool_history
-        if not tool_history:
-            return ""
-
-        # 获取最近的成功执行记录
-        recent_successful = []
-        for record in reversed(tool_history):
-            if record.get("success", False):
-                tool_name = record.get("tool_name")
-                if tool_name and tool_name not in [r["tool_name"] for r in recent_successful]:
-                    recent_successful.append({
-                        "tool_name": tool_name,
-                        "timestamp": record.get("timestamp", 0)
-                    })
-                    if len(recent_successful) >= 5:  # 最多显示5个
-                        break
-
-        if not recent_successful:
-            return ""
-
-        context_parts = ["本次会话中已成功执行的工具："]
-        for record in reversed(recent_successful):  # 按时间顺序显示
-            import time
-            timestamp = record["timestamp"]
-            time_str = time.strftime("%H:%M:%S", time.localtime(timestamp))
-            context_parts.append(f"- {record['tool_name']} (执行时间: {time_str})")
-
-        context_parts.append("\n注意：避免重复调用相同的工具，但可以根据用户需求调用其他不同的工具。如果用户明确同意或要求执行多个工具，应该按计划执行。")
-
-        return "\n".join(context_parts)
+   

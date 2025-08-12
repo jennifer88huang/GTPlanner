@@ -69,24 +69,12 @@ class NodeURL(AsyncNode):
 
             # 验证URL
             if not url:
-                return {
-                    "error": "No URL provided",
-                    "url": "",
-                    "extraction_type": extraction_type,
-                    "target_selectors": target_selectors,
-                    "max_content_length": max_content_length
-                }
+                return self._create_error_result("No URL provided", "", extraction_type)
             
             # URL格式验证
             parsed_url = urlparse(url)
             if not parsed_url.scheme or not parsed_url.netloc:
-                return {
-                    "error": f"Invalid URL format: {url}",
-                    "url": url,
-                    "extraction_type": extraction_type,
-                    "target_selectors": target_selectors,
-                    "max_content_length": max_content_length
-                }
+                return self._create_error_result(f"Invalid URL format: {url}", url, extraction_type)
             
             return {
                 "url": url,
@@ -97,13 +85,7 @@ class NodeURL(AsyncNode):
             }
             
         except Exception as e:
-            return {
-                "error": f"URL preparation failed: {str(e)}",
-                "url": "",
-                "extraction_type": "full",
-                "target_selectors": [],
-                "max_content_length": self.max_content_length
-            }
+            return self._create_error_result(f"URL preparation failed: {str(e)}")
     
     async def exec_async(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -119,16 +101,14 @@ class NodeURL(AsyncNode):
             raise ValueError(prep_res["error"])
         
         url = prep_res["url"]
-        extraction_type = prep_res["extraction_type"]
-        target_selectors = prep_res["target_selectors"]
         max_content_length = prep_res["max_content_length"]
         
         try:
             start_time = time.time()
 
             if self.client_available and self.web_client:
-                # 使用Jina Web API
-                page_info = self.web_client.get_page_info(url)
+                # 使用Jina Web API - 异步调用
+                page_info = await self.web_client.get_page_info(url)
 
                 # 处理内容长度限制
                 content = page_info.get("content", "")
@@ -150,6 +130,7 @@ class NodeURL(AsyncNode):
                     "title": page_info.get("title", "无标题"),
                     "content": content,
                     "metadata": metadata,
+                    "extracted_sections": [],  # 添加缺失的字段
                     "processing_status": "success",
                     "processing_time": round(processing_time * 1000),
                     "content_length": len(content)
@@ -212,12 +193,15 @@ class NodeURL(AsyncNode):
             })
 
             # 添加系统消息记录解析结果
+            metadata = {
+                "agent_source": "NodeURL",
+                "url": exec_res["url"],
+                "content_length": exec_res["content_length"],
+                "processing_time_ms": exec_res["processing_time"]
+            }
             shared.add_system_message(
                 f"URL解析完成: {exec_res['title'][:50]}...",
-                agent_source="NodeURL",
-                url=exec_res["url"],
-                content_length=exec_res["content_length"],
-                processing_time_ms=exec_res["processing_time"]
+                metadata=metadata
             )
 
             return "url_parsed"
@@ -226,7 +210,17 @@ class NodeURL(AsyncNode):
             if hasattr(shared, 'record_error'):
                 shared.record_error(e, "NodeURL.post")
             return "error"
-    
+
+    def _create_error_result(self, error_message: str, url: str = "", extraction_type: str = "full") -> Dict[str, Any]:
+        """创建标准错误结果字典"""
+        return {
+            "error": error_message,
+            "url": url,
+            "extraction_type": extraction_type,
+            "target_selectors": [],
+            "max_content_length": self.max_content_length
+        }
+
     def exec_fallback(self, prep_res: Dict[str, Any], exc: Exception) -> Dict[str, Any]:
         """
         执行失败时的降级处理 - 直接返回错误
@@ -245,7 +239,3 @@ class NodeURL(AsyncNode):
             "url": url,
             "processing_status": "failed"
         }
-    
-
-
-

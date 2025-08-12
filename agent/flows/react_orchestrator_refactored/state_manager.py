@@ -43,7 +43,6 @@ class StateManager:
 项目阶段: {context_summary.get('stage', 'initialization')}
 
 数据完整性状态:
-- 需求分析: {'✅ 完成' if completeness_status['requirements_complete'] else '❌ 未完成'}
 - 规划文档: {'✅ 完成' if completeness_status['planning_complete'] else '❌ 未完成'}
 - 研究调研: {'✅ 完成' if completeness_status['research_complete'] else '❌ 未完成'}
 - 架构设计: {'✅ 完成' if completeness_status['architecture_complete'] else '❌ 未完成'}
@@ -65,8 +64,8 @@ class StateManager:
         }
     
     def add_assistant_message_to_history(
-        self, 
-        shared: Dict[str, Any], 
+        self,
+        shared: Dict[str, Any],
         user_message: str,
         tool_calls: List[Dict[str, Any]],
         reasoning: str,
@@ -74,7 +73,7 @@ class StateManager:
     ) -> None:
         """
         添加AI回复到对话历史
-        
+
         Args:
             shared: 共享状态字典（保持兼容性）
             user_message: 用户消息
@@ -85,6 +84,26 @@ class StateManager:
         if user_message:
             # 使用统一上下文添加消息
             self.context.add_assistant_message(user_message, tool_calls)
+
+            # 同时更新shared字典中的dialogue_history
+            if "dialogue_history" not in shared:
+                shared["dialogue_history"] = {"messages": []}
+
+            # 添加助手消息
+            from datetime import datetime
+            assistant_message = {
+                "role": "assistant",
+                "content": user_message,
+                "timestamp": datetime.now().isoformat()
+            }
+
+            # 如果有工具调用，添加到消息中
+            if tool_calls:
+                assistant_message["tool_calls"] = tool_calls
+                assistant_message["reasoning"] = reasoning
+                assistant_message["confidence"] = confidence
+
+            shared["dialogue_history"]["messages"].append(assistant_message)
     
     def increment_react_cycle(self, shared: Dict[str, Any]) -> int:
         """

@@ -5,8 +5,53 @@ LLM调用工具
 """
 
 import json
+import re
 from typing import AsyncIterator, Dict, List, Any, Optional
 from utils.openai_client import get_openai_client
+
+
+def _clean_json_response(content: str) -> str:
+    """
+    清理和修复JSON响应
+
+    Args:
+        content: 原始响应内容
+
+    Returns:
+        清理后的JSON字符串
+
+    Raises:
+        ValueError: 如果无法修复为有效JSON
+    """
+    try:
+        # 验证是否为有效JSON
+        json.loads(content)
+        return content
+    except json.JSONDecodeError as e:
+        # 尝试清理代码块包裹的JSON
+        try:
+            # 移除markdown代码块
+            cleaned_content = re.sub(r'^```json\s*', '', content.strip())
+            cleaned_content = re.sub(r'\s*```$', '', cleaned_content)
+
+            # 尝试解析清理后的内容
+            json.loads(cleaned_content)
+            return cleaned_content
+        except json.JSONDecodeError:
+            # 尝试修复常见的JSON问题
+            try:
+                # 尝试添加缺失的结束括号
+                if cleaned_content.count('{') > cleaned_content.count('}'):
+                    cleaned_content += '}' * (cleaned_content.count('{') - cleaned_content.count('}'))
+                if cleaned_content.count('[') > cleaned_content.count(']'):
+                    cleaned_content += ']' * (cleaned_content.count('[') - cleaned_content.count(']'))
+
+                # 再次尝试解析
+                json.loads(cleaned_content)
+                return cleaned_content
+            except json.JSONDecodeError:
+                # 如果仍然无法解析，返回错误信息
+                raise ValueError(f"LLM返回的不是有效JSON: {str(e)}, 内容: {content[:500]}...")
 
 
 async def call_llm_async(
@@ -57,36 +102,7 @@ async def call_llm_async(
         
         # 如果需要JSON格式，尝试解析验证
         if is_json:
-            try:
-                # 验证是否为有效JSON
-                json.loads(content)
-                return content
-            except json.JSONDecodeError as e:
-                # 尝试清理代码块包裹的JSON
-                try:
-                    # 移除markdown代码块
-                    import re
-                    cleaned_content = re.sub(r'^```json\s*', '', content.strip())
-                    cleaned_content = re.sub(r'\s*```$', '', cleaned_content)
-
-                    # 尝试解析清理后的内容
-                    json.loads(cleaned_content)
-                    return cleaned_content
-                except json.JSONDecodeError:
-                    # 尝试修复常见的JSON问题
-                    try:
-                        # 尝试添加缺失的结束括号
-                        if cleaned_content.count('{') > cleaned_content.count('}'):
-                            cleaned_content += '}' * (cleaned_content.count('{') - cleaned_content.count('}'))
-                        if cleaned_content.count('[') > cleaned_content.count(']'):
-                            cleaned_content += ']' * (cleaned_content.count('[') - cleaned_content.count(']'))
-
-                        # 再次尝试解析
-                        json.loads(cleaned_content)
-                        return cleaned_content
-                    except json.JSONDecodeError:
-                        # 如果仍然无法解析，返回错误信息
-                        raise ValueError(f"LLM返回的不是有效JSON: {str(e)}, 内容: {content[:500]}...")
+            return _clean_json_response(content)
         
         return content
 
@@ -210,69 +226,14 @@ async def ask_llm(question: str, context: Optional[str] = None) -> str:
     return await call_llm_async(prompt)
 
 
-async def generate_json(prompt: str, schema_description: Optional[str] = None) -> Dict[str, Any]:
-    """
-    生成JSON格式的回复
 
-    Args:
-        prompt: 提示词
-        schema_description: JSON结构描述
-
-    Returns:
-        解析后的JSON对象
-    """
-    if schema_description:
-        full_prompt = f"{prompt}\n\n请按照以下JSON结构回复：\n{schema_description}"
-    else:
-        full_prompt = prompt
-    
-    response = await call_llm_async(full_prompt, is_json=True)
-    
-    try:
-        return json.loads(response)
-    except json.JSONDecodeError as e:
-        # 尝试清理代码块包裹的JSON
-        try:
-            import re
-            cleaned_response = re.sub(r'^```json\s*', '', response.strip())
-            cleaned_response = re.sub(r'\s*```$', '', cleaned_response)
-            return json.loads(cleaned_response)
-        except json.JSONDecodeError:
-            raise ValueError(f"无法解析LLM返回的JSON: {e}, 内容: {response[:200]}...")
-
-
-async def analyze_requirements(user_input: str) -> Dict[str, Any]:
-    """
-    分析用户需求的便捷函数
-
-    Args:
-        user_input: 用户输入
-
-    Returns:
-        结构化的需求分析结果
-    """
-    system_prompt = """你是一个专业的需求分析师。请分析用户的需求并返回结构化的JSON格式结果。
-
-JSON格式应包含：
-- project_overview: 项目概述
-- functional_requirements: 功能需求列表
-- non_functional_requirements: 非功能需求
-- target_users: 目标用户
-- constraints: 约束条件"""
-
-    return await generate_json(
-        f"请分析以下用户需求：\n{user_input}",
-        schema_description="按照上述格式返回JSON"
-    )
 
 
 # 导出主要函数
 __all__ = [
     "call_llm_async",
-    "call_llm_stream_async", 
+    "call_llm_stream_async",
     "call_llm_with_messages",
     "call_llm_with_function_calling",
-    "ask_llm",
-    "generate_json",
-    "analyze_requirements"
+    "ask_llm"
 ]

@@ -1,254 +1,318 @@
 """
-GTPlanner 系统级共享状态管理 - 基于统一上下文
+GTPlanner 系统级共享状态管理 - Agent层专用
 
-本模块管理整个GTPlanner系统的共享变量，现在基于统一上下文管理器实现。
-作为系统的"单一数据源"，确保数据在各个Agent和节点间的一致性和完整性。
+本模块管理Agent层的共享变量，不直接访问统一上下文管理层。
+遵循单向数据流原则：统一消息管理层 → shared.py → Agent层
 
-重构后消除了重复的状态管理代码。
+Agent层通过此模块获取和操作共享状态，数据由上游传递。
 """
 
 from typing import Dict, List, Any, Optional
-from core.unified_context import get_context
 
 class SharedState:
-    """系统级共享状态管理器 - 基于统一上下文"""
+    """Agent层共享状态管理器 - 不直接访问统一上下文"""
 
-    def __init__(self):
-        """初始化共享状态"""
-        # 获取统一上下文实例
-        self.context = get_context()
-        
-        # 如果没有活跃会话，创建一个
-        if not self.context.session_id:
-            self.context.create_session("系统会话")
-        
-        self.session_id = self.context.session_id
+    def __init__(self, initial_data: Dict[str, Any] = None):
+        """
+        初始化共享状态
 
-    def add_user_message(self, content: str, **metadata):
-        """添加用户消息"""
-        return self.context.add_user_message(content)
-
-    def add_assistant_message(self, content: str, agent_source: str = "", **metadata):
-        """添加助手消息"""
-        if agent_source:
-            metadata["agent_source"] = agent_source
-        
-        return self.context.add_assistant_message(content)
-
-    def add_system_message(self, content: str, **metadata):
-        """添加系统消息"""
-        return self.context.add_message("system", content, metadata=metadata if metadata else None)
+        Args:
+            initial_data: 由上游传递的初始数据
+        """
+        # 🔧 新架构：不直接访问get_context，数据由上游传递
+        self.data = initial_data or {}
+        self.session_id = self.data.get("session_id", "default_session")
 
     def update_stage(self, stage: str):
         """更新当前处理阶段"""
-        self.context.update_stage(stage)
+        self.data["current_stage"] = stage
 
-    def record_error(self, error: Exception, context: str = ""):
+    def record_error(self, error: Exception, context_info: str = ""):
         """记录错误"""
         error_info = {
             "error_type": type(error).__name__,
             "error_message": str(error),
-            "context": context,
-            "timestamp": self.context.session_metadata.get("last_updated", "")
+            "context": context_info,
+            "timestamp": self.data.get("last_updated", "")
         }
-        
+
         # 更新错误计数
-        error_count = self.context.get_state("error_count", 0) + 1
-        self.context.update_state("error_count", error_count)
-        self.context.update_state("last_error", error_info)
+        error_count = self.data.get("error_count", 0) + 1
+        self.data["error_count"] = error_count
+        self.data["last_error"] = error_info
 
     def get_current_stage_info(self) -> Dict[str, Any]:
         """获取当前阶段信息"""
-        context_summary = self.context.get_context_summary()
-        
+        dialogue_history = self.data.get("dialogue_history", {})
+        messages = dialogue_history.get("messages", [])
+
         return {
-            "current_stage": context_summary.get("stage", "initialization"),
-            "total_messages": context_summary.get("message_count", 0),
-            "tool_execution_count": context_summary.get("tool_execution_count", 0),
-            "error_count": self.context.get_state("error_count", 0)
+            "current_stage": self.data.get("current_stage", "initialization"),
+            "total_messages": len(messages),
+            "tool_execution_count": len(self.data.get("tool_execution_history", [])),
+            "error_count": self.data.get("error_count", 0)
         }
 
     def is_processing_complete(self) -> bool:
         """判断处理是否完成"""
         return (
-            self.context.stage.value == "completed" and
+            self.data.get("current_stage") == "completed" and
             self._is_requirements_complete() and
             self._is_research_comprehensive() and
             self._is_architecture_complete()
         )
 
     def _is_requirements_complete(self) -> bool:
-        """检查需求是否完整"""
-        req = self.context.get_state("structured_requirements", {})
-        return bool(req.get("project_overview") and req.get("functional_requirements"))
+        """检查需求是否完整（已废弃，需求分析子工作流已取消）"""
+        # 需求分析子工作流已取消，始终返回True
+        return True
 
     def _is_research_comprehensive(self) -> bool:
         """检查研究是否全面"""
-        research = self.context.get_state("research_findings", {})
+        research = self.data.get("research_findings", {})
         return bool(research.get("topics") and research.get("results"))
 
     def _is_architecture_complete(self) -> bool:
         """检查架构是否完整"""
-        arch = self.context.get_state("architecture_document", {})
+        arch = self.data.get("agent_design_document", {})
         return bool(arch.get("diagrams") and arch.get("components"))
 
     def get_progress_summary(self) -> Dict[str, Any]:
         """获取进度摘要"""
-        context_summary = self.context.get_context_summary()
-        
+        dialogue_history = self.data.get("dialogue_history", {})
+        messages = dialogue_history.get("messages", [])
+
         return {
             "session_id": self.session_id,
-            "current_stage": context_summary.get("stage", "initialization"),
+            "current_stage": self.data.get("current_stage", "initialization"),
             "requirements_complete": self._is_requirements_complete(),
             "research_comprehensive": self._is_research_comprehensive(),
             "architecture_complete": self._is_architecture_complete(),
-            "total_messages": context_summary.get("message_count", 0),
-            "tool_execution_count": context_summary.get("tool_execution_count", 0),
-            "error_count": self.context.get_state("error_count", 0),
-            "last_updated": context_summary.get("last_updated", "")
+            "total_messages": len(messages),
+            "tool_execution_count": len(self.data.get("tool_execution_history", [])),
+            "error_count": self.data.get("error_count", 0),
+            "last_updated": self.data.get("last_updated", "")
         }
 
     def get_data(self) -> Dict[str, Any]:
-        """获取所有共享数据（兼容旧接口）"""
-        # 构建兼容的数据结构
-        messages = []
-        for msg in self.context.messages:
-            messages.append({
-                "timestamp": msg.timestamp,
-                "role": msg.role.value,
-                "content": msg.content,
-                "message_type": "text",
-                "metadata": msg.metadata or {}
-            })
-        
-        return {
-            "session_id": self.context.session_id,
-            "dialogue_history": {
-                "session_id": self.context.session_id,
-                "start_time": self.context.session_metadata.get("created_at", ""),
-                "messages": messages,
-                "total_messages": len(messages),
-                "last_activity": self.context.session_metadata.get("last_updated", "")
-            },
-            "current_stage": self.context.stage.value,
-            "project_state": self.context.project_state.copy(),
-            "tool_execution_history": self.context.tool_history.copy(),
-            "structured_requirements": self.context.get_state("structured_requirements"),
-            "research_findings": self.context.get_state("research_findings"),
-            "architecture_document": self.context.get_state("architecture_document"),
-            "planning_document": self.context.get_state("planning_document"),
-            "error_count": self.context.get_state("error_count", 0),
-            "last_error": self.context.get_state("last_error")
+        """获取所有共享数据"""
+        # 🔧 新架构：直接返回内部数据，不访问统一上下文
+        return self.data.copy()
+
+    def to_pocketflow_shared(self, extra_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        获取pocketflow格式的共享数据
+
+        Args:
+            extra_context: 额外的上下文数据（如流式回调）
+
+        Returns:
+            pocketflow的shared字典
+        """
+        # 基于内部数据构建pocketflow格式
+        shared = {
+            # 核心对话数据
+            "dialogue_history": self.data.get("dialogue_history", {"messages": []}),
+            "current_stage": self.data.get("current_stage", "initialization"),
+
+            # 项目状态数据
+            "research_findings": self.data.get("research_findings"),
+            "agent_design_document": self.data.get("agent_design_document"),
+            "confirmation_document": self.data.get("confirmation_document"),
+            "structured_requirements": self.data.get("structured_requirements"),
+
+            # 工具执行历史
+            "tool_execution_history": self.data.get("tool_execution_history", []),
+
+            # 流程元数据
+            "flow_start_time": None,  # 将在prep_async中设置
+            "flow_metadata": {},
+
+            # 错误处理
+            "react_error": None,
+            "react_post_error": None,
         }
+
+        # 添加额外的上下文数据
+        if extra_context:
+            shared.update(extra_context)
+
+        return shared
 
     def update_data(self, key: str, value: Any) -> None:
         """更新共享数据"""
-        self.context.update_state(key, value)
+        self.data[key] = value
 
     def get_value(self, key: str, default: Any = None) -> Any:
         """获取指定键的值"""
-        return self.context.get_state(key, default)
+        return self.data.get(key, default)
 
     def set_value(self, key: str, value: Any) -> None:
         """设置指定键的值"""
-        self.context.update_state(key, value)
+        self.data[key] = value
 
     def get_dialogue_history(self) -> Dict[str, Any]:
         """获取对话历史"""
-        return self.get_data()["dialogue_history"]
+        return self.data.get("dialogue_history", {})
 
     def get_messages(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """获取消息列表"""
-        messages = self.context.get_messages(limit=limit)
-        return [msg.to_dict() for msg in messages]
-
-    def clear_messages(self) -> None:
-        """清空消息历史"""
-        self.context.messages.clear()
-        self.context.message_hashes.clear()
+        dialogue_history = self.data.get("dialogue_history", {})
+        messages = dialogue_history.get("messages", [])
+        if limit:
+            messages = messages[-limit:]
+        return messages
 
     def get_session_id(self) -> str:
         """获取会话ID"""
-        return self.context.session_id
+        return self.session_id
 
-    def export_to_json(self) -> str:
-        """导出为JSON字符串"""
-        import json
-        return json.dumps(self.get_data(), ensure_ascii=False, indent=2)
+    @property
+    def current_stage(self) -> str:
+        """获取当前阶段"""
+        return self.data.get("current_stage", "initialization")
 
-    def import_from_json(self, json_str: str) -> bool:
-        """从JSON字符串导入数据"""
-        try:
-            import json
-            data = json.loads(json_str)
-            
-            # 重建会话
-            session_id = data.get("session_id")
-            if session_id:
-                return self.context.load_session(session_id)
-            
-            return False
-        except Exception as e:
-            print(f"导入JSON数据失败: {e}")
-            return False
+    @property
+    def error_count(self) -> int:
+        """获取错误计数"""
+        return self.data.get("error_count", 0)
+
+    @property
+    def dialogue_history(self) -> Dict[str, Any]:
+        """获取对话历史"""
+        return self.get_dialogue_history()
+
+    @property
+    def research_findings(self) -> Any:
+        """获取研究发现"""
+        return self.data.get("research_findings")
+
+    @property
+    def architecture_draft(self) -> Any:
+        """获取架构草稿"""
+        return self.data.get("agent_design_document")
 
     def get_summary(self) -> Dict[str, Any]:
         """获取状态摘要"""
-        return self.context.get_context_summary()
+        return self.get_progress_summary()
 
-    def cleanup_duplicate_messages(self) -> int:
-        """清理重复消息"""
-        if not self.context.session_id:
-            return 0
-        
-        original_count = len(self.context.messages)
-        
-        # 使用内容哈希去重
-        seen_hashes = set()
-        unique_messages = []
-        
-        for msg in self.context.messages:
-            if msg.content_hash not in seen_hashes:
-                seen_hashes.add(msg.content_hash)
-                unique_messages.append(msg)
-        
-        self.context.messages = unique_messages
-        
-        # 重建缓存
-        self.context.message_hashes.clear()
-        for msg in unique_messages:
-            self.context.message_hashes.add(msg.content_hash)
-        
-        cleaned_count = original_count - len(unique_messages)
-        
-        if cleaned_count > 0:
-            print(f"🧹 SharedState已清理 {cleaned_count} 条重复消息")
-        
-        return cleaned_count
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典格式（兼容旧接口）"""
+        return self.get_data()
 
-    def save_session(self) -> bool:
-        """保存当前会话"""
-        return self.context.save_session()
-
-    def load_session(self, session_id: str) -> bool:
-        """加载指定会话"""
-        success = self.context.load_session(session_id)
-        if success:
-            self.session_id = self.context.session_id
-        return success
+    def save_to_file(self, filepath: str) -> bool:
+        """保存状态到文件"""
+        try:
+            import json
+            data = self.to_dict()
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"保存状态到文件失败: {e}")
+            return False
 
 
-# 全局实例（保持向后兼容）
-shared_state = SharedState()
+class SharedStateFactory:
+    """SharedState工厂类 - 支持创建独立的SharedState实例"""
+
+    @staticmethod
+    def create_from_unified_context() -> SharedState:
+        """
+        从统一消息管理层创建SharedState实例
+
+        Returns:
+            新的SharedState实例
+        """
+        from core.unified_context import get_context
+        context = get_context()
+
+        # 构建LLM上下文消息（压缩后的）
+        llm_messages = []
+        for msg in context.llm_context:
+            llm_messages.append({
+                "role": msg.role.value,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+                "tool_calls": msg.tool_calls
+            })
+
+        # 构建shared数据
+        shared_data = {
+            "session_id": context.session_id,
+            "dialogue_history": {"messages": llm_messages},
+            "current_stage": context.stage.value,
+            "research_findings": context.get_state("research_findings"),
+            "agent_design_document": context.get_state("architecture_document"),
+            "confirmation_document": context.get_state("planning_document"),
+            "structured_requirements": context.get_state("structured_requirements"),
+            "tool_execution_history": context.tool_history.copy(),
+            "last_updated": context.session_metadata.get("last_updated", ""),
+        }
+
+        return SharedState(shared_data)
+
+    @staticmethod
+    def create_from_data(data: Dict[str, Any]) -> SharedState:
+        """
+        从指定数据创建SharedState实例
+
+        Args:
+            data: 初始化数据
+
+        Returns:
+            新的SharedState实例
+        """
+        return SharedState(data)
+
+    @staticmethod
+    def create_empty() -> SharedState:
+        """
+        创建空的SharedState实例（用于测试）
+
+        Returns:
+            空的SharedState实例
+        """
+        return SharedState({})
+
+
+# 🔧 新架构：保留向后兼容的全局实例（逐步废弃）
+_global_shared_state = None
 
 
 def get_shared_state() -> SharedState:
-    """获取全局共享状态实例"""
-    return shared_state
+    """
+    获取全局共享状态实例（已废弃，建议使用工厂模式）
+
+    Returns:
+        全局SharedState实例
+    """
+    global _global_shared_state
+    if _global_shared_state is None:
+        _global_shared_state = SharedStateFactory.create_empty()
+    return _global_shared_state
+
+
+def init_shared_state(data: Dict[str, Any]) -> SharedState:
+    """
+    初始化全局共享状态实例（已废弃，建议使用工厂模式）
+
+    Args:
+        data: 由上游传递的数据
+
+    Returns:
+        全局SharedState实例
+    """
+    global _global_shared_state
+    _global_shared_state = SharedState(data)
+    return _global_shared_state
 
 
 def reset_shared_state() -> SharedState:
-    """重置全局共享状态实例"""
-    global shared_state
-    shared_state = SharedState()
-    return shared_state
+    """重置全局共享状态实例（已废弃，建议使用工厂模式）"""
+    global _global_shared_state
+    _global_shared_state = SharedStateFactory.create_empty()
+    return _global_shared_state
+
+
+

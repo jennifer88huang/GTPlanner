@@ -19,7 +19,7 @@ import sys
 import asyncio
 import argparse
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -38,8 +38,9 @@ from rich.align import Align
 from rich.box import ROUNDED
 from rich.style import Style
 
-from agent.flows.react_orchestrator_refactored.react_orchestrator_refactored import ReActOrchestratorRefactored
+from agent.flows.react_orchestrator_refactored import ReActOrchestratorFlow
 from cli.session_manager import SessionManager
+from utils.compression_manager import compression_manager
 
 
 class GTPlannerCLI:
@@ -48,7 +49,7 @@ class GTPlannerCLI:
     def __init__(self, verbose: bool = False):
         """初始化CLI"""
         self.console = Console()
-        self.orchestrator = ReActOrchestratorRefactored()
+        self.orchestrator = ReActOrchestratorFlow()
         self.verbose = verbose
         self.running = True
         self.is_first_interaction = True  # 跟踪是否是第一次交互
@@ -60,6 +61,74 @@ class GTPlannerCLI:
         self.session_state = {
             "dialogue_history": {"messages": []},
             "current_stage": "initialization"
+        }
+
+        # 启动后台压缩服务（无感）
+        self._start_background_compression()
+
+    def _start_background_compression(self):
+        """启动后台压缩服务（无感）"""
+        try:
+            # 创建异步任务启动压缩服务
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(compression_manager.start_service())
+            except RuntimeError:
+                # 没有运行中的事件循环，稍后在异步环境中启动
+                pass
+        except Exception:
+            # 静默处理启动失败
+            pass
+
+    def _build_agent_context(self) -> Dict[str, Any]:
+        """构建传递给Agent的上下文（基于统一消息管理层）"""
+        from core.unified_context import get_context
+        context = get_context()
+
+        # 🔧 新架构：使用LLM上下文（已压缩）而不是完整消息历史
+        llm_messages = []
+        for msg in context.llm_context:  # 使用压缩后的LLM上下文
+            llm_messages.append({
+                "role": msg.role.value,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+                "tool_calls": msg.tool_calls
+            })
+
+        return {
+            "dialogue_history": {"messages": llm_messages},  # 传递压缩后的上下文
+            "current_stage": context.stage.value,
+            "research_findings": context.get_state("research_findings"),
+            "agent_design_document": context.get_state("architecture_document"),
+            "confirmation_document": context.get_state("planning_document"),
+            "tool_execution_history": context.tool_history,
+            "structured_requirements": context.get_state("structured_requirements")
+        }
+
+    def _sync_session_state_from_context(self) -> Dict[str, Any]:
+        """从UnifiedContext同步会话状态（用于显示）"""
+        from core.unified_context import get_context
+        context = get_context()
+
+        # 🔧 用于显示的完整消息历史
+        messages = []
+        for msg in context.get_messages():  # 获取完整消息历史用于显示
+            messages.append({
+                "role": msg.role.value,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+                "tool_calls": msg.tool_calls
+            })
+
+        return {
+            "dialogue_history": {"messages": messages},
+            "current_stage": context.stage.value,
+            "research_findings": context.get_state("research_findings"),
+            "agent_design_document": context.get_state("architecture_document"),
+            "confirmation_document": context.get_state("planning_document"),
+            "tool_execution_history": context.tool_history,
+            "structured_requirements": context.get_state("structured_requirements")
         }
 
     def show_welcome(self):
@@ -104,6 +173,8 @@ class GTPlannerCLI:
 - `/stats` - 显示性能统计
 - `/verbose` - 切换详细模式
 
+
+
 ## 🎯 使用示例
 
 - "我想开发一个电商网站"
@@ -140,70 +211,85 @@ class GTPlannerCLI:
             self.session_state = self.session_manager.get_session_data()
 
         
-        # 添加用户消息到会话管理器
+        # 🔧 新架构：用户消息添加到SessionManager，然后传递给统一消息管理层
+        # 1. 添加用户消息到SessionManager（本地持久化）
         self.session_manager.add_user_message(user_input)
 
-        # 同步会话状态
-        self.session_state = self.session_manager.get_session_data()
+        # 2. 获取压缩后的上下文数据传递给统一消息管理层
+        compressed_context = await self.session_manager.get_compressed_context_for_agent()
+
+        from core.unified_context import get_context
+        context = get_context()
+        context.load_context_from_cli(compressed_context)
+
+        # 3. 同步会话状态（用于显示）
+        self.session_state = self._sync_session_state_from_context()
 
         # 不再显示处理状态框，直接开始处理
         
         try:
             # 创建流式回调
             stream_callback = self._create_stream_callback()
-            
-            # 设置流式回调
-            self.session_state["_stream_callback"] = stream_callback
-            
-            # 执行Function Calling流程
-            # 1. 准备阶段
-            prep_result = await self.orchestrator.prep_async(self.session_state)
-            if "error" in prep_result:
-                self.console.print(f"❌ [bold red]准备失败:[/bold red] {prep_result['error']}")
-                return True
-            
-            # 2. 执行阶段
-            exec_result = await self.orchestrator.exec_async(prep_result)
-            if "error" in exec_result:
-                self.console.print(f"❌ [bold red]执行失败:[/bold red] {exec_result['error']}")
-                return True
-            
-            # 3. 后处理阶段
-            next_route = await self.orchestrator.post_async(
-                self.session_state, prep_result, exec_result
-            )
 
-            # 🔧 关键修复：同步工具执行历史和结果数据到会话管理器
-            if 'tool_execution_history' in self.session_state:
-                self.session_manager.sync_tool_execution_history(self.session_state['tool_execution_history'])
+            # 🔧 新架构：只传递流式回调给Agent，其他数据由统一消息管理层提供
+            extra_context = {"_stream_callback": stream_callback}
 
-            # 🔧 新增：同步工具结果数据
-            self.session_manager.sync_tool_result_data(self.session_state)
+            # 执行Flow流程（带tracing）
+            await self.orchestrator.run_async(extra_context)
 
-            # 显示结果并保存到会话
+            # 🔧 新架构：从统一消息管理层获取更新后的数据并同步到SessionManager
+            from core.unified_context import get_context, MessageRole
+            context = get_context()
+
+            # 获取统一消息管理层的更新后数据
+            updated_context = context.get_context_for_cli()
+
+            # 同步新增的助手消息到SessionManager
+            current_msg_count = len(self.session_manager.current_session_data.get("messages", []))
+            new_messages = updated_context.get("messages", [])[current_msg_count:]
+
+            for msg in new_messages:
+                if msg["role"] == "assistant":
+                    self.session_manager.add_assistant_message(
+                        msg["content"],
+                        metadata=msg.get("metadata"),
+                        tool_calls=msg.get("tool_calls")
+                    )
+
+            # 同步项目状态更新
+            for key, value in updated_context.get("project_state", {}).items():
+                self.session_manager.update_project_state(key, value)
+
+            # 同步工具历史
+            for tool_record in updated_context.get("tool_history", []):
+                self.session_manager.add_tool_execution(tool_record)
+
+            # 获取最新的助手消息用于显示
+            assistant_messages = context.get_messages(role_filter=MessageRole.ASSISTANT)
+            latest_assistant_message = assistant_messages[-1] if assistant_messages else None
+
+            # 构建显示用的结果
+            exec_result = {
+                "user_message": latest_assistant_message.content if latest_assistant_message else "",
+                "tool_calls": latest_assistant_message.tool_calls if latest_assistant_message and latest_assistant_message.tool_calls else [],
+                "decision_success": True
+            }
+
+            # 🔧 新架构：只负责显示，不处理消息存储
             user_message = exec_result.get("user_message", "")
-            tool_calls = exec_result.get("tool_calls", [])
-
-
 
             if user_message:
                 # 停止Live显示
                 if hasattr(stream_callback, 'stop_live_display'):
                     stream_callback.stop_live_display()
 
-                # 添加AI回复到会话管理器
-                self.session_manager.add_assistant_message(user_message, tool_calls)
-
-                # 同步会话状态
-                self.session_state = self.session_manager.get_session_data()
-
-            # 不再显示完成状态框
-
             # 添加一个空行，让界面更清晰
             self.console.print()
 
-            # 保存会话
-            self.session_manager.save_current_session()
+            # 🔧 新架构：保存会话到本地文件
+            save_success = self.session_manager.save_session()
+            if not save_success:
+                self.console.print("⚠️ [yellow]会话保存失败[/yellow]")
 
             return True
             
@@ -724,10 +810,15 @@ class GTPlannerCLI:
             border_style="yellow"
         ))
 
+
+
     async def run_interactive(self):
         """运行交互式CLI"""
+        # 确保压缩服务在异步环境中启动
+        await compression_manager.start_service()
+
         self.show_welcome()
-        
+
         while self.running:
             try:
                 # 获取美化的用户输入

@@ -1,17 +1,15 @@
 """
 Short Planning Flow
 
-协调简化的Short Planning Agent的所有节点，实现功能导向的短规划流程。
+协调 ShortPlanningNode，实现从用户需求到步骤化流程的生成。
 
 流程架构：
-FunctionAnalysisNode → StepGenerationNode → ConfirmationFormattingNode
+ShortPlanningNode (直接处理用户需求)
 """
 
 from pocketflow import AsyncFlow
 from pocketflow_tracing import trace_flow
-from ..nodes.function_analysis_node import FunctionAnalysisNode
-from ..nodes.step_generation_node import StepGenerationNode
-from ..nodes.confirmation_formatting_node import ConfirmationFormattingNode
+from ..nodes.short_planning_node import ShortPlanningNode
 
 
 @trace_flow(flow_name="ShortPlanningFlow")
@@ -20,7 +18,7 @@ class TracedShortPlanningFlow(AsyncFlow):
 
     async def prep_async(self, shared):
         """流程级准备"""
-        print("🚀 启动短规划流程...")
+        # 确保使用正确的事件循环来获取时间
         shared["flow_start_time"] = __import__('asyncio').get_event_loop().time()
 
         return {
@@ -38,38 +36,31 @@ class TracedShortPlanningFlow(AsyncFlow):
             "status": "completed"
         }
 
-        print(f"✅ 短规划流程完成，耗时: {flow_duration:.2f}秒")
         return exec_result
 
 
 class ShortPlanningFlow:
     """
-    简化的短规划流程
-    
+    短规划流程
+
     流程架构：
-    FunctionAnalysisNode → StepGenerationNode → ConfirmationFormattingNode
+    ShortPlanningNode (直接处理用户需求生成步骤化流程)
     """
-    
+
     def __init__(self):
         self.name = "ShortPlanningFlow"
-        self.description = "将结构化需求转换为功能导向的确认文档"
-        
+        self.description = "将用户需求直接转换为步骤化的实现流程"
+
         # 创建节点实例
-        function_analysis_node = FunctionAnalysisNode()
-        step_generation_node = StepGenerationNode()
-        confirmation_formatting_node = ConfirmationFormattingNode()
-        
-        # 使用pocketflow的条件转换语法（事件字符串）
-        function_analysis_node - "function_analysis_complete" >> step_generation_node
-        step_generation_node - "step_generation_complete" >> confirmation_formatting_node
-        
-        # 错误处理：任何节点返回"error"都结束流程
-        # pocketflow会自动处理没有后续节点的情况
-        
+        short_planner_node = ShortPlanningNode()
+
+        # 简化流程：只有一个节点，直接处理用户需求
+        # 错误处理：节点返回"error"会结束流程
+
         # 创建带tracing的异步流程
         self.flow = TracedShortPlanningFlow()
-        self.flow.start_node = function_analysis_node
-    
+        self.flow.start_node = short_planner_node
+
     async def run_async(self, shared: dict) -> str:
         """
         异步运行短规划流程
@@ -81,16 +72,14 @@ class ShortPlanningFlow:
             流程执行结果
         """
         try:
-            print("🚀 启动异步简化短规划流程...")
 
             # 验证输入数据
             if not self._validate_input(shared):
-                raise ValueError("输入数据验证失败")
+                raise ValueError("输入数据验证失败：'user_requirements' 缺失或为空。")
 
             # 执行异步pocketflow流程（带tracing）
             result = await self.flow.run_async(shared)
 
-            print("✅ 异步短规划流程执行完成")
             return result
 
         except Exception as e:
@@ -105,26 +94,16 @@ class ShortPlanningFlow:
         """
         import asyncio
         return asyncio.run(self.run_async(shared))
-    
+
     def _validate_input(self, shared: dict) -> bool:
         """验证输入数据"""
-        
-        # 检查必需的结构化需求
-        structured_requirements = shared.get("structured_requirements", {})
-        if not structured_requirements:
-            print("❌ 缺少结构化需求数据")
+
+        # 检查必需的用户需求
+        user_requirements = shared.get("user_requirements")
+        if not user_requirements:
+            print("❌ 缺少'user_requirements'数据，流程无法启动。")
             return False
         
-        # 检查项目概览
-        project_overview = structured_requirements.get("project_overview", {})
-        if not project_overview.get("title"):
-            print("⚠️ 项目标题缺失，可能影响规划质量")
-        
-        # 检查功能需求
-        functional_requirements = structured_requirements.get("functional_requirements", {})
-        core_features = functional_requirements.get("core_features", [])
-        if not core_features:
-            print("⚠️ 核心功能列表为空，将基于项目描述推断功能模块")
-        
-        print("✅ 输入数据验证通过")
+        # previous_planning 和 improvement_points 是可选的，无需强制检查
+
         return True
