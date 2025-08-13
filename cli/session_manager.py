@@ -216,16 +216,39 @@ class SessionManager:
     def get_session_data(self) -> Dict[str, Any]:
         """获取当前会话数据（兼容旧接口）"""
         if not self.current_session_data:
-            return {}
+            return {
+                "session_id": None,
+                "title": None,
+                "created_at": None,
+                "current_stage": "initialization",
+                "messages": [],
+                "project_state": {},
+                "tool_history": [],
+                "metadata": {}
+            }
 
         return {
-            "dialogue_history": {"messages": self.current_session_data.get("messages", [])},
+            # 会话基本信息
+            "session_id": self.current_session_data.get("session_id"),
+            "title": self.current_session_data.get("title"),
+            "created_at": self.current_session_data.get("created_at"),
             "current_stage": self.current_session_data.get("stage", "initialization"),
+
+            # 消息和历史
+            "messages": self.current_session_data.get("messages", []),
+            "dialogue_history": {"messages": self.current_session_data.get("messages", [])},
+            "tool_history": self.current_session_data.get("tool_history", []),
+            "tool_execution_history": self.current_session_data.get("tool_history", []),
+
+            # 项目状态
+            "project_state": self.current_session_data.get("project_state", {}),
             "structured_requirements": self.current_session_data.get("project_state", {}).get("structured_requirements"),
             "confirmation_document": self.current_session_data.get("project_state", {}).get("planning_document"),
             "research_findings": self.current_session_data.get("project_state", {}).get("research_findings"),
             "agent_design_document": self.current_session_data.get("project_state", {}).get("architecture_document"),
-            "tool_execution_history": self.current_session_data.get("tool_history", [])
+
+            # 元数据
+            "metadata": self.current_session_data.get("metadata", {})
         }
 
     def update_project_state(self, key: str, value: Any) -> None:

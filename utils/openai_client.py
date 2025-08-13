@@ -211,27 +211,41 @@ class OpenAIClient:
 
     async def chat_completion_async(
         self,
-        messages: List[Dict[str, str]],
+        system_prompt: Optional[str] = None,
+        messages: Optional[List[Dict[str, str]]] = None,
         tools: Optional[List[Dict]] = None,
         **kwargs
     ) -> ChatCompletion:
         """
         异步聊天完成调用
-        
+
         Args:
-            messages: 消息列表
+            system_prompt: 系统提示词（可选）
+            messages: 消息列表（可选）
             tools: Function Calling工具列表
             **kwargs: 其他参数
-            
+
         Returns:
             聊天完成响应
         """
         start_time = time.time()
         self.stats["total_requests"] += 1
-        
+
         try:
-            # 准备消息列表（添加全局系统提示词）
-            prepared_messages = self._prepare_messages_with_global_system_prompt(messages)
+            # 构建完整的消息列表
+            prepared_messages = []
+
+            # 添加全局系统提示词
+            if self.global_system_prompt:
+                prepared_messages.append({"role": "system", "content": self.global_system_prompt})
+
+            # 添加自定义系统提示词
+            if system_prompt:
+                prepared_messages.append({"role": "system", "content": system_prompt})
+
+            # 添加对话消息
+            if messages:
+                prepared_messages.extend(messages)
 
             # 合并配置参数
             params = self.config.to_chat_completion_kwargs()
@@ -274,27 +288,44 @@ class OpenAIClient:
     
     async def chat_completion_stream_async(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, str]] = None,
+        system_prompt: Optional[str] = None,
         tools: Optional[List[Dict]] = None,
         **kwargs
     ) -> AsyncIterator[ChatCompletionChunk]:
         """
-        异步流式聊天完成调用
-        
+        异步流式聊天完成调用（支持system_prompt参数）
+
         Args:
             messages: 消息列表
+            system_prompt: 系统提示词（可选，与chat_completion_async保持一致）
             tools: Function Calling工具列表
             **kwargs: 其他参数
-            
+
         Yields:
             聊天完成流式响应块
         """
         start_time = time.time()
         self.stats["total_requests"] += 1
-        
+
         try:
+            # 处理system_prompt和messages参数
+            if system_prompt and messages:
+                # 如果提供了system_prompt，将其添加到消息列表开头
+                system_message = {"role": "system", "content": system_prompt}
+                full_messages = [system_message] + messages
+            elif system_prompt and not messages:
+                # 只有system_prompt，没有messages
+                full_messages = [{"role": "system", "content": system_prompt}]
+            elif messages:
+                # 只有messages，没有system_prompt
+                full_messages = messages
+            else:
+                # 都没有，使用空列表
+                full_messages = []
+
             # 准备消息列表（添加全局系统提示词）
-            prepared_messages = self._prepare_messages_with_global_system_prompt(messages)
+            prepared_messages = self._prepare_messages_with_global_system_prompt(full_messages)
 
             # 合并配置参数
             params = self.config.to_chat_completion_kwargs()

@@ -105,3 +105,4 @@ cookbook/
 # GTPlanner session data
 .gtplanner_sessions/
 .specstory
+memory-bank

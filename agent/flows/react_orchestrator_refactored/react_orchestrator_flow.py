@@ -58,26 +58,19 @@ class ReActOrchestratorFlow:
         self.flow = TracedReActOrchestratorFlow()
         self.flow.start_node = react_node
 
-    async def run_async(self, extra_context: Dict[str, Any] = None) -> str:
+    async def run_async(self, shared: Dict[str, Any] = None) -> str:
         """
-        异步运行ReAct主控制器流程
+        异步运行ReAct主控制器流程（无状态版本）
 
         Args:
-            extra_context: 额外的上下文数据（如流式回调）
+            shared: 预先创建的shared字典（包含完整上下文）
 
         Returns:
             流程执行结果
         """
         try:
-
-            # 🔧 新架构：使用工厂模式创建独立的SharedState实例
-            from agent.shared import SharedStateFactory
-
-            # 从统一消息管理层创建SharedState实例
-            shared_state = SharedStateFactory.create_from_unified_context()
-
-            # 转换为pocketflow格式
-            shared = shared_state.to_pocketflow_shared(extra_context)
+            if shared is None:
+                raise ValueError("shared字典不能为空")
 
             # 执行异步pocketflow流程（带tracing）
             result = await self.flow.run_async(shared)
@@ -88,12 +81,7 @@ class ReActOrchestratorFlow:
             print(f"❌ 异步ReAct主控制器流程执行失败: {e}")
             raise e
 
-    def run(self, extra_context: Dict[str, Any] = None) -> str:
-        """
-        同步运行ReAct主控制器流程（兼容性）
-        """
-        import asyncio
-        return asyncio.run(self.run_async(extra_context))
+
 
 
 

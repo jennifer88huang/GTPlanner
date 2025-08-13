@@ -13,7 +13,6 @@
 """
 
 import time
-import hashlib
 from typing import Dict, List, Any, Optional
 from pocketflow import AsyncNode
 from ..utils.search import JinaSearchClient
@@ -110,9 +109,7 @@ class NodeSearch(AsyncNode):
             raise ValueError(prep_res["error"])
         
         search_keywords = prep_res["search_keywords"]
-        search_type = prep_res["search_type"]
         max_results = prep_res["max_results"]
-        language = prep_res["language"]
         
         if not search_keywords:
             raise ValueError("Empty search keywords")
@@ -187,202 +184,68 @@ class NodeSearch(AsyncNode):
     async def post_async(self, shared, prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """
         后处理阶段：将搜索结果存储到共享状态
-        
+
         Args:
-            shared: 共享状态对象
+            shared: 共享状态字典
             prep_res: 准备阶段结果
             exec_res: 执行阶段结果
-            
+
         Returns:
             下一步动作
         """
         try:
             if "error" in exec_res:
-                if hasattr(shared, 'record_error'):
-                    shared.record_error(Exception(exec_res["error"]), "NodeSearch.exec")
+                # 记录错误到shared字典
+                if "errors" not in shared:
+                    shared["errors"] = []
+                shared["errors"].append({
+                    "source": "NodeSearch.exec",
+                    "error": exec_res["error"],
+                    "timestamp": prep_res.get("timestamp", "")
+                })
                 return "error"
 
             search_results = exec_res["search_results"]
 
-            # 检查是否是子流程的共享变量（字典类型）
-            if isinstance(shared, dict):
-                # 子流程模式：保存首条搜索结果到共享变量
-                if search_results:
-                    shared["first_search_result"] = search_results[0]
-                    shared["all_search_results"] = search_results
-                return "search_complete"
+            # 统一使用字典模式存储搜索结果
+            if search_results:
+                shared["first_search_result"] = search_results[0]
+                shared["all_search_results"] = search_results
 
-            # 主流程模式：保存到研究发现
-            if not hasattr(shared.research_findings, 'search_results'):
-                shared.research_findings.search_results = []
 
-            # 转换搜索结果为研究源格式
-            for result in search_results:
-                research_source = {
-                    "source_id": self._generate_source_id(result["url"]),
-                    "title": result["title"],
-                    "url": result["url"],
-                    "content_summary": result["snippet"],
-                    "relevance_score": result["relevance_score"],
-                    "credibility_score": self._assess_credibility(result),
-                    "extracted_insights": [],
-                    "key_data_points": [],
-                    "search_metadata": {
-                        "search_keyword": result.get("search_keyword", ""),
-                        "source_type": result.get("source_type", "unknown"),
-                        "search_rank": result.get("rank", 0)
-                    }
-                }
-                shared.research_findings.search_results.append(research_source)
-            
-            # 更新研究元数据
-            shared.research_findings.research_metadata.update({
-                "last_search_time": time.time(),
-                "search_keywords": prep_res["search_keywords"],
-                "total_search_results": exec_res["total_found"],
-                "search_duration_ms": exec_res["search_time"]
-            })
 
-            # 添加系统消息记录搜索结果
-            metadata = {
-                "agent_source": "NodeSearch",
-                "keywords_count": prep_res["keyword_count"],
-                "results_count": exec_res["total_found"],
-                "search_time_ms": exec_res["search_time"]
-            }
-            shared.add_system_message(
-                f"搜索完成，找到 {exec_res['total_found']} 个相关结果",
-                metadata=metadata
-            )
 
+            print(f"✅ 搜索完成，找到 {len(search_results)} 个结果")
             return "search_complete"
 
         except Exception as e:
-            if hasattr(shared, 'record_error'):
-                shared.record_error(e, "NodeSearch.post")
+            print(f"❌ NodeSearch post处理失败: {e}")
+            # 记录错误到shared字典
+            if "errors" not in shared:
+                shared["errors"] = []
+            shared["errors"].append({
+                "source": "NodeSearch.post",
+                "error": str(e),
+                "timestamp": prep_res.get("timestamp", "")
+            })
             return "error"
     
-    def exec_fallback(self, prep_res: Dict[str, Any], exc: Exception) -> Dict[str, Any]:
-        """
-        执行失败时的降级处理 - 直接返回错误
 
-        Args:
-            prep_res: 准备阶段结果
-            exc: 异常对象
 
-        Returns:
-            错误信息
-        """
-        return {
-            "error": f"Search execution failed: {str(exc)}",
-            "search_results": [],
-            "total_found": 0
-        }
 
-    def _create_error_result(self, error_message: str, search_type: str = "web") -> Dict[str, Any]:
-        """创建标准错误结果字典"""
-        return {
-            "error": error_message,
-            "search_keywords": [],
-            "search_type": search_type,
-            "max_results": self.default_max_results,
-            "language": self.default_language
-        }
-
-    def _classify_source_type(self, url: str) -> str:
-        """分类信息源类型"""
-        if not url:
-            return "unknown"
-
-        url_lower = url.lower()
-
-        if any(domain in url_lower for domain in [".gov", ".edu"]):
-            return "official"
-        elif any(domain in url_lower for domain in ["docs.", "documentation", "wiki"]):
-            return "docs"
-        elif any(domain in url_lower for domain in ["github.com", "stackoverflow.com"]):
-            return "technical"
-        elif any(domain in url_lower for domain in ["blog", "medium.com", "csdn.net"]):
-            return "blog"
-        elif any(domain in url_lower for domain in ["forum", "bbs", "zhihu.com"]):
-            return "forum"
-        else:
-            return "unknown"
     
     def _extract_keywords_from_shared_state(self, shared) -> List[str]:
         """从共享状态中提取搜索关键词"""
-        keywords = []
-
-        # 检查是否是子流程的共享变量（字典类型）
-        if isinstance(shared, dict):
-            # 子流程模式：直接从字典中获取关键词
-            search_keywords = shared.get("search_keywords", [])
-            if search_keywords:
-                keywords.extend(search_keywords)
-            return keywords
-
-        # 主流程模式：从共享状态对象中提取关键词
-        # 从用户意图中提取关键词
-        if hasattr(shared, 'user_intent') and shared.user_intent.extracted_keywords:
-            keywords.extend(shared.user_intent.extracted_keywords)
-
-        # 注意：结构化需求相关代码已删除，因为需求分析子工作流已取消
+        # 直接从shared字典获取搜索关键词
+        search_keywords = shared.get("search_keywords", [])
 
         # 去重并返回
-        return list(set(keywords))[:5]  # 最多返回5个关键词
+        return list(set(search_keywords))[:5]  # 最多返回5个关键词
     
-    def _optimize_keywords(self, keywords: List[str]) -> List[str]:
-        """优化搜索关键词"""
-        optimized = []
-        
-        for keyword in keywords:
-            # 清理关键词
-            cleaned = keyword.strip()
-            if not cleaned:
-                continue
-            
-            # 添加相关术语组合
-            if "管理系统" in cleaned:
-                optimized.extend([cleaned, cleaned.replace("管理系统", "系统设计")])
-            elif "平台" in cleaned:
-                optimized.extend([cleaned, cleaned + " 架构"])
-            else:
-                optimized.append(cleaned)
-        
-        # 去重并限制数量
-        return list(set(optimized))[:10]
+
     
-    def _calculate_relevance_score(self, result: Dict[str, Any], keyword: str) -> float:
-        """计算相关性评分"""
-        score = 0.0
-        
-        title = result.get("title", "").lower()
-        snippet = result.get("snippet", "").lower()
-        url = result.get("url", "").lower()
-        keyword_lower = keyword.lower()
-        
-        # 标题匹配
-        if keyword_lower in title:
-            score += self.title_weight
-        
-        # 摘要匹配
-        if keyword_lower in snippet:
-            score += self.snippet_weight
-        
-        # URL匹配
-        if keyword_lower in url:
-            score += self.url_weight
-        
-        # 来源类型评分
-        source_type = result.get("source_type", "unknown")
-        if source_type in ["official", "docs"]:
-            score += self.source_weight
-        elif source_type == "blog":
-            score += self.source_weight * 0.7
-        elif source_type == "forum":
-            score += self.source_weight * 0.5
-        
-        return min(score, 1.0)  # 限制在0-1之间
+
+
     
     def _deduplicate_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """去重搜索结果"""
@@ -401,25 +264,6 @@ class NodeSearch(AsyncNode):
         """按相关性评分排序结果"""
         return sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)
     
-    def _assess_credibility(self, result: Dict[str, Any]) -> float:
-        """评估来源可信度"""
-        url = result.get("url", "").lower()
-        source_type = result.get("source_type", "unknown")
-        
-        # 基于域名的可信度评分
-        if any(domain in url for domain in [".edu", ".gov", ".org"]):
-            return 0.9
-        elif any(domain in url for domain in ["github.com", "stackoverflow.com"]):
-            return 0.8
-        elif source_type == "official":
-            return 0.8
-        elif source_type == "docs":
-            return 0.7
-        elif source_type == "blog":
-            return 0.6
-        else:
-            return 0.5
+
     
-    def _generate_source_id(self, url: str) -> str:
-        """生成来源ID"""
-        return hashlib.md5(url.encode()).hexdigest()[:12]
+

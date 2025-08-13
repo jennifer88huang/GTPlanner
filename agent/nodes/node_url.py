@@ -156,21 +156,20 @@ class NodeURL(AsyncNode):
         """
         try:
             if "error" in exec_res:
-                if hasattr(shared, 'record_error'):
-                    shared.record_error(Exception(exec_res["error"]), "NodeURL.exec")
+                # 记录错误到shared字典
+                if "errors" not in shared:
+                    shared["errors"] = []
+                shared["errors"].append({
+                    "source": "NodeURL.exec",
+                    "error": exec_res["error"],
+                    "timestamp": prep_res.get("timestamp", "")
+                })
                 return "error"
 
-            # 检查是否是子流程的共享变量（字典类型）
-            if isinstance(shared, dict):
-                # 子流程模式：保存URL内容到共享变量
-                shared["url_content"] = exec_res["content"]
-                shared["url_title"] = exec_res["title"]
-                shared["url_metadata"] = exec_res.get("metadata", {})
-                return "url_parsed"
-
-            # 主流程模式：保存到研究发现
-            if not hasattr(shared.research_findings, 'url_contents'):
-                shared.research_findings.url_contents = []
+            # 统一使用字典模式保存URL内容
+            shared["url_content"] = exec_res["content"]
+            shared["url_title"] = exec_res["title"]
+            shared["url_metadata"] = exec_res.get("metadata", {})
 
             # 创建内容记录
             content_record = {
@@ -184,31 +183,19 @@ class NodeURL(AsyncNode):
                 "extracted_at": time.time()
             }
 
-            shared.research_findings.url_contents.append(content_record)
-            
-            # 更新研究元数据
-            shared.research_findings.research_metadata.update({
-                "last_url_extraction_time": time.time(),
-                "total_url_extractions": len(shared.research_findings.url_contents)
-            })
-
-            # 添加系统消息记录解析结果
-            metadata = {
-                "agent_source": "NodeURL",
-                "url": exec_res["url"],
-                "content_length": exec_res["content_length"],
-                "processing_time_ms": exec_res["processing_time"]
-            }
-            shared.add_system_message(
-                f"URL解析完成: {exec_res['title'][:50]}...",
-                metadata=metadata
-            )
-
+            print(f"✅ URL解析完成: {exec_res['title'][:50]}...")
             return "url_parsed"
 
         except Exception as e:
-            if hasattr(shared, 'record_error'):
-                shared.record_error(e, "NodeURL.post")
+            print(f"❌ NodeURL post处理失败: {e}")
+            # 记录错误到shared字典
+            if "errors" not in shared:
+                shared["errors"] = []
+            shared["errors"].append({
+                "source": "NodeURL.post",
+                "error": str(e),
+                "timestamp": prep_res.get("timestamp", "")
+            })
             return "error"
 
     def _create_error_result(self, error_message: str, url: str = "", extraction_type: str = "full") -> Dict[str, Any]:
