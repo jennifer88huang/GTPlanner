@@ -62,16 +62,12 @@ class AgentRequirementsAnalysisNode(AsyncNode):
             
             # 构建分析提示词
             prompt = self._build_analysis_prompt(prep_result)
-            
-            # 异步调用LLM分析需求
-            analysis_result = await self._analyze_agent_requirements_async(prompt)
-            
-            # 解析分析结果
-            agent_analysis = self._parse_analysis_result(analysis_result)
-            
+
+            # 异步调用LLM分析需求，直接输出markdown
+            analysis_markdown = await self._analyze_agent_requirements_async(prompt)
+
             return {
-                "agent_analysis": agent_analysis,
-                "raw_analysis": analysis_result,
+                "analysis_markdown": analysis_markdown,
                 "analysis_success": True
             }
             
@@ -86,28 +82,26 @@ class AgentRequirementsAnalysisNode(AsyncNode):
                 print(f"❌ Agent需求分析失败: {exec_res['error']}")
                 return "error"
             
-            # 保存分析结果
-            agent_analysis = exec_res["agent_analysis"]
-            shared["agent_analysis"] = agent_analysis
-            
+            # 保存markdown内容
+            analysis_markdown = exec_res["analysis_markdown"]
+            shared["analysis_markdown"] = analysis_markdown
+
             # 更新系统消息
             if "system_messages" not in shared:
                 shared["system_messages"] = []
-            
+
             shared["system_messages"].append({
                 "timestamp": time.time(),
                 "stage": "agent_requirements_analysis",
                 "status": "completed",
-                "message": f"Agent需求分析完成：{agent_analysis.get('agent_type', 'Unknown')} Agent"
+                "message": "Agent需求分析完成"
             })
 
-            # 生成文件输出
-            from ..utils.file_output_util import generate_stage_file
-            generate_stage_file("agent_analysis", agent_analysis, shared)
+            # 使用简化文件工具直接写入markdown
+            from ..utils.simple_file_util import write_file_directly
+            write_file_directly("01_agent_analysis.md", analysis_markdown, shared)
 
             print(f"✅ Agent需求分析完成")
-            print(f"   Agent类型: {agent_analysis.get('agent_type', 'Unknown')}")
-            print(f"   核心功能: {len(agent_analysis.get('core_functions', []))}个")
 
             return "analysis_complete"
             
@@ -123,7 +117,7 @@ class AgentRequirementsAnalysisNode(AsyncNode):
         user_input = prep_result.get("user_input", "")
         
 
-        prompt = f"""你是一个专业的AI Agent设计专家。请基于已经结构化的需求分析，明确要设计的Agent类型和核心功能。
+        prompt = f"""基于以下信息，分析并明确要设计的Agent类型和核心功能。
 
 **结构化需求：**
 {json.dumps(structured_requirements, indent=2, ensure_ascii=False)}
@@ -134,67 +128,57 @@ class AgentRequirementsAnalysisNode(AsyncNode):
 **确认文档：**
 {prep_result.get('confirmation_document', '无确认文档')}
 
-请分析并输出JSON格式的结果，包含以下字段：
-
-{{
-    "agent_type": "Agent类型（如：对话Agent、分析Agent、推荐Agent等）",
-    "agent_purpose": "Agent的主要目的和价值",
-    "core_functions": [
-        {{
-            "function_name": "功能名称",
-            "description": "功能描述",
-            "complexity": "简单/中等/复杂",
-            "priority": "高/中/低"
-        }}
-    ],
-    "input_types": ["输入数据类型1", "输入数据类型2"],
-    "output_types": ["输出数据类型1", "输出数据类型2"],
-    "processing_pattern": "处理模式（如：流水线、批处理、实时响应等）",
-    "key_challenges": ["主要技术挑战1", "主要技术挑战2"],
-    "success_criteria": ["成功标准1", "成功标准2"]
-}}
-
-请确保分析结果专注于Agent的核心能力和处理逻辑，为后续的Flow和Node设计提供清晰的指导。
-
-**重要：请严格按照上述JSON格式输出，确保字段完全正确，不要添加任何额外的文字说明、代码块标记或其他内容。直接输出纯JSON数据。**"""
+请分析上述信息，生成完整的Agent需求分析报告。"""
         
         return prompt
     
     async def _analyze_agent_requirements_async(self, prompt: str) -> str:
         """异步调用LLM分析Agent需求"""
         try:
-            # 使用异步版本调用LLM
-            result = await call_llm_async(prompt, is_json=True)
+            # 构建系统提示词
+            system_prompt = """你是一个专业的AI Agent设计专家，专门分析和设计基于pocketflow框架的Agent。
+
+请严格按照以下Markdown格式输出Agent需求分析结果：
+
+# Agent需求分析结果
+
+## Agent基本信息
+- **Agent类型**: [Agent类型，如：对话Agent、分析Agent、推荐Agent等]
+- **Agent目的**: [Agent的主要目的和价值]
+- **处理模式**: [处理模式，如：流水线、批处理、实时响应等]
+
+## 核心功能
+
+### 1. [功能名称1]
+- **描述**: [功能详细描述]
+- **复杂度**: [简单/中等/复杂]
+- **优先级**: [高/中/低]
+
+### 2. [功能名称2]
+- **描述**: [功能详细描述]
+- **复杂度**: [简单/中等/复杂]
+- **优先级**: [高/中/低]
+
+## 输入输出类型
+- **输入类型**: [输入数据类型，用逗号分隔]
+- **输出类型**: [输出数据类型，用逗号分隔]
+
+## 技术挑战
+- [主要技术挑战1]
+- [主要技术挑战2]
+- [其他挑战...]
+
+## 成功标准
+- [成功标准1]
+- [成功标准2]
+- [其他标准...]
+
+重要：请严格按照上述Markdown格式输出，不要输出JSON格式！直接输出完整的Markdown文档。"""
+
+            # 使用系统提示词调用LLM
+            result = await call_llm_async(prompt, is_json=False, system_prompt=system_prompt)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")
 
 
-
-  
-    
-    def _parse_analysis_result(self, analysis_result: str) -> Dict[str, Any]:
-        """解析分析结果"""
-        try:
-            # 尝试解析JSON
-            if isinstance(analysis_result, str):
-                agent_analysis = json.loads(analysis_result)
-            else:
-                agent_analysis = analysis_result
-            
-            # 验证必需字段
-            required_fields = ["agent_type", "agent_purpose", "core_functions"]
-            for field in required_fields:
-                if field not in agent_analysis:
-                    agent_analysis[field] = f"未指定{field}"
-            
-            # 确保core_functions是列表
-            if not isinstance(agent_analysis.get("core_functions"), list):
-                agent_analysis["core_functions"] = []
-            
-            return agent_analysis
-            
-        except json.JSONDecodeError as e:
-            raise Exception(f"Agent需求分析JSON解析失败: {e}")
-        except Exception as e:
-            raise Exception(f"Agent需求分析结果解析失败: {e}")

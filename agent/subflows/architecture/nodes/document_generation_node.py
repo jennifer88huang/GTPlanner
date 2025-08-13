@@ -25,40 +25,33 @@ class DocumentGenerationNode(AsyncNode):
     async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：收集所有设计结果"""
         try:
-            # 获取所有前面步骤的结果
-            agent_analysis = shared.get("agent_analysis", {})
-            identified_nodes = shared.get("identified_nodes", [])
-            flow_design = shared.get("flow_design", {})
-            data_structure = shared.get("data_structure", {})
-            detailed_nodes = shared.get("detailed_nodes", [])
-            
+            # 获取所有前面步骤的markdown结果
+            analysis_markdown = shared.get("analysis_markdown", "")
+            nodes_markdown = shared.get("nodes_markdown", "")
+            flow_markdown = shared.get("flow_markdown", "")
+            data_structure_markdown = shared.get("data_structure_markdown", "")
+            node_design_markdown = shared.get("node_design_markdown", "")
+
             # 获取原始需求信息
             structured_requirements = shared.get("structured_requirements", {})
-            research_findings = shared.get("research_findings", {})
-            confirmation_document = shared.get("confirmation_document", "")
-            
+
             # 检查必需的输入
             required_data = {
-                "agent_analysis": agent_analysis,
-                "identified_nodes": identified_nodes,
-                "flow_design": flow_design,
-                "data_structure": data_structure,
-                "detailed_nodes": detailed_nodes
+                "analysis_markdown": analysis_markdown,
+                "nodes_markdown": nodes_markdown
             }
-            
+
             missing_data = [key for key, value in required_data.items() if not value]
             if missing_data:
                 return {"error": f"缺少必需的设计数据: {missing_data}"}
-            
+
             return {
-                "agent_analysis": agent_analysis,
-                "identified_nodes": identified_nodes,
-                "flow_design": flow_design,
-                "data_structure": data_structure,
-                "detailed_nodes": detailed_nodes,
+                "analysis_markdown": analysis_markdown,
+                "nodes_markdown": nodes_markdown,
+                "flow_markdown": flow_markdown,
+                "data_structure_markdown": data_structure_markdown,
+                "node_design_markdown": node_design_markdown,
                 "structured_requirements": structured_requirements,
-                "research_findings": research_findings,
-                "confirmation_document": confirmation_document,
                 "timestamp": time.time()
             }
             
@@ -98,9 +91,9 @@ class DocumentGenerationNode(AsyncNode):
             agent_design_document = exec_res["agent_design_document"]
             shared["agent_design_document"] = agent_design_document
 
-            # 生成文件
-            from ..utils.file_output_util import generate_stage_file
-            generate_stage_file("document_generation", agent_design_document, shared)
+            # 使用简化文件工具直接写入markdown
+            from ..utils.simple_file_util import write_file_directly
+            write_file_directly("06_agent_design_complete.md", agent_design_document, shared)
             
             # 更新系统消息
             if "system_messages" not in shared:
@@ -123,33 +116,33 @@ class DocumentGenerationNode(AsyncNode):
     
     def _build_document_generation_prompt(self, prep_result: Dict[str, Any]) -> str:
         """构建文档生成提示词"""
-        agent_analysis = prep_result["agent_analysis"]
-        identified_nodes = prep_result["identified_nodes"]
-        flow_design = prep_result["flow_design"]
-        data_structure = prep_result["data_structure"]
-        detailed_nodes = prep_result["detailed_nodes"]
+        analysis_markdown = prep_result.get("analysis_markdown", "")
+        nodes_markdown = prep_result.get("nodes_markdown", "")
+        flow_markdown = prep_result.get("flow_markdown", "")
+        data_structure_markdown = prep_result.get("data_structure_markdown", "")
+        node_design_markdown = prep_result.get("node_design_markdown", "")
         structured_requirements = prep_result.get("structured_requirements", {})
-        
+
         project_title = structured_requirements.get("project_name", "AI Agent项目")
-        
+
         prompt = f"""你是一个专业的AI助手，擅长编写基于pocketflow的Agent设计文档。请根据以下完整的设计结果，生成一份高质量的Agent设计文档。
 
 **项目标题：** {project_title}
 
 **Agent分析结果：**
-{json.dumps(agent_analysis, indent=2, ensure_ascii=False)}
+{analysis_markdown}
 
 **识别的Node列表：**
-{json.dumps(identified_nodes, indent=2, ensure_ascii=False)}
+{nodes_markdown}
 
 **Flow设计：**
-{json.dumps(flow_design, indent=2, ensure_ascii=False)}
+{flow_markdown}
 
 **数据结构设计：**
-{json.dumps(data_structure, indent=2, ensure_ascii=False)}
+{data_structure_markdown}
 
 **详细Node设计：**
-{json.dumps(detailed_nodes, indent=2, ensure_ascii=False)}
+{node_design_markdown}
 
 请生成一份完整的Markdown格式的Agent设计文档，必须包含以下部分：
 

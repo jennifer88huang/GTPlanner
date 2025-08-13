@@ -25,26 +25,22 @@ class DataStructureDesignNode(AsyncNode):
     async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取Flow和Node设计结果"""
         try:
-            # 获取Flow设计结果
-            flow_design = shared.get("flow_design", {})
-            
-            # 获取已识别的Node列表
-            identified_nodes = shared.get("identified_nodes", [])
-
-            # 获取Agent分析结果
-            agent_analysis = shared.get("agent_analysis", {})
+            # 获取markdown格式的设计结果
+            analysis_markdown = shared.get("analysis_markdown", "")
+            nodes_markdown = shared.get("nodes_markdown", "")
+            flow_markdown = shared.get("flow_markdown", "")
 
             # 检查必需的输入
-            if not flow_design:
-                return {"error": "缺少Flow设计结果"}
+            if not analysis_markdown:
+                return {"error": "缺少Agent分析结果"}
 
-            if not identified_nodes:
-                return {"error": "缺少已识别的Node列表"}
-            
+            if not nodes_markdown:
+                return {"error": "缺少Node识别结果"}
+
             return {
-                "flow_design": flow_design,
-                "identified_nodes": identified_nodes,
-                "agent_analysis": agent_analysis,
+                "analysis_markdown": analysis_markdown,
+                "nodes_markdown": nodes_markdown,
+                "flow_markdown": flow_markdown,
                 "timestamp": time.time()
             }
             
@@ -59,16 +55,12 @@ class DataStructureDesignNode(AsyncNode):
             
             # 构建数据结构设计提示词
             prompt = self._build_data_structure_prompt(prep_result)
-            
-            # 异步调用LLM设计数据结构
-            data_structure = await self._design_data_structure(prompt)
-            
-            # 解析数据结构设计结果
-            parsed_structure = self._parse_data_structure(data_structure)
-            
+
+            # 异步调用LLM设计数据结构，输出JSON
+            data_structure_json = await self._design_data_structure(prompt)
+
             return {
-                "data_structure": parsed_structure,
-                "raw_data_structure": data_structure,
+                "data_structure_json": data_structure_json,
                 "design_success": True
             }
             
@@ -83,27 +75,26 @@ class DataStructureDesignNode(AsyncNode):
                 print(f"❌ 数据结构设计失败: {exec_res['error']}")
                 return "error"
             
-            # 保存数据结构设计
-            data_structure = exec_res["data_structure"]
-            shared["data_structure"] = data_structure
-            
+            # 保存数据结构JSON
+            data_structure_json = exec_res["data_structure_json"]
+            shared["data_structure_json"] = data_structure_json
+
             # 更新系统消息
             if "system_messages" not in shared:
                 shared["system_messages"] = []
-            
+
             shared["system_messages"].append({
                 "timestamp": time.time(),
                 "stage": "data_structure_design",
                 "status": "completed",
-                "message": f"数据结构设计完成：{len(data_structure.get('shared_fields', []))}个字段"
+                "message": "数据结构设计完成"
             })
 
-            # 生成文件输出
-            from ..utils.file_output_util import generate_stage_file
-            generate_stage_file("data_structure", data_structure, shared)
+            # 使用简化文件工具保存JSON文件
+            from ..utils.simple_file_util import write_file_directly
+            write_file_directly("04_data_structure.json", data_structure_json, shared)
 
             print(f"✅ 数据结构设计完成")
-            print(f"   共享字段数: {len(data_structure.get('shared_fields', []))}")
 
             return "data_structure_complete"
             
@@ -114,39 +105,37 @@ class DataStructureDesignNode(AsyncNode):
     
     def _build_data_structure_prompt(self, prep_result: Dict[str, Any]) -> str:
         """构建数据结构设计提示词"""
-        flow_design = prep_result["flow_design"]
-        identified_nodes = prep_result["identified_nodes"]
-        agent_analysis = prep_result.get("agent_analysis", {})
+        analysis_markdown = prep_result.get("analysis_markdown", "")
+        nodes_markdown = prep_result.get("nodes_markdown", "")
+        flow_markdown = prep_result.get("flow_markdown", "")
 
-        # 基于Flow设计和Node信息分析数据需求
-        nodes_summary = []
-        for node in identified_nodes:
-            node_name = node.get("node_name", "Unknown")
-            purpose = node.get("purpose", "")
-            nodes_summary.append({
-                "node": node_name,
-                "purpose": purpose,
-                "expected_inputs": node.get("input_expectations", ""),
-                "expected_outputs": node.get("output_expectations", "")
-            })
-        
-        prompt = f"""你是一个专业的数据架构设计师。基于以下Flow和Node设计，设计完整的shared存储数据结构。
+        prompt = f"""基于以下设计信息，为智能Agent设计完整的shared存储数据结构。
 
 **Agent分析结果：**
-{json.dumps(agent_analysis, indent=2, ensure_ascii=False)}
+{analysis_markdown}
+
+**Node识别结果：**
+{nodes_markdown}
 
 **Flow设计：**
-{json.dumps(flow_design, indent=2, ensure_ascii=False)}
+{flow_markdown}
 
-**Node信息汇总：**
-{json.dumps(nodes_summary, indent=2, ensure_ascii=False)}
+请分析上述信息，设计出支持整个Agent运行的shared数据结构。"""
 
-请设计完整的shared存储数据结构，输出JSON格式结果：
+        return prompt
+    
+    async def _design_data_structure(self, prompt: str) -> str:
+        """调用LLM设计数据结构"""
+        try:
+            # 构建系统提示词
+            system_prompt = """你是一个专业的数据架构设计师，专门为pocketflow框架设计shared存储数据结构。
 
-{{
+请严格按照以下JSON格式输出数据结构设计：
+
+{
     "shared_structure_description": "shared存储的整体描述",
     "shared_fields": [
-        {{
+        {
             "field_name": "字段名称",
             "data_type": "数据类型（如：str, dict, list等）",
             "description": "字段描述",
@@ -155,76 +144,38 @@ class DataStructureDesignNode(AsyncNode):
             "written_by_nodes": ["写入此字段的Node列表"],
             "example_value": "示例值或结构",
             "required": true/false
-        }}
+        }
     ],
     "data_flow_patterns": [
-        {{
+        {
             "pattern_name": "数据流模式名称",
             "description": "数据流描述",
             "involved_fields": ["涉及的字段"],
             "flow_sequence": ["数据流转顺序"]
-        }}
+        }
     ],
-    "shared_example": {{
-        "// 完整的shared存储示例结构": "注释",
+    "shared_example": {
         "field1": "示例值1",
-        "field2": {{}},
+        "field2": {},
         "field3": []
-    }}
-}}
+    }
+}
 
-**设计要求：**
+设计要求：
 1. 确保所有Node的数据需求都被满足
 2. 避免数据冗余和冲突
 3. 清晰的数据流转路径
 4. 考虑数据的生命周期
 5. 遵循pocketflow的shared存储最佳实践
+6. 每个字段只定义一次，不要重复
+7. 确保JSON格式正确，没有语法错误
 
-请确保设计的数据结构能够支持整个Agent的正常运行。
+重要：直接输出纯JSON数据，不要添加代码块标记或其他文字说明。"""
 
-**重要：请严格按照上述JSON格式输出，不要添加任何额外的文字说明、代码块标记或其他内容。直接输出纯JSON数据。**"""
-        
-        return prompt
-    
-    async def _design_data_structure(self, prompt: str) -> str:
-        """调用LLM设计数据结构"""
-        try:
-            # 使用重试机制调用LLM
-            result = await call_llm_async(prompt, is_json=True)
+            # 使用系统提示词调用LLM
+            result = await call_llm_async(prompt, is_json=True, system_prompt=system_prompt)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")
     
-    def _parse_data_structure(self, data_structure: str) -> Dict[str, Any]:
-        """解析数据结构设计结果"""
-        try:
-            # 尝试解析JSON
-            if isinstance(data_structure, str):
-                parsed_structure = json.loads(data_structure)
-            else:
-                parsed_structure = data_structure
-            
-            # 验证必需字段
-            required_fields = ["shared_fields", "shared_example"]
-            for field in required_fields:
-                if field not in parsed_structure:
-                    if field == "shared_fields":
-                        parsed_structure[field] = []
-                    elif field == "shared_example":
-                        parsed_structure[field] = {}
-            
-            # 验证shared_fields结构
-            for field_info in parsed_structure.get("shared_fields", []):
-                if "field_name" not in field_info:
-                    raise Exception("shared_fields中缺少field_name")
-                if "data_type" not in field_info:
-                    field_info["data_type"] = "unknown"
-                if "description" not in field_info:
-                    field_info["description"] = "待描述"
-            
-            return parsed_structure
-            
-        except json.JSONDecodeError as e:
-            raise Exception(f"数据结构设计JSON解析失败: {e}")
-        except Exception as e:
-            raise Exception(f"数据结构设计解析失败: {e}")
+

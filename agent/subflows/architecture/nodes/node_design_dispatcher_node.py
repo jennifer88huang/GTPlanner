@@ -21,61 +21,81 @@ class NodeDesignDispatcherNode(AsyncNode):
     async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：收集需要设计的Node列表和相关数据"""
         try:
-            # 获取前面步骤的结果
-            identified_nodes = shared.get("identified_nodes", [])
-            flow_design = shared.get("flow_design", {})
-            data_structure = shared.get("data_structure", {})
-            agent_analysis = shared.get("agent_analysis", {})
-            
+            # 获取markdown格式的设计结果
+            analysis_markdown = shared.get("analysis_markdown", "")
+            nodes_markdown = shared.get("nodes_markdown", "")
+            flow_markdown = shared.get("flow_markdown", "")
+            data_structure_json = shared.get("data_structure_json", "")
+
             # 检查必需的输入
-            if not identified_nodes:
-                return {"error": "缺少识别的Node列表"}
-            
-            if not flow_design:
-                return {"error": "缺少Flow设计结果"}
-            
-            if not data_structure:
-                return {"error": "缺少数据结构设计结果"}
-            
+            if not nodes_markdown:
+                return {"error": "缺少Node识别结果"}
+
+            # 从markdown中解析Node信息
+            parsed_nodes = self._parse_nodes_from_markdown(nodes_markdown)
+
+            if not parsed_nodes:
+                return {"error": "无法从markdown中解析出Node信息"}
+
             return {
-                "identified_nodes": identified_nodes,
-                "flow_design": flow_design,
-                "data_structure": data_structure,
-                "agent_analysis": agent_analysis,
-                "total_nodes": len(identified_nodes),
+                "analysis_markdown": analysis_markdown,
+                "nodes_markdown": nodes_markdown,
+                "flow_markdown": flow_markdown,
+                "data_structure_json": data_structure_json,
+                "parsed_nodes": parsed_nodes,
+                "total_nodes": len(parsed_nodes),
                 "timestamp": time.time()
             }
             
         except Exception as e:
             return {"error": f"Node design dispatch preparation failed: {str(e)}"}
-    
+
+    def _parse_nodes_from_markdown(self, nodes_markdown: str) -> List[Dict[str, Any]]:
+        """从markdown中解析Node信息"""
+        import re
+
+        nodes = []
+
+        # 使用正则表达式匹配三级标题（### 数字. Node名称）
+        node_pattern = r'### (\d+)\.\s+(.+?)(?=\n\n|\n###|\Z)'
+        matches = re.findall(node_pattern, nodes_markdown, re.DOTALL)
+
+        for match in matches:
+            node_number, node_content = match
+
+            # 直接保存完整内容
+            nodes.append(node_content.strip())
+
+        return nodes
+
     async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
         """异步执行阶段：准备批处理任务数据"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
-            
-            identified_nodes = prep_result["identified_nodes"]
-            flow_design = prep_result["flow_design"]
-            data_structure = prep_result["data_structure"]
-            agent_analysis = prep_result["agent_analysis"]
-            
+
+            parsed_nodes = prep_result["parsed_nodes"]
+            analysis_markdown = prep_result["analysis_markdown"]
+            nodes_markdown = prep_result["nodes_markdown"]
+            flow_markdown = prep_result["flow_markdown"]
+            data_structure_json = prep_result["data_structure_json"]
+
             # 为每个Node准备设计任务数据
             design_tasks = []
-            for i, node_info in enumerate(identified_nodes):
+            for i, node_content in enumerate(parsed_nodes):
                 task = {
                     "task_id": f"node_design_{i}",
-                    "node_info": node_info,
-                    "node_name": node_info.get("node_name", f"Node_{i}"),
+                    "node_content": node_content,
                     "context_data": {
-                        "flow_design": flow_design,
-                        "data_structure": data_structure,
-                        "agent_analysis": agent_analysis,
-                        "all_nodes": identified_nodes
+                        "analysis_markdown": analysis_markdown,
+                        "nodes_markdown": nodes_markdown,
+                        "flow_markdown": flow_markdown,
+                        "data_structure_json": data_structure_json,
+                        "all_nodes": parsed_nodes
                     }
                 }
                 design_tasks.append(task)
-            
+
             return {
                 "design_tasks": design_tasks,
                 "total_tasks": len(design_tasks),
@@ -115,8 +135,8 @@ class NodeDesignDispatcherNode(AsyncNode):
             
             print(f"✅ Node设计任务分发完成")
             print(f"   分发任务数: {len(design_tasks)}")
-            for task in design_tasks:
-                print(f"   - {task['node_name']}: {task['task_id']}")
+            for i, task in enumerate(design_tasks, 1):
+                print(f"   - 任务{i}: {task['task_id']}")
             
             return "dispatch_complete"
             
@@ -159,57 +179,56 @@ class NodeDesignAggregatorNode(AsyncNode):
             return {"error": f"Node design aggregation preparation failed: {str(e)}"}
     
     async def exec_async(self, prep_result: Dict[str, Any]) -> Dict[str, Any]:
-        """异步执行阶段：聚合设计结果"""
+        """异步执行阶段：并发处理Node设计任务"""
         try:
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
-            
+
             design_tasks = prep_result["design_tasks"]
-            design_results = prep_result["design_results"]
-            
-            # 模拟批处理结果聚合（实际应该从并行任务中收集）
-            # 这里我们简化处理，直接使用原来的NodeDesignNode逻辑
+
+            # 导入NodeDesignNode用于实际设计
             from .node_design_node import NodeDesignNode
-            
-            detailed_nodes = []
             node_design_node = NodeDesignNode()
-            
-            print(f"🔄 开始聚合{len(design_tasks)}个Node设计任务...")
-            
-            for i, task in enumerate(design_tasks, 1):
-                print(f"🔧 处理Node {i}/{len(design_tasks)}: {task['node_name']}")
 
-                # 为每个Node执行设计
-                # 这里简化了批处理逻辑，实际应该是并行执行的结果聚合
-                try:
-                    print(f"   📝 开始设计Node: {task['node_name']}")
-                    start_time = time.time()
+            print(f"🔄 开始并发处理{len(design_tasks)}个Node设计任务...")
 
-                    # 模拟单个Node的设计过程
-                    node_result = await self._design_single_node(node_design_node, task)
+            # 使用asyncio.gather实现真正的并发处理
+            import asyncio
 
-                    design_time = time.time() - start_time
+            # 创建并发任务
+            concurrent_tasks = [
+                self._design_single_node_concurrent(node_design_node, task, i+1, len(design_tasks))
+                for i, task in enumerate(design_tasks)
+            ]
 
-                    if node_result:
-                        detailed_nodes.append(node_result)
-                        print(f"   ✅ Node {task['node_name']} 设计完成 (耗时: {design_time:.2f}秒)")
-                        print(f"      设计类型: {node_result.get('node_type', 'Unknown')}")
-                        print(f"      设计详情: {len(str(node_result.get('design_details', {})))} 字符")
-                    else:
-                        print(f"   ❌ Node {task['node_name']} 设计返回空结果")
+            # 并发执行所有任务
+            results = await asyncio.gather(*concurrent_tasks, return_exceptions=True)
 
-                except Exception as e:
-                    print(f"   ❌ Node {task['node_name']} 设计失败: {e}")
-                    import traceback
-                    print(f"   📋 错误详情: {traceback.format_exc()}")
-                    continue
-            
+            # 处理结果
+            design_markdowns = []
+            successful_count = 0
+
+            for i, result in enumerate(results):
+                if isinstance(result, Exception):
+                    print(f"❌ 任务 {i+1} 执行失败: {result}")
+                elif result and result.get("success"):
+                    design_markdowns.append(result["design_markdown"])
+                    successful_count += 1
+                else:
+                    print(f"❌ 任务 {i+1} 返回无效结果")
+
+            # 合并所有设计结果为一个markdown文档
+            combined_markdown = self._combine_design_results(design_markdowns)
+
+            print(f"✅ 并发处理完成: {successful_count}/{len(design_tasks)} 个任务成功")
+
             return {
-                "detailed_nodes": detailed_nodes,
+                "node_design_markdown": combined_markdown,
                 "aggregation_success": True,
-                "processed_count": len(detailed_nodes)
+                "processed_count": successful_count,
+                "total_tasks": len(design_tasks)
             }
-            
+
         except Exception as e:
             return {"error": f"Node design aggregation failed: {str(e)}"}
     
@@ -221,27 +240,30 @@ class NodeDesignAggregatorNode(AsyncNode):
                 print(f"❌ Node设计结果聚合失败: {exec_res['error']}")
                 return "error"
             
-            # 保存聚合的设计结果
-            detailed_nodes = exec_res["detailed_nodes"]
-            shared["detailed_nodes"] = detailed_nodes
-            
-            # 生成文件输出
-            from ..utils.file_output_util import generate_stage_file
-            generate_stage_file("node_design", detailed_nodes, shared)
-            
+            # 保存聚合的markdown结果
+            node_design_markdown = exec_res["node_design_markdown"]
+            shared["node_design_markdown"] = node_design_markdown
+
+            # 使用简化文件工具直接写入markdown
+            from ..utils.simple_file_util import write_file_directly
+            write_file_directly("05_node_design.md", node_design_markdown, shared)
+
             # 更新系统消息
             if "system_messages" not in shared:
                 shared["system_messages"] = []
-            
+
+            processed_count = exec_res.get("processed_count", 0)
+            total_tasks = exec_res.get("total_tasks", 0)
+
             shared["system_messages"].append({
                 "timestamp": time.time(),
                 "stage": "node_design_aggregation",
                 "status": "completed",
-                "message": f"Node设计聚合完成：{len(detailed_nodes)}个节点"
+                "message": f"Node设计聚合完成：{processed_count}/{total_tasks}个任务成功"
             })
-            
+
             print(f"✅ Node设计聚合完成")
-            print(f"   设计节点数: {len(detailed_nodes)}")
+            print(f"   成功处理: {processed_count}/{total_tasks} 个任务")
             
             return "aggregation_complete"
             
@@ -249,47 +271,45 @@ class NodeDesignAggregatorNode(AsyncNode):
             shared["node_design_aggregation_post_error"] = str(e)
             print(f"❌ Node设计聚合后处理失败: {str(e)}")
             return "error"
-    
-    async def _design_single_node(self, node_design_node: 'NodeDesignNode', task: Dict[str, Any]) -> Dict[str, Any]:
-        """为单个Node执行设计（简化版本）"""
+
+    async def _design_single_node_concurrent(self, node_design_node, task: Dict[str, Any], task_num: int, total_tasks: int) -> Dict[str, Any]:
+        """并发处理单个Node设计任务"""
         try:
-            node_info = task["node_info"]
+            node_content = task["node_content"]
             context_data = task["context_data"]
-            node_name = task["node_name"]
 
-            print(f"      🔍 准备设计数据...")
-            print(f"         Node信息: {node_info.get('purpose', 'Unknown')}")
-            print(f"         上下文数据: Flow设计({len(str(context_data['flow_design']))}字符)")
+            print(f"🔧 [{task_num}/{total_tasks}] 开始设计Node...")
 
-            # 构建简化的prep_result
-            prep_result = {
-                "flow_design": context_data["flow_design"],
-                "data_structure": context_data["data_structure"],
-                "identified_nodes": context_data["all_nodes"],
-                "agent_analysis": context_data["agent_analysis"]
+            # 构建Node设计提示词
+            prompt = node_design_node._build_node_design_prompt(context_data, node_content)
+
+            # 调用LLM设计Node
+            design_markdown = await node_design_node._design_single_node(prompt)
+
+            print(f"✅ [{task_num}/{total_tasks}] Node设计完成")
+
+            return {
+                "node_content": node_content,
+                "design_markdown": design_markdown,
+                "success": True
             }
 
-            print(f"      🤖 调用LLM进行Node设计...")
-            llm_start_time = time.time()
-
-            # 调用原来的设计逻辑
-            design_result = await node_design_node._design_single_node_detailed(prep_result, node_info)
-
-            llm_time = time.time() - llm_start_time
-            print(f"      ✅ LLM调用完成 (耗时: {llm_time:.2f}秒)")
-
-            if design_result:
-                print(f"      📊 设计结果验证:")
-                print(f"         Node名称: {design_result.get('node_name', 'Unknown')}")
-                print(f"         设计详情: {'有' if design_result.get('design_details') else '无'}")
-                print(f"         数据访问: {'有' if design_result.get('data_access') else '无'}")
-            else:
-                print(f"      ⚠️ 设计结果为空")
-
-            return design_result
-
         except Exception as e:
-            print(f"      ❌ 单个Node设计异常: {e}")
-            import traceback
-            print(f"      📋 异常详情: {traceback.format_exc()}")
-            return None
+            print(f"❌ [{task_num}/{total_tasks}] Node设计失败: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _combine_design_results(self, design_markdowns: list) -> str:
+        """合并多个Node设计结果为一个markdown文档"""
+        if not design_markdowns:
+            return "# Node设计结果\n\n暂无设计结果。"
+
+        combined = "# Node设计结果\n\n"
+        combined += f"共设计了 {len(design_markdowns)} 个Node。\n\n"
+
+        for i, markdown in enumerate(design_markdowns, 1):
+            combined += f"## 设计结果 {i}\n\n"
+            combined += markdown + "\n\n"
+            combined += "---\n\n"
+
+        return combined.strip()
+

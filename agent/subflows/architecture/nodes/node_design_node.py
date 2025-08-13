@@ -26,33 +26,24 @@ class NodeDesignNode(AsyncNode):
     async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：获取Flow设计结果"""
         try:
-            # 获取Flow设计结果
-            flow_design = shared.get("flow_design", {})
-
-            # 获取已识别的Node列表
-            identified_nodes = shared.get("identified_nodes", [])
-
-            # 获取数据结构设计
-            data_structure = shared.get("data_structure", {})
-
-            # 获取Agent分析结果
-            agent_analysis = shared.get("agent_analysis", {})
+            # 获取markdown格式的设计结果
+            analysis_markdown = shared.get("analysis_markdown", "")
+            nodes_markdown = shared.get("nodes_markdown", "")
+            flow_markdown = shared.get("flow_markdown", "")
+            data_structure_json = shared.get("data_structure_json", "")
 
             # 检查必需的输入
-            if not flow_design:
-                return {"error": "缺少Flow设计结果"}
+            if not analysis_markdown:
+                return {"error": "缺少Agent分析结果"}
 
-            if not identified_nodes:
-                return {"error": "缺少已识别的Node列表"}
-
-            if not data_structure:
-                return {"error": "缺少数据结构设计"}
+            if not nodes_markdown:
+                return {"error": "缺少Node识别结果"}
 
             return {
-                "flow_design": flow_design,
-                "identified_nodes": identified_nodes,
-                "data_structure": data_structure,
-                "agent_analysis": agent_analysis,
+                "analysis_markdown": analysis_markdown,
+                "nodes_markdown": nodes_markdown,
+                "flow_markdown": flow_markdown,
+                "data_structure_json": data_structure_json,
                 "timestamp": time.time()
             }
             
@@ -65,27 +56,36 @@ class NodeDesignNode(AsyncNode):
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
             
-            identified_nodes = prep_result["identified_nodes"]
+            # 构建上下文数据
+            context_data = {
+                "analysis_markdown": prep_result.get("analysis_markdown", ""),
+                "nodes_markdown": prep_result.get("nodes_markdown", ""),
+                "flow_markdown": prep_result.get("flow_markdown", ""),
+                "data_structure_json": prep_result.get("data_structure_json", "")
+            }
 
-            # 为每个Node设计详细实现
-            detailed_nodes = []
+            # 模拟Node内容（实际应该从nodes_markdown中解析）
+            node_content = """ExampleNode
 
-            for node_info in identified_nodes:
-                node_name = node_info.get("node_name", "UnknownNode")
-                print(f"🔧 设计Node: {node_name}")
-                
-                # 构建Node设计提示词
-                prompt = self._build_node_design_prompt(prep_result, node_info)
-                
-                # 异步调用LLM设计Node
-                node_design = await self._design_single_node(prompt)
-                
-                # 解析Node设计结果
-                parsed_node = self._parse_node_design(node_design, node_info)
-                detailed_nodes.append(parsed_node)
-            
+- **Node类型**: AsyncNode
+- **目的**: 示例节点
+- **职责**: 演示节点设计
+- **输入期望**: 示例输入
+- **输出期望**: 示例输出
+- **复杂度**: 简单
+- **处理类型**: 示例处理
+- **推荐重试**: 否"""
+
+            print(f"🔧 设计Node")
+
+            # 构建Node设计提示词
+            prompt = self._build_node_design_prompt(context_data, node_content)
+
+            # 异步调用LLM设计Node，直接输出markdown
+            node_design_markdown = await self._design_single_node(prompt)
+
             return {
-                "detailed_nodes": detailed_nodes,
+                "node_design_markdown": node_design_markdown,
                 "design_success": True
             }
             
@@ -100,27 +100,26 @@ class NodeDesignNode(AsyncNode):
                 print(f"❌ Node设计失败: {exec_res['error']}")
                 return "error"
             
-            # 保存Node设计
-            detailed_nodes = exec_res["detailed_nodes"]
-            shared["detailed_nodes"] = detailed_nodes
-            
+            # 保存Node设计markdown
+            node_design_markdown = exec_res["node_design_markdown"]
+            shared["node_design_markdown"] = node_design_markdown
+
             # 更新系统消息
             if "system_messages" not in shared:
                 shared["system_messages"] = []
-            
+
             shared["system_messages"].append({
                 "timestamp": time.time(),
                 "stage": "node_design",
                 "status": "completed",
-                "message": f"Node设计完成：{len(detailed_nodes)}个节点"
+                "message": "Node设计完成"
             })
 
-            # 生成文件输出
-            from ..utils.file_output_util import generate_stage_file
-            generate_stage_file("node_design", detailed_nodes, shared)
+            # 使用简化文件工具直接写入markdown
+            from ..utils.simple_file_util import write_file_directly
+            write_file_directly("05_node_design.md", node_design_markdown, shared)
 
             print(f"✅ Node设计完成")
-            print(f"   设计节点数: {len(detailed_nodes)}")
 
             return "nodes_designed"
             
@@ -129,102 +128,80 @@ class NodeDesignNode(AsyncNode):
             print(f"❌ Node设计后处理失败: {str(e)}")
             return "error"
     
-    def _build_node_design_prompt(self, prep_result: Dict[str, Any], node_info: Dict[str, Any]) -> str:
+    def _build_node_design_prompt(self, context_data: Dict[str, Any], node_content: str) -> str:
         """构建Node设计提示词"""
-        flow_design = prep_result["flow_design"]
-        agent_analysis = prep_result.get("agent_analysis", {})
+        prompt = f"""为以下Node设计详细的实现方案。
 
-        node_name = node_info.get("node_name", "UnknownNode")
-        node_type = node_info.get("node_type", "Node")
-        node_purpose = node_info.get("purpose", "")
-
-        # 分析此Node在Flow中的位置和连接关系
-        connections = flow_design.get("connections", [])
-        incoming_nodes = [conn for conn in connections if conn.get("to_node") == node_name]
-        outgoing_nodes = [conn for conn in connections if conn.get("from_node") == node_name]
-
-        # 分析前置和后置Node的信息
-        context_info = {
-            "incoming_connections": incoming_nodes,
-            "outgoing_connections": outgoing_nodes,
-            "position_in_flow": self._analyze_node_position(node_name, flow_design)
-        }
-
-        prompt = f"""你是一个专业的pocketflow Node设计师。请为以下Node设计详细的实现方案。
-
-**Node基本信息：**
-- 名称: {node_name}
-- 类型: {node_type}
-- 目的: {node_purpose}
-
-**Node在Flow中的位置和连接关系：**
-{json.dumps(context_info, indent=2, ensure_ascii=False)}
-
-**完整Flow设计：**
-{json.dumps(flow_design, indent=2, ensure_ascii=False)}
+**Node信息：**
+{node_content}
 
 **Agent分析结果：**
-{json.dumps(agent_analysis, indent=2, ensure_ascii=False)}
+{context_data.get("analysis_markdown", "")}
 
-请设计这个Node的详细实现，输出JSON格式结果：
+**Flow设计：**
+{context_data.get("flow_markdown", "")}
 
-{{
-    "node_name": "{node_name}",
-    "node_type": "{node_type}",
-    "purpose": "节点目的",
-    "design_details": {{
-        "prep_stage": {{
-            "description": "prep阶段的详细描述",
-            "input_from_shared": ["从shared读取的数据字段"],
-            "validation_logic": "数据验证逻辑",
-            "preparation_steps": ["准备步骤1", "准备步骤2"],
-            "output_prep_res": "prep_res的结构描述"
-        }},
-        "exec_stage": {{
-            "description": "exec阶段的详细描述",
-            "core_logic": "核心处理逻辑描述",
-            "processing_steps": ["处理步骤1", "处理步骤2"],
-            "error_handling": "错误处理策略",
-            "output_exec_res": "exec_res的结构描述"
-        }},
-        "post_stage": {{
-            "description": "post阶段的详细描述",
-            "result_processing": "结果处理逻辑",
-            "shared_updates": ["更新到shared的数据"],
-            "action_logic": "Action决策逻辑",
-            "possible_actions": ["可能返回的Action列表"]
-        }}
-    }},
-    "data_access": {{
-        "reads_from_shared": ["读取的shared字段"],
-        "writes_to_shared": ["写入的shared字段"],
-        "temp_variables": ["临时变量"]
-    }},
-    "retry_config": {{
-        "max_retries": 3,
-        "wait": 1.0,
-        "retry_conditions": ["重试条件"]
-    }}
-}}
+**数据结构设计：**
+{context_data.get("data_structure_json", "")}
 
-**设计要求：**
-1. 严格遵循prep/exec/post三阶段分离
-2. exec阶段不能直接访问shared
-3. 明确的Action驱动逻辑
-4. 考虑错误处理和重试
-5. 确保与Flow中其他Node的协调
-
-请确保设计符合pocketflow的最佳实践。
-
-**重要：请严格按照上述JSON格式输出，不要添加任何额外的文字说明、代码块标记或其他内容。直接输出纯JSON数据。**"""
+请分析上述信息，设计出详细的Node实现方案。"""
         
         return prompt
     
     async def _design_single_node(self, prompt: str) -> str:
         """调用LLM设计单个Node"""
         try:
-            # 使用重试机制调用LLM
-            result = await call_llm_async(prompt, is_json=True)
+            # 构建系统提示词
+            system_prompt = """你是一个专业的pocketflow Node设计师，专门设计基于pocketflow框架的Node实现。
+
+请严格按照以下Markdown格式输出Node设计结果：
+
+# Node详细设计结果
+
+## [Node名称]
+
+### 基本信息
+- **Node类型**: [Node类型]
+- **目的**: [Node目的]
+
+### Prep阶段设计
+- **描述**: [prep阶段的详细描述]
+- **从shared读取**: [从shared读取的数据字段，用逗号分隔]
+- **验证逻辑**: [数据验证逻辑]
+- **准备步骤**: [准备步骤，用分号分隔]
+
+### Exec阶段设计
+- **描述**: [exec阶段的详细描述]
+- **核心逻辑**: [核心处理逻辑描述]
+- **处理步骤**: [处理步骤，用分号分隔]
+- **错误处理**: [错误处理策略]
+
+### Post阶段设计
+- **描述**: [post阶段的详细描述]
+- **结果处理**: [结果处理逻辑]
+- **更新shared**: [更新到shared的数据，用逗号分隔]
+- **Action逻辑**: [Action决策逻辑]
+- **可能Actions**: [可能返回的Action列表，用逗号分隔]
+
+### 数据访问
+- **读取字段**: [读取的shared字段，用逗号分隔]
+- **写入字段**: [写入的shared字段，用逗号分隔]
+
+### 重试配置
+- **最大重试**: [最大重试次数]次
+- **等待时间**: [等待时间]秒
+
+设计要求：
+1. 严格遵循prep/exec/post三阶段分离
+2. exec阶段不能直接访问shared
+3. 明确的Action驱动逻辑
+4. 考虑错误处理和重试
+5. 确保与Flow中其他Node的协调
+
+重要：请严格按照上述Markdown格式输出，不要输出JSON格式！直接输出完整的Markdown文档。"""
+
+            # 使用系统提示词调用LLM
+            result = await call_llm_async(prompt, is_json=False, system_prompt=system_prompt)
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")

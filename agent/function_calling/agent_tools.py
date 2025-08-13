@@ -26,7 +26,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "short_planning",
-                "description": "生成精炼的短规划文档，用于和用户确认项目核心范围与颗粒度",
+                "description": "生成精炼的短规划文档，用于和用户确认项目核心范围与颗粒度。可以多次调用来逐步细化和完善项目范围，直到与用户达成一致。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -36,7 +36,8 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
                         },
                         "previous_planning": {
                             "type": "string",
-                            "description": "上一版本的短规划文档"
+                            "description": "上一版本的短规划文档(如果有)",
+                            "required": False
                         },
                         "improvement_points": {
                             "type": "array",
@@ -52,14 +53,14 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "research",
-                "description": "基于关键词列表进行技术调研和解决方案研究，职责专一，只负责搜索和分析",
+                "description": "基于关键词列表进行技术调研和解决方案研究，职责专一，只负责搜索和分析。这是一个可选工具，仅在需要技术调研时使用。",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "keywords": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "需要调研的关键词列表，例如：['React框架', 'Node.js后端', '数据库设计']"
+                            "description": "需要调研的关键词列表，例如：['rag', '数据库设计']"
                         },
                         "focus_areas": {
                             "type": "array",
@@ -79,7 +80,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "architecture_design",
-                "description": "生成详细的系统架构设计方案，包括技术架构、部署架构、数据架构等",
+                "description": "生成详细的系统架构设计方案，包括技术架构、部署架构、数据架构等。此工具会将完整的设计文档自动输出到文件中，调用后无需重新输出内容，只需提示用户查看生成的文档即可。",
                 "parameters": {
                     "type": "object", 
                     "properties": {
