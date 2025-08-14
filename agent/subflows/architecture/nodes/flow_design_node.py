@@ -6,7 +6,6 @@ Flow Design Node
 """
 
 import time
-import json
 from typing import Dict, Any
 from pocketflow import AsyncNode
 
@@ -30,8 +29,10 @@ class FlowDesignNode(AsyncNode):
             analysis_markdown = shared.get("analysis_markdown", "")
             nodes_markdown = shared.get("nodes_markdown", "")
 
-            # 获取原始需求信息
-            structured_requirements = shared.get("structured_requirements", {})
+            # 获取项目状态信息
+            short_planning = shared.get("short_planning", "")
+            user_requirements = shared.get("user_requirements", "")
+            recommended_tools = shared.get("recommended_tools", [])
 
             # 检查必需的输入
             if not analysis_markdown:
@@ -43,7 +44,9 @@ class FlowDesignNode(AsyncNode):
             return {
                 "analysis_markdown": analysis_markdown,
                 "nodes_markdown": nodes_markdown,
-                "structured_requirements": structured_requirements,
+                "short_planning": short_planning,
+                "user_requirements": user_requirements,
+                "recommended_tools": recommended_tools,
                 "timestamp": time.time()
             }
 
@@ -110,6 +113,20 @@ class FlowDesignNode(AsyncNode):
         """构建Flow设计提示词"""
         analysis_markdown = prep_result.get("analysis_markdown", "")
         nodes_markdown = prep_result.get("nodes_markdown", "")
+        short_planning = prep_result.get("short_planning", "")
+        user_requirements = prep_result.get("user_requirements", "")
+        recommended_tools = prep_result.get("recommended_tools", [])
+
+        # 构建推荐工具信息
+        tools_info = ""
+        if recommended_tools:
+            tools_list = []
+            for tool in recommended_tools:
+                tool_name = tool.get("name", tool.get("id", "未知工具"))
+                tool_type = tool.get("type", "")
+                tool_summary = tool.get("summary", tool.get("description", ""))
+                tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
+            tools_info = "\n".join(tools_list)
 
         prompt = f"""基于以下已识别的Node列表，设计完整的Flow编排。
 
@@ -119,8 +136,14 @@ class FlowDesignNode(AsyncNode):
 **已识别的Node列表：**
 {nodes_markdown}
 
-**原始结构化需求：**
-{json.dumps(prep_result.get('structured_requirements', {}), indent=2, ensure_ascii=False)}
+**用户需求：**
+{user_requirements if user_requirements else "未提供用户需求"}
+
+**项目规划：**
+{short_planning if short_planning else "未提供项目规划"}
+
+**推荐工具：**
+{tools_info if tools_info else "无推荐工具"}
 
 请分析上述信息，设计出完整的Flow编排方案。"""
         

@@ -76,5 +76,4 @@ class ResultAssemblyNode(AsyncNode):
             "source": keyword_report["source"]
         }
 
-        print(f"✅ 研究结果组装完成: {keyword_report['keyword']}")
         return "assembly_complete"

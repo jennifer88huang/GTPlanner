@@ -28,7 +28,6 @@ class ConcurrentResearchNode(AsyncNode):
         focus_areas = shared.get("focus_areas", [])
         project_context = shared.get("project_context", "")
 
-        print(f"🔄 准备并发处理 {len(research_keywords)} 个关键词...")
 
         # 创建子流程和数据对
         subflows_and_data = []
@@ -83,7 +82,6 @@ class ConcurrentResearchNode(AsyncNode):
                     "error": str(result)
                 })
             else:
-                print(f"✅ 关键词 '{keyword}' 处理成功")
                 keyword_result = data.get("keyword_result", {})
                 successful_results.append({
                     "keyword": keyword,
@@ -93,8 +91,6 @@ class ConcurrentResearchNode(AsyncNode):
         successful_count = len(successful_results)
         failed_count = len(failed_results)
 
-        print(f"⏱️ 并发执行完成，耗时: {execution_time:.2f}秒")
-        print(f"✅ 成功: {successful_count}/{len(keywords)}")
 
         # 存储结果到实例变量
         self._execution_results = {
@@ -195,7 +191,6 @@ class TracedResearchFlow(AsyncFlow):
 
     async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """流程级准备"""
-        print("🚀 启动研究调研流程...")
         shared["flow_start_time"] = asyncio.get_event_loop().time()
 
         return {
@@ -242,9 +237,6 @@ class ResearchFlow:
                 shared["research_error"] = "缺少关注点"
                 return False
 
-            print(f"📋 关键词: {research_keywords}")
-            print(f"🎯 关注点: {focus_areas}")
-            print(f"📝 项目背景: {project_context}")
 
             # 🔧 使用带tracing的流程执行
             result = await self.flow.run_async(shared)

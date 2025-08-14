@@ -183,7 +183,6 @@ class NodeURL(AsyncNode):
                 "extracted_at": time.time()
             }
 
-            print(f"✅ URL解析完成: {exec_res['title'][:50]}...")
             return "url_parsed"
 
         except Exception as e:

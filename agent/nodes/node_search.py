@@ -203,7 +203,6 @@ class NodeSearch(AsyncNode):
 
 
 
-            print(f"✅ 搜索完成，找到 {len(search_results)} 个结果")
             return "search_complete"
 
         except Exception as e:

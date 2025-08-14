@@ -31,16 +31,7 @@ class MessageRole(Enum):
     TOOL = "tool"
 
 
-class ProjectStage(Enum):
-    """项目阶段枚举"""
-    INITIALIZATION = "initialization"
-    REQUIREMENTS = "requirements"
-    PLANNING = "planning"
-    ARCHITECTURE = "architecture"
-    IMPLEMENTATION = "implementation"
-    TESTING = "testing"
-    DEPLOYMENT = "deployment"
-    COMPLETED = "completed"
+
 
 
 @dataclass
@@ -119,8 +110,7 @@ class AgentContext:
     """Agent上下文数据结构 - 客户端传入的上下文信息（可能已压缩）"""
     session_id: str
     dialogue_history: List[Message]  # 可能是压缩后的对话历史
-    current_stage: ProjectStage
-    project_state: Dict[str, Any]
+    tool_execution_results: Dict[str, Any]  # 工具执行结果集合（recommended_tools, short_planning, research_findings等）
     tool_execution_history: List[ToolExecution]  # 可能是压缩后的工具历史
     session_metadata: Dict[str, Any]
     last_updated: Optional[str] = None
@@ -131,8 +121,7 @@ class AgentContext:
         return {
             "session_id": self.session_id,
             "dialogue_history": [msg.to_dict() for msg in self.dialogue_history],
-            "current_stage": self.current_stage.value,
-            "project_state": self.project_state,
+            "tool_execution_results": self.tool_execution_results,
             "tool_execution_history": [te.to_dict() for te in self.tool_execution_history],
             "session_metadata": self.session_metadata,
             "last_updated": self.last_updated,
@@ -148,8 +137,7 @@ class AgentContext:
                 Message.from_dict(msg_data)
                 for msg_data in data.get("dialogue_history", [])
             ],
-            current_stage=ProjectStage(data.get("current_stage", "initialization")),
-            project_state=data.get("project_state", {}),
+            tool_execution_results=data.get("tool_execution_results", {}),
             tool_execution_history=[
                 ToolExecution.from_dict(te_data)
                 for te_data in data.get("tool_execution_history", [])
@@ -163,9 +151,9 @@ class AgentContext:
         """获取最近的消息（只读操作）"""
         return self.dialogue_history[-count:] if self.dialogue_history else []
 
-    def get_project_state_value(self, key: str, default: Any = None) -> Any:
-        """获取项目状态值（只读操作）"""
-        return self.project_state.get(key, default)
+    def get_tool_execution_result(self, key: str, default: Any = None) -> Any:
+        """获取工具执行结果值（只读操作）"""
+        return self.tool_execution_results.get(key, default)
 
     def get_recent_tool_executions(self, count: int = 5) -> List[ToolExecution]:
         """获取最近的工具执行记录（只读操作）"""
@@ -178,8 +166,7 @@ class AgentResult:
     success: bool
     new_assistant_messages: List[Message]  # 当次对话新增的助手消息
     new_tool_executions: List[ToolExecution]  # 当次对话新增的工具执行
-
-    stage_update: Optional[ProjectStage] = None  # 阶段更新（如果有）
+    tool_execution_results_updates: Dict[str, Any] = field(default_factory=dict)  # 当次对话产生的工具执行结果更新
     metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
     execution_time: Optional[float] = None
@@ -190,7 +177,8 @@ class AgentResult:
             "success": self.success,
             "new_assistant_messages": [msg.to_dict() for msg in self.new_assistant_messages],
             "new_tool_executions": [te.to_dict() for te in self.new_tool_executions],
-            "stage_update": self.stage_update.value if self.stage_update else None,
+
+            "tool_execution_results_updates": self.tool_execution_results_updates,
             "metadata": self.metadata,
             "error": self.error,
             "execution_time": self.execution_time
@@ -211,7 +199,8 @@ class AgentResult:
                 for te_data in data.get("new_tool_executions", [])
             ],
 
-            stage_update=ProjectStage(data["stage_update"]) if data.get("stage_update") else None,
+
+            tool_execution_results_updates=data.get("tool_execution_results_updates", {}),
             metadata=data.get("metadata", {}),
             error=data.get("error"),
             execution_time=data.get("execution_time")
@@ -222,7 +211,7 @@ class AgentResult:
         cls,
         new_assistant_messages: Optional[List[Message]] = None,
         new_tool_executions: Optional[List[ToolExecution]] = None,
-        stage_update: Optional[ProjectStage] = None,
+        tool_execution_results_updates: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         execution_time: Optional[float] = None
     ) -> 'AgentResult':
@@ -231,7 +220,7 @@ class AgentResult:
             success=True,
             new_assistant_messages=new_assistant_messages or [],
             new_tool_executions=new_tool_executions or [],
-            stage_update=stage_update,
+            tool_execution_results_updates=tool_execution_results_updates or {},
             metadata=metadata or {},
             execution_time=execution_time
         )
@@ -248,6 +237,7 @@ class AgentResult:
             success=False,
             new_assistant_messages=[],
             new_tool_executions=[],
+            tool_execution_results_updates={},
             metadata=metadata or {},
             error=error,
             execution_time=execution_time
@@ -256,21 +246,6 @@ class AgentResult:
 
 # 工具函数：用于数据验证和转换
 
-def validate_agent_context(context_data: Dict[str, Any]) -> bool:
-    """验证AgentContext数据的完整性"""
-    required_fields = ["session_id", "current_stage"]
-    
-    for field in required_fields:
-        if field not in context_data:
-            return False
-    
-    # 验证stage值是否有效
-    try:
-        ProjectStage(context_data["current_stage"])
-    except ValueError:
-        return False
-    
-    return True
 
 
 def create_user_message(content: str) -> Message:

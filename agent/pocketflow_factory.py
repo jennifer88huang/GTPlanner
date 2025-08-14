@@ -14,7 +14,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 from .context_types import (
     AgentContext, AgentResult, Message, ToolExecution,
-    MessageRole, ProjectStage
+    MessageRole
 )
 
 
@@ -62,15 +62,20 @@ class PocketFlowSharedFactory:
         shared = {
             # 核心对话数据
             "dialogue_history": {"messages": current_messages},
-            "current_stage": context.current_stage.value,
             "session_id": context.session_id,
 
-            # 项目状态数据
-            "research_findings": context.project_state.get("research_findings"),
-            "agent_design_document": context.project_state.get("agent_design_document"),
-            "confirmation_document": context.project_state.get("confirmation_document"),
-            "structured_requirements": context.project_state.get("structured_requirements"),
+            # 工具执行结果数据（统一字段名）- 只设置非空值，避免覆盖工具执行结果
+            # 注意：工具节点会在执行后设置这些字段，这里只设置已有的非空值
+        }
 
+        # 只设置已存在且非空的工具执行结果
+        for key in ["recommended_tools", "research_findings", "short_planning"]:
+            value = context.tool_execution_results.get(key)
+            if value is not None:
+                shared[key] = value
+
+        # 继续添加其他字段
+        shared.update({
             # 工具执行历史
             "tool_execution_history": [
                 {
@@ -99,8 +104,7 @@ class PocketFlowSharedFactory:
             # Agent执行过程中新增的内容（初始化为空）
             "new_assistant_messages": [],  # 新增的助手消息
             "new_tool_executions": [],     # 新增的工具执行记录
-            "stage_updated": False,        # 阶段是否更新
-        }
+        })
         
         return shared
     
@@ -139,24 +143,28 @@ class PocketFlowSharedFactory:
                 shared.get("new_tool_executions", [])
             )
 
+            # 提取工具执行结果更新 - 从shared字典中提取工具执行结果
+            tool_execution_results_updates = {}
 
+            # 检查各个工具的执行结果（统一字段名）
+            if "recommended_tools" in shared:
+                tool_execution_results_updates["recommended_tools"] = shared["recommended_tools"]
 
-            stage_update = None
-            if shared.get("stage_updated", False):
-                current_stage = shared.get("current_stage")
-                if current_stage:
-                    try:
-                        stage_update = ProjectStage(current_stage)
-                    except ValueError:
-                        print(f"Warning: Invalid stage value: {current_stage}")
+            if "research_findings" in shared:
+                tool_execution_results_updates["research_findings"] = shared["research_findings"]
 
-            return AgentResult.create_success(
+            if "short_planning" in shared:
+                tool_execution_results_updates["short_planning"] = shared["short_planning"]
+
+            result = AgentResult.create_success(
                 new_assistant_messages=new_messages,
                 new_tool_executions=new_tool_executions,
-                stage_update=stage_update,
+                tool_execution_results_updates=tool_execution_results_updates,
                 metadata=shared.get("flow_metadata", {}),
                 execution_time=execution_time
             )
+
+            return result
 
         except Exception as e:
             return AgentResult.create_error(
@@ -231,8 +239,8 @@ class PocketFlowSharedFactory:
         if not isinstance(context.tool_execution_history, list):
             raise ValueError("tool_execution_history必须是列表")
 
-        if not isinstance(context.project_state, dict):
-            raise ValueError("project_state必须是字典")
+        if not isinstance(context.tool_execution_results, dict):
+            raise ValueError("tool_execution_results必须是字典")
 
         if not isinstance(context.session_metadata, dict):
             raise ValueError("session_metadata必须是字典")

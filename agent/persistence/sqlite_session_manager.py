@@ -6,12 +6,13 @@
 """
 
 import uuid
+import json
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 
 from .database_dao import DatabaseDAO
-from ..context_types import AgentContext, Message, MessageRole, ProjectStage, ToolExecution
+from ..context_types import AgentContext, Message, MessageRole, ToolExecution
 
 
 class SQLiteSessionManager:
@@ -245,9 +246,14 @@ class SQLiteSessionManager:
         if not target_session_id:
             return None
         
-        # 估算token数量（简单估算）
-        token_count = len(content.split()) * 1.3  # 粗略估算
+        # 估算token数量（改进的估算方法）
+        # 中文字符按1个token计算，英文单词按1个token计算，标点符号等按0.5计算
+        chinese_chars = len([c for c in content if '\u4e00' <= c <= '\u9fff'])
+        english_words = len(content.replace('，', ' ').replace('。', ' ').split())
+        other_chars = len(content) - chinese_chars - sum(len(word) for word in content.split())
+        token_count = chinese_chars + english_words + max(1, other_chars // 2)
         
+        # 同时写入messages表和compressed_context表
         message_id = self.dao.add_message(
             session_id=target_session_id,
             role="user",
@@ -255,11 +261,18 @@ class SQLiteSessionManager:
             metadata=metadata,
             token_count=int(token_count)
         )
-        
+
+        if message_id:
+            # 更新compressed_context表
+            self._update_compressed_context_with_new_message(
+                target_session_id, message_id, "user", content,
+                int(token_count), metadata
+            )
+
         # 清除会话缓存以更新统计信息
         if target_session_id in self._session_cache:
             del self._session_cache[target_session_id]
-        
+
         return message_id
     
     def add_assistant_message(self, content: str, 
@@ -284,9 +297,13 @@ class SQLiteSessionManager:
         if not target_session_id:
             return None
         
-        # 估算token数量
-        token_count = len(content.split()) * 1.3
+        # 估算token数量（改进的估算方法）
+        chinese_chars = len([c for c in content if '\u4e00' <= c <= '\u9fff'])
+        english_words = len(content.replace('，', ' ').replace('。', ' ').split())
+        other_chars = len(content) - chinese_chars - sum(len(word) for word in content.split())
+        token_count = chinese_chars + english_words + max(1, other_chars // 2)
         
+        # 同时写入messages表和compressed_context表
         message_id = self.dao.add_message(
             session_id=target_session_id,
             role="assistant",
@@ -296,14 +313,121 @@ class SQLiteSessionManager:
             parent_message_id=parent_message_id,
             token_count=int(token_count)
         )
-        
+
+        if message_id:
+            # 更新compressed_context表
+            self._update_compressed_context_with_new_message(
+                target_session_id, message_id, "assistant", content,
+                int(token_count), metadata, tool_calls
+            )
+
         # 清除会话缓存以更新统计信息
         if target_session_id in self._session_cache:
             del self._session_cache[target_session_id]
-        
+
         return message_id
-    
-    def get_messages(self, limit: Optional[int] = None, 
+
+    def _update_compressed_context_with_new_message(self, session_id: str, message_id: str,
+                                                   role: str, content: str, token_count: int,
+                                                   metadata: Optional[Dict[str, Any]] = None,
+                                                   tool_calls: Optional[List[Dict[str, Any]]] = None):
+        """
+        更新compressed_context表，添加新消息
+
+        Args:
+            session_id: 会话ID
+            message_id: 消息ID
+            role: 消息角色
+            content: 消息内容
+            token_count: token数量
+            metadata: 元数据
+            tool_calls: 工具调用
+        """
+        # 获取当前活跃的压缩上下文
+        current_context = self.dao.get_active_compressed_context(session_id)
+
+        # 构建新消息对象
+        new_message = {
+            "message_id": message_id,
+            "role": role,
+            "content": content,
+            "timestamp": datetime.now().isoformat(),
+            "token_count": token_count,
+            "metadata": metadata or {},
+            "tool_calls": tool_calls or []
+        }
+
+        if current_context:
+            # 更新现有压缩上下文
+            compressed_messages = current_context.get("compressed_messages", [])
+            compressed_messages.append(new_message)
+
+            # 更新统计信息
+            new_compressed_token_count = current_context["compressed_token_count"] + token_count
+            new_compressed_message_count = current_context["compressed_message_count"] + 1
+            new_original_token_count = current_context["original_token_count"] + token_count
+            new_original_message_count = current_context["original_message_count"] + 1
+
+            # 更新数据库记录
+            with self.dao.transaction() as conn:
+                conn.execute("""
+                    UPDATE compressed_context
+                    SET compressed_messages = ?,
+                        compressed_message_count = ?,
+                        compressed_token_count = ?,
+                        original_message_count = ?,
+                        original_token_count = ?
+                    WHERE context_id = ?
+                """, (
+                    json.dumps(compressed_messages),
+                    new_compressed_message_count,
+                    new_compressed_token_count,
+                    new_original_message_count,
+                    new_original_token_count,
+                    current_context["context_id"]
+                ))
+        else:
+            # 这是异常情况，压缩上下文应该在会话创建时就存在
+            print(f"⚠️ 警告：会话 {session_id} 缺少压缩上下文记录")
+            raise ValueError(f"会话 {session_id} 缺少压缩上下文记录，请检查会话创建流程")
+
+    def _update_compressed_context_tool_results(self, session_id: str,
+                                              tool_execution_updates: Dict[str, Any]):
+        """
+        更新compressed_context表中的工具执行结果
+
+        Args:
+            session_id: 会话ID
+            tool_execution_updates: 工具执行结果更新（recommended_tools, short_planning等）
+        """
+
+        current_context = self.dao.get_active_compressed_context(session_id)
+        if not current_context:
+            print(f"⚠️ 警告：会话 {session_id} 缺少压缩上下文记录")
+            return
+
+        # 合并工具执行结果更新
+        current_tool_results = current_context.get("tool_execution_results", {})
+
+        if isinstance(current_tool_results, str):
+            current_tool_results = json.loads(current_tool_results) if current_tool_results else {}
+
+        # 更新工具执行结果
+        current_tool_results.update(tool_execution_updates)
+
+
+        # 更新数据库记录
+        with self.dao.transaction() as conn:
+            conn.execute("""
+                UPDATE compressed_context
+                SET tool_execution_results = ?
+                WHERE context_id = ?
+            """, (
+                json.dumps(current_tool_results),
+                current_context["context_id"]
+            ))
+
+    def get_messages(self, limit: Optional[int] = None,
                     session_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         获取会话消息
@@ -452,15 +576,14 @@ class SQLiteSessionManager:
             )
             tool_execution_history.append(tool_execution)
 
-        # 构建项目状态（从会话元数据中获取）
-        project_state = session["metadata"].get("project_state", {})
+        # 构建工具执行结果（从会话元数据中获取）
+        tool_execution_results = session["metadata"].get("tool_execution_results", {})
 
         # 构建AgentContext
         context = AgentContext(
             session_id=target_session_id,
             dialogue_history=dialogue_history,
-            current_stage=ProjectStage(session["project_stage"]),
-            project_state=project_state,
+            tool_execution_results=tool_execution_results,
             tool_execution_history=tool_execution_history,
             session_metadata=session["metadata"]
         )
@@ -499,18 +622,12 @@ class SQLiteSessionManager:
                     session_id=target_session_id
                 )
 
-            # 更新项目状态（如果有变化）
-            if hasattr(agent_result, 'updated_project_state') and agent_result.updated_project_state:
-                session = self.get_current_session()
-                if session:
-                    updated_metadata = session["metadata"].copy()
-                    updated_metadata["project_state"] = agent_result.updated_project_state
-                    self.dao.update_session(target_session_id, metadata=updated_metadata)
+            # 更新工具执行结果到compressed_context表（如果有变化）
 
-            # 更新项目阶段（如果有变化）
-            if hasattr(agent_result, 'updated_stage') and agent_result.updated_stage:
-                self.update_project_stage(agent_result.updated_stage.value, target_session_id)
-
+            if hasattr(agent_result, 'tool_execution_results_updates') and agent_result.tool_execution_results_updates:
+                self._update_compressed_context_tool_results(
+                    target_session_id, agent_result.tool_execution_results_updates
+                )
             return True
 
         except Exception as e:
@@ -612,16 +729,12 @@ class SQLiteSessionManager:
 
     # ==================== AgentContext转换 ====================
 
-    def build_agent_context(self, session_id: Optional[str] = None,
-                           include_recent_only: bool = False,
-                           recent_count: int = 20) -> Optional[AgentContext]:
+    def build_agent_context(self, session_id: Optional[str] = None) -> Optional[AgentContext]:
         """
-        构建AgentContext对象
+        构建AgentContext对象（从compressed_context表读取数据）
 
         Args:
             session_id: 会话ID，如果为None则使用当前会话
-            include_recent_only: 是否只包含最近的消息
-            recent_count: 最近消息的数量
 
         Returns:
             AgentContext对象或None
@@ -635,11 +748,14 @@ class SQLiteSessionManager:
         if not session:
             return None
 
-        # 获取消息
-        if include_recent_only:
-            message_data = self.dao.get_recent_messages(target_session_id, count=recent_count)
-        else:
-            message_data = self.dao.get_messages(target_session_id)
+        # 从compressed_context表获取消息（Agent层的唯一数据源）
+        message_data = self.dao.get_compressed_context_messages(target_session_id)
+
+        # 获取活跃的压缩上下文（包含项目状态等信息）
+        compressed_context = self.dao.get_active_compressed_context(target_session_id)
+        if not compressed_context:
+            print(f"⚠️ 警告：会话 {target_session_id} 缺少压缩上下文记录")
+            return None
 
         # 转换消息格式
         dialogue_history = []
@@ -670,17 +786,19 @@ class SQLiteSessionManager:
             )
             tool_execution_history.append(tool_execution)
 
-        # 构建项目状态（从会话元数据中获取）
-        project_state = session["metadata"].get("project_state", {})
+        # 从compressed_context表获取工具执行结果
+        tool_execution_results = compressed_context.get("tool_execution_results", {})
+        if isinstance(tool_execution_results, str):
+            tool_execution_results = json.loads(tool_execution_results) if tool_execution_results else {}
 
-        # 构建AgentContext
+        # 构建AgentContext（完全基于compressed_context表的数据）
         context = AgentContext(
             session_id=target_session_id,
             dialogue_history=dialogue_history,
-            current_stage=ProjectStage(session["project_stage"]),
-            project_state=project_state,
+            tool_execution_results=tool_execution_results,
             tool_execution_history=tool_execution_history,
-            session_metadata=session["metadata"]
+            session_metadata=session["metadata"],  # 基本元数据从session表获取
+            is_compressed=compressed_context["compression_version"] > 1  # 标识是否已压缩
         )
 
         return context
@@ -717,17 +835,13 @@ class SQLiteSessionManager:
                     session_id=target_session_id
                 )
 
-            # 更新项目状态（如果有变化）
-            if hasattr(agent_result, 'updated_project_state') and agent_result.updated_project_state:
-                session = self.get_current_session()
-                if session:
-                    updated_metadata = session["metadata"].copy()
-                    updated_metadata["project_state"] = agent_result.updated_project_state
-                    self.dao.update_session(target_session_id, metadata=updated_metadata)
+            # 更新工具执行结果到compressed_context表（如果有变化）
+            if hasattr(agent_result, 'tool_execution_results_updates') and agent_result.tool_execution_results_updates:
+                self._update_compressed_context_tool_results(
+                    target_session_id, agent_result.tool_execution_results_updates
+                )
 
-            # 更新项目阶段（如果有变化）
-            if hasattr(agent_result, 'updated_stage') and agent_result.updated_stage:
-                self.update_project_stage(agent_result.updated_stage.value, target_session_id)
+
 
             return True
 

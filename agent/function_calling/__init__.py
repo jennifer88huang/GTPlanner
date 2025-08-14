@@ -10,16 +10,18 @@ from .agent_tools import (
     get_tool_by_name,
     validate_tool_arguments,
     call_short_planning,
+    call_tool_recommend,
     call_research,
     call_architecture_design
 )
 
 __all__ = [
     "get_agent_function_definitions",
-    "execute_agent_tool", 
+    "execute_agent_tool",
     "get_tool_by_name",
     "validate_tool_arguments",
     "call_short_planning",
+    "call_tool_recommend",
     "call_research",
     "call_architecture_design"
 ]

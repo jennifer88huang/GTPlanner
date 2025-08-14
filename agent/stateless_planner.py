@@ -132,7 +132,7 @@ class StatelessGTPlanner:
                     "error_type": type(e).__name__,
                     "user_input": user_input[:100] + "..." if len(user_input) > 100 else user_input,
                     "context_session_id": context.session_id,
-                    "context_stage": context.current_stage.value,
+
                     "is_compressed": context.is_compressed
                 },
                 execution_time=execution_time

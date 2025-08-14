@@ -19,11 +19,11 @@ import requests
 import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-from pocketflow import Node
+from pocketflow import AsyncNode
 from utils.config_manager import get_vector_service_config
 
 
-class NodeToolIndex(Node):
+class NodeToolIndex(AsyncNode):
     """工具索引节点"""
     
     def __init__(self, max_retries: int = 3, wait: float = 2.0):
@@ -57,7 +57,7 @@ class NodeToolIndex(Node):
             self.vector_service_available = False
             print("⚠️ 向量服务不可用")
     
-    def prep(self, shared) -> Dict[str, Any]:
+    async def prep_async(self, shared) -> Dict[str, Any]:
         """
         准备阶段：扫描和解析工具描述文件
 
@@ -122,13 +122,13 @@ class NodeToolIndex(Node):
                 "tools_count": 0
             }
     
-    def exec(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
+    async def exec_async(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
         """
         执行阶段：调用向量服务进行工具索引
-        
+
         Args:
             prep_res: 准备阶段的结果
-            
+
         Returns:
             执行结果字典
         """
@@ -170,15 +170,15 @@ class NodeToolIndex(Node):
         except Exception as e:
             raise RuntimeError(f"Tool indexing execution failed: {str(e)}")
     
-    def post(self, shared, prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
+    async def post_async(self, shared, prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> str:
         """
         后处理阶段：更新共享状态
-        
+
         Args:
             shared: 共享状态对象
             prep_res: 准备阶段结果
             exec_res: 执行阶段结果
-            
+
         Returns:
             下一步动作
         """
@@ -366,7 +366,7 @@ class NodeToolIndex(Node):
                 "vector_field": self.vector_field
             }
 
-            # 只有在指定了索引名时才添加index字段
+            # 尝试使用指定的索引名
             if index_name:
                 request_data["index"] = index_name
 
@@ -377,6 +377,17 @@ class NodeToolIndex(Node):
                 timeout=self.timeout,
                 headers={"Content-Type": "application/json"}
             )
+
+            # 如果指定索引不存在，尝试不指定索引名让服务自动创建
+            if (response.status_code in [400, 404]) and "不存在" in response.text and index_name:
+                print(f"⚠️ 索引 {index_name} 不存在，尝试自动创建索引...")
+                request_data.pop("index", None)  # 移除索引名
+                response = requests.post(
+                    f"{self.vector_service_url}/documents",
+                    json=request_data,
+                    timeout=self.timeout,
+                    headers={"Content-Type": "application/json"}
+                )
 
             if response.status_code == 200:
                 result = response.json()

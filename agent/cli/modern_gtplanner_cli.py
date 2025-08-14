@@ -35,7 +35,7 @@ from rich.text import Text
 
 # 导入新的流式响应架构
 from agent.stateless_planner import StatelessGTPlanner
-from agent.context_types import AgentContext, Message, MessageRole, ProjectStage
+from agent.context_types import AgentContext, Message, MessageRole
 from agent.streaming import StreamingSession, CLIStreamHandler, streaming_manager
 
 # 导入新的SQLite会话管理
@@ -98,7 +98,6 @@ class ModernGTPlannerCLI:
                 await self.current_streaming_session.stop()
                 self.current_streaming_session = None
                 self.cli_handler = None
-                self.console.print("✅ [green]流式会话已清理[/green]")
             except Exception as e:
                 self.console.print(f"⚠️ [yellow]清理流式会话时出错: {e}[/yellow]")
     
@@ -121,20 +120,7 @@ class ModernGTPlannerCLI:
     def _build_agent_context(self) -> Optional[AgentContext]:
         """构建AgentContext（使用SQLiteSessionManager）"""
         # 直接使用SQLiteSessionManager的build_agent_context方法
-        context = self.session_manager.build_agent_context()
-
-        if not context:
-            # 如果没有当前会话，创建一个默认的上下文
-            return AgentContext(
-                session_id="default",
-                dialogue_history=[],
-                current_stage=ProjectStage.REQUIREMENTS,
-                project_state={},
-                tool_execution_history=[],
-                session_metadata={}
-            )
-
-        return context
+        return self.session_manager.build_agent_context()
     
     def show_welcome(self):
         """显示欢迎信息"""

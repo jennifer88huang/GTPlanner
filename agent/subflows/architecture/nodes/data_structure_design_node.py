@@ -30,6 +30,11 @@ class DataStructureDesignNode(AsyncNode):
             nodes_markdown = shared.get("nodes_markdown", "")
             flow_markdown = shared.get("flow_markdown", "")
 
+            # 获取项目状态信息
+            short_planning = shared.get("short_planning", "")
+            user_requirements = shared.get("user_requirements", "")
+            recommended_tools = shared.get("recommended_tools", [])
+
             # 检查必需的输入
             if not analysis_markdown:
                 return {"error": "缺少Agent分析结果"}
@@ -41,6 +46,9 @@ class DataStructureDesignNode(AsyncNode):
                 "analysis_markdown": analysis_markdown,
                 "nodes_markdown": nodes_markdown,
                 "flow_markdown": flow_markdown,
+                "short_planning": short_planning,
+                "user_requirements": user_requirements,
+                "recommended_tools": recommended_tools,
                 "timestamp": time.time()
             }
             
@@ -108,6 +116,20 @@ class DataStructureDesignNode(AsyncNode):
         analysis_markdown = prep_result.get("analysis_markdown", "")
         nodes_markdown = prep_result.get("nodes_markdown", "")
         flow_markdown = prep_result.get("flow_markdown", "")
+        short_planning = prep_result.get("short_planning", "")
+        user_requirements = prep_result.get("user_requirements", "")
+        recommended_tools = prep_result.get("recommended_tools", [])
+
+        # 构建推荐工具信息
+        tools_info = ""
+        if recommended_tools:
+            tools_list = []
+            for tool in recommended_tools:
+                tool_name = tool.get("name", tool.get("id", "未知工具"))
+                tool_type = tool.get("type", "")
+                tool_summary = tool.get("summary", tool.get("description", ""))
+                tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
+            tools_info = "\n".join(tools_list)
 
         prompt = f"""基于以下设计信息，为智能Agent设计完整的shared存储数据结构。
 
@@ -119,6 +141,15 @@ class DataStructureDesignNode(AsyncNode):
 
 **Flow设计：**
 {flow_markdown}
+
+**用户需求：**
+{user_requirements if user_requirements else "未提供用户需求"}
+
+**项目规划：**
+{short_planning if short_planning else "未提供项目规划"}
+
+**推荐工具：**
+{tools_info if tools_info else "无推荐工具"}
 
 请分析上述信息，设计出支持整个Agent运行的shared数据结构。"""
 

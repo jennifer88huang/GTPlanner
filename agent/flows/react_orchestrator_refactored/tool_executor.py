@@ -11,7 +11,6 @@ from typing import Dict, List, Any
 from agent.function_calling import execute_agent_tool, validate_tool_arguments
 from agent.streaming.stream_types import StreamEventBuilder, ToolCallStatus
 from agent.streaming.stream_interface import StreamingSession
-from .constants import ToolCallPatterns
 
 
 class ToolExecutor:
@@ -111,7 +110,7 @@ class ToolExecutor:
             )
 
             start_time = time.time()
-            tool_result = await execute_agent_tool(tool_name, arguments)
+            tool_result = await execute_agent_tool(tool_name, arguments, shared)
             execution_time = time.time() - start_time
 
             # 流式响应：发送工具完成事件
@@ -205,28 +204,3 @@ class ToolExecutor:
 
         return processed_results
     
-
-    
-    def clean_tool_call_markers(self, content: str) -> str:
-        """
-        清理内容中的工具调用标记
-
-        Args:
-            content: 原始内容
-
-        Returns:
-            清理后的内容
-        """
-        import re
-
-        # 移除 <tool_call>[...]</tool_call> 标记
-        cleaned = re.sub(ToolCallPatterns.CUSTOM_TOOL_CALL_PATTERN, '', content, flags=re.DOTALL)
-
-        # 清理多余的空白
-        cleaned = re.sub(r'\n\s*\n', '\n', cleaned).strip()
-
-        # 如果清理后为空，提供默认消息
-        if not cleaned:
-            cleaned = "我正在为您执行相关的工具调用，请稍等..."
-
-        return cleaned

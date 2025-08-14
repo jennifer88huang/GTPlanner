@@ -23,24 +23,22 @@ class ProcessArchitectureNode(AsyncNode):
     async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：验证输入并准备流程执行"""
         try:
-            # 检查必需的输入
-            required_keys = ["structured_requirements"]
-            missing_keys = [key for key in required_keys if key not in shared]
-            
-            if missing_keys:
-                return {"error": f"缺少必需的输入: {missing_keys}"}
-            
+            # 检查必需的输入 - 支持多种输入源
+            has_user_requirements = "user_requirements" in shared and shared["user_requirements"]
+            has_short_planning = "short_planning" in shared and shared["short_planning"]
+
+            if not (has_user_requirements or has_short_planning):
+                return {"error": "缺少必需的输入: 需要 user_requirements 或 short_planning 中的任意一个"}
+
             # 获取输入数据
-            structured_requirements = shared["structured_requirements"]
+            user_requirements = shared.get("user_requirements", shared.get("short_planning", ""))
             research_findings = shared.get("research_findings", {})
             confirmation_document = shared.get("confirmation_document", "")
-            user_input = shared.get("user_input", "")
-            
+
             return {
-                "structured_requirements": structured_requirements,
+                "user_requirements": user_requirements,
                 "research_findings": research_findings,
                 "confirmation_document": confirmation_document,
-                "user_input": user_input,
                 "processing_start_time": time.time()
             }
             
@@ -62,10 +60,9 @@ class ProcessArchitectureNode(AsyncNode):
 
             # 创建流程共享状态
             flow_shared = {
-                "structured_requirements": prep_result["structured_requirements"],
+                "user_requirements": prep_result["user_requirements"],
                 "research_findings": prep_result["research_findings"],
-                "confirmation_document": prep_result["confirmation_document"],
-                "user_input": prep_result["user_input"]
+                "confirmation_document": prep_result["confirmation_document"]
             }
 
             # 异步执行架构设计流程
@@ -104,7 +101,7 @@ class ProcessArchitectureNode(AsyncNode):
                 # 处理失败
                 error_msg = exec_res.get("error", "Unknown error")
                 shared["architecture_processing_error"] = error_msg
-                shared["current_stage"] = "architecture_design_failed"
+
                 
                 print(f"❌ 架构设计处理失败: {error_msg}")
                 return "error"
@@ -124,8 +121,7 @@ class ProcessArchitectureNode(AsyncNode):
             if "output_directory" in flow_shared:
                 shared["output_directory"] = flow_shared["output_directory"]
             
-            # 更新处理阶段
-            shared["current_stage"] = "agent_design_completed"
+         
             
             # 添加系统消息
             if "system_messages" not in shared:
@@ -155,6 +151,6 @@ class ProcessArchitectureNode(AsyncNode):
             
         except Exception as e:
             shared["architecture_post_error"] = str(e)
-            shared["current_stage"] = "architecture_design_failed"
+
             print(f"❌ 架构设计后处理失败: {str(e)}")
             return "error"

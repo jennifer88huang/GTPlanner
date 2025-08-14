@@ -32,8 +32,11 @@ class DocumentGenerationNode(AsyncNode):
             data_structure_markdown = shared.get("data_structure_markdown", "")
             node_design_markdown = shared.get("node_design_markdown", "")
 
-            # 获取原始需求信息
-            structured_requirements = shared.get("structured_requirements", {})
+            # 获取项目状态信息
+            short_planning = shared.get("short_planning", "")
+            user_requirements = shared.get("user_requirements", "")
+            research_findings = shared.get("research_findings", {})
+            recommended_tools = shared.get("recommended_tools", [])
 
             # 检查必需的输入
             required_data = {
@@ -51,7 +54,10 @@ class DocumentGenerationNode(AsyncNode):
                 "flow_markdown": flow_markdown,
                 "data_structure_markdown": data_structure_markdown,
                 "node_design_markdown": node_design_markdown,
-                "structured_requirements": structured_requirements,
+                "short_planning": short_planning,
+                "user_requirements": user_requirements,
+                "research_findings": research_findings,
+                "recommended_tools": recommended_tools,
                 "timestamp": time.time()
             }
             
@@ -121,13 +127,47 @@ class DocumentGenerationNode(AsyncNode):
         flow_markdown = prep_result.get("flow_markdown", "")
         data_structure_markdown = prep_result.get("data_structure_markdown", "")
         node_design_markdown = prep_result.get("node_design_markdown", "")
-        structured_requirements = prep_result.get("structured_requirements", {})
+        user_requirements = prep_result.get("user_requirements", "")
 
-        project_title = structured_requirements.get("project_name", "AI Agent项目")
+        # 从用户需求中提取项目标题，如果没有则使用默认值
+        project_title = "AI Agent项目"
+        if user_requirements and isinstance(user_requirements, str):
+            # 简单提取：取第一行或前50个字符作为标题
+            first_line = user_requirements.split('\n')[0].strip()
+            if first_line:
+                project_title = first_line[:50] + ("..." if len(first_line) > 50 else "")
+
+        # 获取其他上下文信息
+        short_planning = prep_result.get("short_planning", "")
+        research_findings = prep_result.get("research_findings", {})
+        recommended_tools = prep_result.get("recommended_tools", [])
+
+        # 构建推荐工具信息
+        tools_info = ""
+        if recommended_tools:
+            tools_list = []
+            for tool in recommended_tools:
+                tool_name = tool.get("name", tool.get("id", "未知工具"))
+                tool_type = tool.get("type", "")
+                tool_summary = tool.get("summary", tool.get("description", ""))
+                tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
+            tools_info = "\n".join(tools_list)
 
         prompt = f"""你是一个专业的AI助手，擅长编写基于pocketflow的Agent设计文档。请根据以下完整的设计结果，生成一份高质量的Agent设计文档。
 
 **项目标题：** {project_title}
+
+**用户需求：**
+{user_requirements if user_requirements else "未提供用户需求"}
+
+**项目规划：**
+{short_planning if short_planning else "未提供项目规划"}
+
+**推荐工具：**
+{tools_info if tools_info else "无推荐工具"}
+
+**技术调研结果：**
+{research_findings.get('research_summary', '无技术调研结果')}
 
 **Agent分析结果：**
 {analysis_markdown}

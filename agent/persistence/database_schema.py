@@ -22,36 +22,32 @@ class DatabaseSchema:
         """获取所有表的创建SQL语句"""
         return {
             "sessions": """
-                -- 会话表：存储对话会话的基本信息和元数据
+                -- 会话表：存储对话会话的基本信息和元数据（简化版，压缩管理由compressed_context表负责）
                 CREATE TABLE IF NOT EXISTS sessions (
                     session_id TEXT PRIMARY KEY,                           -- 会话唯一标识符（UUID）
                     title TEXT NOT NULL,                                   -- 会话标题，用户可自定义
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 会话创建时间
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 最后更新时间（触发器自动更新）
-                    project_stage TEXT NOT NULL DEFAULT 'requirements',    -- 项目阶段：requirements, research, architecture, implementation
+                    project_stage TEXT NOT NULL DEFAULT 'requirements',    -- 项目阶段（保留用于兼容性）
                     total_messages INTEGER NOT NULL DEFAULT 0,             -- 消息总数（触发器自动维护）
                     total_tokens INTEGER NOT NULL DEFAULT 0,               -- token总数（用于成本统计）
-                    is_compressed BOOLEAN NOT NULL DEFAULT FALSE,          -- 是否已进行上下文压缩
-                    last_compression_at TIMESTAMP NULL,                    -- 最后压缩时间
                     metadata TEXT NULL,                                     -- JSON格式的扩展元数据（用户偏好、配置等）
                     status TEXT NOT NULL DEFAULT 'active'                  -- 会话状态：active, archived, deleted
                 );
             """,
             
             "messages": """
-                -- 消息表：存储完整的对话历史记录，永不删除
+                -- 消息表：存储完整的对话历史记录，永不删除，仅作为备份存储
                 CREATE TABLE IF NOT EXISTS messages (
                     message_id TEXT PRIMARY KEY,                           -- 消息唯一标识符（UUID）
                     session_id TEXT NOT NULL,                              -- 所属会话ID
                     role TEXT NOT NULL,                                     -- 消息角色：user, assistant, system
                     content TEXT NOT NULL,                                  -- 消息内容（完整保存）
                     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 消息时间戳
-                    token_count INTEGER NULL,                               -- 消息的token数量（用于压缩决策）
+                    token_count INTEGER NULL,                               -- 消息的token数量（用于统计）
                     metadata TEXT NULL,                                     -- JSON格式的消息元数据（模型参数、温度等）
                     tool_calls TEXT NULL,                                   -- JSON格式的工具调用信息（Function Calling）
                     parent_message_id TEXT NULL,                           -- 父消息ID（用于消息链追踪和对话树）
-                    is_compressed BOOLEAN NOT NULL DEFAULT FALSE,          -- 是否已被压缩（压缩后原消息仍保留）
-                    compression_summary TEXT NULL,                         -- 压缩后的摘要（如果被压缩）
                     FOREIGN KEY (session_id) REFERENCES sessions (session_id) ON DELETE CASCADE,
                     FOREIGN KEY (parent_message_id) REFERENCES messages (message_id)
                 );
@@ -72,7 +68,7 @@ class DatabaseSchema:
                     compressed_messages TEXT NOT NULL,                     -- JSON格式的压缩后消息列表
                     summary TEXT NOT NULL,                                  -- LLM生成的对话摘要
                     key_decisions TEXT NULL,                                -- JSON格式的关键决策和里程碑
-                    project_state TEXT NULL,                                -- JSON格式的项目状态快照
+                    tool_execution_results TEXT NULL,                       -- JSON格式的工具执行结果集合
                     is_active BOOLEAN NOT NULL DEFAULT TRUE,               -- 是否为当前活跃的压缩版本
                     FOREIGN KEY (session_id) REFERENCES sessions (session_id) ON DELETE CASCADE
                 );

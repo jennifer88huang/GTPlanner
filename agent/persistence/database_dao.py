@@ -76,11 +76,29 @@ class DatabaseDAO:
         metadata_json = json.dumps(metadata) if metadata else None
         
         with self.transaction() as conn:
+            # 创建会话记录
             conn.execute("""
                 INSERT INTO sessions (session_id, title, project_stage, metadata)
                 VALUES (?, ?, ?, ?)
             """, (session_id, title, project_stage, metadata_json))
-        
+
+            # 同时创建初始的compressed_context记录
+            context_id = str(uuid.uuid4())
+            conn.execute("""
+                INSERT INTO compressed_context (
+                    context_id, session_id, compression_version,
+                    original_message_count, compressed_message_count,
+                    original_token_count, compressed_token_count, compression_ratio,
+                    compressed_messages, summary, key_decisions, tool_execution_results
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                context_id, session_id, 1,
+                0, 0,  # 初始消息数量为0
+                0, 0, 1.0,  # 初始token数量为0，压缩比为1.0
+                json.dumps([]), "新会话，暂无内容",
+                json.dumps([]), json.dumps({})
+            ))
+
         return session_id
     
     def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -110,8 +128,6 @@ class DatabaseDAO:
                 "project_stage": row["project_stage"],
                 "total_messages": row["total_messages"],
                 "total_tokens": row["total_tokens"],
-                "is_compressed": bool(row["is_compressed"]),
-                "last_compression_at": row["last_compression_at"],
                 "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
                 "status": row["status"]
             }
@@ -147,7 +163,6 @@ class DatabaseDAO:
                     "project_stage": row["project_stage"],
                     "total_messages": row["total_messages"],
                     "total_tokens": row["total_tokens"],
-                    "is_compressed": bool(row["is_compressed"]),
                     "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
                     "status": row["status"]
                 })
@@ -296,9 +311,7 @@ class DatabaseDAO:
                     "token_count": row["token_count"],
                     "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
                     "tool_calls": json.loads(row["tool_calls"]) if row["tool_calls"] else [],
-                    "parent_message_id": row["parent_message_id"],
-                    "is_compressed": bool(row["is_compressed"]),
-                    "compression_summary": row["compression_summary"]
+                    "parent_message_id": row["parent_message_id"]
                 })
             
             return messages
@@ -316,12 +329,12 @@ class DatabaseDAO:
         """
         with self.get_connection() as conn:
             cursor = conn.execute("""
-                SELECT * FROM messages 
-                WHERE session_id = ? AND is_compressed = FALSE
+                SELECT * FROM messages
+                WHERE session_id = ?
                 ORDER BY timestamp DESC
                 LIMIT ?
             """, (session_id, count))
-            
+
             messages = []
             for row in reversed(cursor.fetchall()):  # 反转以保持时间顺序
                 messages.append({
@@ -333,9 +346,7 @@ class DatabaseDAO:
                     "token_count": row["token_count"],
                     "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
                     "tool_calls": json.loads(row["tool_calls"]) if row["tool_calls"] else [],
-                    "parent_message_id": row["parent_message_id"],
-                    "is_compressed": bool(row["is_compressed"]),
-                    "compression_summary": row["compression_summary"]
+                    "parent_message_id": row["parent_message_id"]
                 })
             
             return messages
@@ -347,7 +358,7 @@ class DatabaseDAO:
                                  compressed_messages: List[Dict[str, Any]],
                                  summary: str,
                                  key_decisions: Optional[List[Dict[str, Any]]] = None,
-                                 project_state: Optional[Dict[str, Any]] = None) -> str:
+                                 tool_execution_results: Optional[Dict[str, Any]] = None) -> str:
         """
         创建压缩上下文
 
@@ -357,7 +368,7 @@ class DatabaseDAO:
             compressed_messages: 压缩后的消息列表
             summary: 对话摘要
             key_decisions: 关键决策
-            project_state: 项目状态快照
+            tool_execution_results: 工具执行结果集合
 
         Returns:
             压缩上下文ID
@@ -380,7 +391,7 @@ class DatabaseDAO:
 
         compressed_messages_json = json.dumps(compressed_messages)
         key_decisions_json = json.dumps(key_decisions) if key_decisions else None
-        project_state_json = json.dumps(project_state) if project_state else None
+        tool_execution_results_json = json.dumps(tool_execution_results) if tool_execution_results else None
 
         with self.transaction() as conn:
             # 将之前的压缩上下文设为非活跃
@@ -396,12 +407,12 @@ class DatabaseDAO:
                     context_id, session_id, compression_version,
                     original_message_count, compressed_message_count,
                     original_token_count, compressed_token_count, compression_ratio,
-                    compressed_messages, summary, key_decisions, project_state
+                    compressed_messages, summary, key_decisions, tool_execution_results
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (context_id, session_id, compression_version,
                   original_message_count, compressed_message_count,
                   original_token_count, compressed_token_count, compression_ratio,
-                  compressed_messages_json, summary, key_decisions_json, project_state_json))
+                  compressed_messages_json, summary, key_decisions_json, tool_execution_results_json))
 
             # 更新会话的压缩状态
             conn.execute("""
@@ -447,7 +458,7 @@ class DatabaseDAO:
                 "compressed_messages": json.loads(row["compressed_messages"]),
                 "summary": row["summary"],
                 "key_decisions": json.loads(row["key_decisions"]) if row["key_decisions"] else [],
-                "project_state": json.loads(row["project_state"]) if row["project_state"] else {},
+                "tool_execution_results": json.loads(row["tool_execution_results"]) if row["tool_execution_results"] else {},
                 "is_active": bool(row["is_active"])
             }
 
@@ -485,7 +496,7 @@ class DatabaseDAO:
                         "summary": row["summary"],
                         "key_decisions": json.loads(row["key_decisions"]) if row["key_decisions"] else []
                     },
-                    "project_state": json.loads(row["project_state"]) if row["project_state"] else {},
+                    "tool_execution_results": json.loads(row["tool_execution_results"]) if row["tool_execution_results"] else {},
                     "is_active": bool(row["is_active"])
                 })
 
@@ -531,7 +542,7 @@ class DatabaseDAO:
                     context_id, session_id, compression_version,
                     original_message_count, compressed_message_count,
                     original_token_count, compressed_token_count, compression_ratio,
-                    compressed_messages, summary, key_decisions, project_state
+                    compressed_messages, summary, key_decisions, tool_execution_results
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 context_id, session_id, version,
@@ -561,6 +572,32 @@ class DatabaseDAO:
             """, (session_id, version))
 
             return cursor.rowcount > 0
+
+    def get_compressed_context_messages(self, session_id: str) -> List[Dict[str, Any]]:
+        """
+        从compressed_context表获取消息（Agent层的唯一数据源）
+
+        Args:
+            session_id: 会话ID
+
+        Returns:
+            压缩上下文中的消息列表
+
+        Raises:
+            ValueError: 如果找不到压缩上下文记录（数据不一致）
+        """
+        # 获取活跃的压缩上下文
+        compressed_context = self.get_active_compressed_context(session_id)
+
+        if not compressed_context:
+            # 这是异常情况，说明数据不一致
+            print(f"⚠️ 警告：会话 {session_id} 缺少压缩上下文记录，数据可能不一致")
+            raise ValueError(f"会话 {session_id} 缺少压缩上下文记录，请检查会话创建流程")
+
+        # 直接从压缩上下文中解析消息
+        return compressed_context.get("compressed_messages", [])
+
+
 
     # ==================== 工具执行管理 ====================
 

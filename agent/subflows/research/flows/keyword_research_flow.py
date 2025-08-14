@@ -20,7 +20,6 @@ class TracedKeywordResearchFlow(AsyncFlow):
     async def prep_async(self, shared):
         """流程级准备"""
         keyword = shared.get("current_keyword", "未知关键词")
-        print(f"🔍 启动关键词研究流程: {keyword}")
         shared["subflow_start_time"] = __import__('asyncio').get_event_loop().time()
 
         return {
@@ -41,7 +40,6 @@ class TracedKeywordResearchFlow(AsyncFlow):
             "keyword": keyword
         }
 
-        print(f"✅ 关键词研究流程完成: {keyword}，耗时: {flow_duration:.3f}秒")
         return exec_result
 
 

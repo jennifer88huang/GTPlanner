@@ -93,26 +93,20 @@ class SmartCompressor:
             return False
         
         try:
-            # 临时保存当前会话
-            original_session = self.session_manager.current_session_id
-            
-            # 加载目标会话
-            if not self.session_manager.load_session(session_id):
+            # 从compressed_context表获取token统计信息
+            compressed_context = self.session_manager.dao.get_active_compressed_context(session_id)
+
+            if not compressed_context:
+                # 这是异常情况，说明数据不一致
+                print(f"⚠️ 警告：会话 {session_id} 缺少压缩上下文记录，无法检测压缩需求")
                 return False
-            
-            # 获取消息
-            messages = self.session_manager.get_messages()
-            
-            # 恢复原会话
-            if original_session:
-                self.session_manager.load_session(original_session)
-            
-            # 简单阈值判断
-            message_count = len(messages)
-            token_count = self._estimate_tokens(messages)
-            
+
+            # 从压缩上下文获取统计信息
+            message_count = compressed_context["compressed_message_count"]
+            token_count = compressed_context["compressed_token_count"]
+
             # 超过任一阈值就压缩
-            return (token_count > self.config.max_tokens or 
+            return (token_count > self.config.max_tokens or
                    message_count > self.config.max_messages)
             
         except Exception as e:

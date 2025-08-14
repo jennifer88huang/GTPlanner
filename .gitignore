@@ -106,3 +106,4 @@ cookbook/
 .gtplanner_sessions/
 .specstory
 memory-bank
+gtplanner_conversations.db

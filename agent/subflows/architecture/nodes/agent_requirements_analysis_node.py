@@ -6,14 +6,11 @@ Agent Requirements Analysis Node
 """
 
 import time
-import json
-import time
 from typing import Dict, Any
 from pocketflow import AsyncNode
 
 # 导入LLM调用工具
 from agent.llm_utils import call_llm_async
-import asyncio
 
 
 class AgentRequirementsAnalysisNode(AsyncNode):
@@ -27,27 +24,23 @@ class AgentRequirementsAnalysisNode(AsyncNode):
     async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：收集需求信息"""
         try:
-            # 获取结构化需求
-            structured_requirements = shared.get("structured_requirements", {})
-            
-            # 获取研究结果
+            # 获取短期规划结果（必需）
+            short_planning = shared.get("short_planning", "")
+
+            # 获取研究结果（可选）
             research_findings = shared.get("research_findings", {})
-            
-            # 获取确认文档
-            confirmation_document = shared.get("confirmation_document", "")
-            
-            # 获取用户原始输入
-            user_input = shared.get("user_input", "")
-            
+
+            # 获取推荐工具（可选）
+            recommended_tools = shared.get("recommended_tools", [])
+
             # 检查必需的输入
-            if not structured_requirements:
-                return {"error": "缺少结构化需求"}
-            
+            if not short_planning:
+                return {"error": "缺少短期规划结果，无法进行架构分析"}
+
             return {
-                "structured_requirements": structured_requirements,
+                "short_planning": short_planning,
                 "research_findings": research_findings,
-                "confirmation_document": confirmation_document,
-                "user_input": user_input,
+                "recommended_tools": recommended_tools,
                 "timestamp": time.time()
             }
             
@@ -112,21 +105,32 @@ class AgentRequirementsAnalysisNode(AsyncNode):
     
     def _build_analysis_prompt(self, prep_result: Dict[str, Any]) -> str:
         """构建需求分析提示词"""
-        structured_requirements = prep_result["structured_requirements"]
+        short_planning = prep_result["short_planning"]
         research_findings = prep_result.get("research_findings", {})
-        user_input = prep_result.get("user_input", "")
+        recommended_tools = prep_result.get("recommended_tools", [])
         
+
+        # 构建推荐工具信息
+        tools_info = ""
+        if recommended_tools:
+            tools_list = []
+            for tool in recommended_tools:
+                tool_name = tool.get("name", tool.get("id", "未知工具"))
+                tool_type = tool.get("type", "")
+                tool_summary = tool.get("summary", tool.get("description", ""))
+                tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
+            tools_info = "\n".join(tools_list)
 
         prompt = f"""基于以下信息，分析并明确要设计的Agent类型和核心功能。
 
-**结构化需求：**
-{json.dumps(structured_requirements, indent=2, ensure_ascii=False)}
+**项目规划：**
+{short_planning}
 
-**研究发现：**
-{research_findings.get('research_summary', '无研究发现')}
+**推荐工具：**
+{tools_info if tools_info else "无推荐工具"}
 
-**确认文档：**
-{prep_result.get('confirmation_document', '无确认文档')}
+**技术调研结果：**
+{research_findings.get('research_summary', '无技术调研结果')}
 
 请分析上述信息，生成完整的Agent需求分析报告。"""
         

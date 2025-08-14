@@ -53,7 +53,6 @@ class GTPlanner:
                 "success": True,
                 "result": result,
                 "session_id": self.shared_state.session_id,
-                "stage": self.shared_state.current_stage,
                 "timestamp": datetime.now().isoformat(),
                 "error_count": self.shared_state.error_count
             }
@@ -67,7 +66,6 @@ class GTPlanner:
                 "success": False,
                 "result": None,
                 "session_id": self.shared_state.session_id,
-                "stage": self.shared_state.current_stage,
                 "timestamp": datetime.now().isoformat(),
                 "error_count": self.shared_state.error_count,
                 "error": str(e),

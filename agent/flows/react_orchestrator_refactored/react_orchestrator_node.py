@@ -144,11 +144,9 @@ class ReActOrchestratorNode(AsyncNode):
             "role": "assistant",
             "content": message,
             "timestamp": datetime.now().isoformat(),
-            "metadata": {}
+            "metadata": {},
+            "tool_calls": tool_calls or []  # tool_calls作为顶级字段，符合OpenAI标准格式
         }
-
-        if tool_calls:
-            assistant_message["metadata"]["tool_calls"] = tool_calls
 
         # 添加到预留字段
         if "new_assistant_messages" not in shared:
@@ -186,6 +184,30 @@ class ReActOrchestratorNode(AsyncNode):
 
                 shared["new_tool_executions"].append(tool_execution)
 
+                # 🔧 关键修复：提取工具执行结果到主shared字典
+                self._extract_tool_execution_results(shared, tool_name, tool_result)
+
+    def _extract_tool_execution_results(self, shared: Dict[str, Any], tool_name: str, tool_result: Dict[str, Any]) -> None:
+        """提取工具执行结果到主shared字典"""
+        # 根据工具名称提取特定的结果
+        if tool_name == "tool_recommend" and tool_result.get("success"):
+            result_data = tool_result.get("result", {})
+            recommended_tools = result_data.get("recommended_tools")
+            if recommended_tools:
+                shared["recommended_tools"] = recommended_tools
+
+        elif tool_name == "research" and tool_result.get("success"):
+            result_data = tool_result.get("result", {})
+            # research工具的result直接就是research_findings内容
+            if result_data:
+                shared["research_findings"] = result_data
+
+        elif tool_name == "short_planning" and tool_result.get("success"):
+            result_data = tool_result.get("result", {})
+            # short_planning工具的result直接就是规划内容
+            if result_data:
+                shared["short_planning"] = result_data
+
     def _increment_react_cycle(self, shared: Dict[str, Any]) -> int:
         """增加ReAct循环计数"""
         current_count = shared.get("react_cycle_count", 0)
@@ -204,14 +226,21 @@ class ReActOrchestratorNode(AsyncNode):
             streaming_session = shared.get("streaming_session")
             streaming_callbacks = shared.get("streaming_callbacks", {})
 
-            # 如果有流式会话，使用流式响应；否则使用简化的非流式处理
+            # 如果有流式会话，使用流式响应；否则返回错误提示
             if streaming_session and streaming_callbacks:
                 return await self._execute_with_streaming(
                     messages, shared, streaming_session, streaming_callbacks
                 )
             else:
-                # 简化的非流式处理
-                return await self._execute_without_streaming_simple(messages, shared)
+                # 非流式处理暂不支持，返回提示信息
+                return {
+                    "user_message": "当前仅支持流式处理模式，请确保提供了正确的流式会话参数。",
+                    "tool_calls": [],
+                    "reasoning": "非流式处理模式未实现",
+                    "confidence": 0.0,
+                    "decision_success": False,
+                    "execution_mode": "non_streaming_not_supported"
+                }
 
         except Exception as e:
             return {
@@ -243,7 +272,6 @@ class ReActOrchestratorNode(AsyncNode):
                 system_prompt=SystemPrompts.FUNCTION_CALLING_SYSTEM_PROMPT,
                 messages=messages,
                 tools=self.available_tools,
-                tool_choice="auto",
                 parallel_tool_calls=True
             )
 
@@ -318,12 +346,15 @@ class ReActOrchestratorNode(AsyncNode):
                 # 将assistant消息添加到历史
                 messages.append(assistant_message)
 
+                # 🔧 关键修复：将带有工具调用的assistant消息保存到shared字典
+                self._add_assistant_message(shared, assistant_message_content, assistant_tool_calls)
+
                 # 直接使用OpenAI标准格式的工具调用
                 tool_calls_data = assistant_tool_calls
 
                 # 🔄 使用统一的递归Function Calling循环处理
                 return await self._process_function_calling_cycle(
-                    messages, tool_calls_data, streaming_session, streaming_callbacks, recursion_depth=0
+                    messages, tool_calls_data, shared, streaming_session, streaming_callbacks, recursion_depth=0
                 )
             else:
                 # 没有工具调用，直接返回LLM的回复
@@ -356,6 +387,7 @@ class ReActOrchestratorNode(AsyncNode):
         self,
         messages: List[Dict[str, Any]],
         tool_calls: List[Dict[str, Any]],
+        shared: Dict[str, Any],
         streaming_session,
         streaming_callbacks: Dict,
         recursion_depth: int = 0,
@@ -367,6 +399,7 @@ class ReActOrchestratorNode(AsyncNode):
         Args:
             messages: 消息历史
             tool_calls: 当前需要执行的工具调用
+            shared: 共享状态字典
             streaming_session: 流式会话
             streaming_callbacks: 流式回调
             recursion_depth: 当前递归深度
@@ -404,7 +437,7 @@ class ReActOrchestratorNode(AsyncNode):
 
             # 执行工具调用
             tool_execution_results = await self.tool_executor.execute_tools_parallel(
-                tool_calls, {}, streaming_session  # 使用空的shared字典，因为这是递归调用
+                tool_calls, shared, streaming_session  # 传递正确的shared字典
             )
 
             # 触发工具调用结束回调
@@ -418,6 +451,14 @@ class ReActOrchestratorNode(AsyncNode):
                         success=tool_result.get("success", True),
                         error_message=tool_result.get("error")
                     )
+
+            # 🔧 关键修复：在递归调用中直接提取工具执行结果到shared字典
+            for tool_result in tool_execution_results:
+                tool_name = tool_result.get("tool_name")
+                if tool_name and tool_result.get("success"):
+                    # 传递工具的实际执行结果（包含success和result字段）
+                    actual_tool_result = tool_result.get("result", {})
+                    self._extract_tool_execution_results(shared, tool_name, actual_tool_result)
 
             # 将工具结果添加到消息历史
             for i, tool_result in enumerate(tool_execution_results):
@@ -439,7 +480,6 @@ class ReActOrchestratorNode(AsyncNode):
                 system_prompt=SystemPrompts.FUNCTION_CALLING_SYSTEM_PROMPT,
                 messages=messages,
                 tools=self.available_tools,
-                tool_choice="auto",
                 parallel_tool_calls=True
             )
 
@@ -503,7 +543,7 @@ class ReActOrchestratorNode(AsyncNode):
 
                 # 递归处理新的工具调用
                 return await self._process_function_calling_cycle(
-                    messages, new_tool_calls, streaming_session, streaming_callbacks,
+                    messages, new_tool_calls, shared, streaming_session, streaming_callbacks,
                     recursion_depth + 1, max_recursion_depth
                 )
             else:

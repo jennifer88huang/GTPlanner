@@ -134,19 +134,22 @@ class ArchitectureFlow:
     def _validate_input(self, shared: dict) -> bool:
         """验证输入数据"""
         try:
-            # 检查必需的输入
-            if "structured_requirements" not in shared:
-                print("❌ 缺少必需输入: structured_requirements")
+            # 检查必需的输入 - 支持多种输入源
+            has_user_requirements = "user_requirements" in shared and shared["user_requirements"]
+            has_short_planning = "short_planning" in shared and shared["short_planning"]
+
+            if not (has_user_requirements or has_short_planning):
+                print("❌ 缺少必需输入: 需要 user_requirements 或 short_planning 中的任意一个")
                 return False
-            
-            # 检查结构化需求的完整性
-            structured_requirements = shared["structured_requirements"]
-            if not isinstance(structured_requirements, dict):
-                print("❌ structured_requirements 必须是字典类型")
-                return False
-            
+
+            # 如果有用户需求，优先使用；否则使用短期规划结果
+            if has_user_requirements:
+                print("✅ 使用用户需求作为架构设计输入")
+            else:
+                print("✅ 使用短期规划结果作为架构设计输入")
+
             return True
-            
+
         except Exception as e:
             print(f"❌ 输入数据验证失败: {str(e)}")
             return False

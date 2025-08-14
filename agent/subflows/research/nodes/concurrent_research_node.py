@@ -38,7 +38,6 @@ class ConcurrentResearchNode(AsyncNode):
         if not focus_areas:
             return {"error": "缺少关注点"}
         
-        print(f"🔄 准备并发处理 {len(research_keywords)} 个关键词...")
         
         # 创建子流程和数据对
         subflows_and_data = []
@@ -101,9 +100,8 @@ class ConcurrentResearchNode(AsyncNode):
                     "error": str(result)
                 })
             else:
-                print(f"✅ 关键词 '{keyword}' 处理成功")
-                # 从data中获取结果
-                keyword_result = data.get("keyword_result", {})
+                # 从子流程的shared字典中获取结果
+                keyword_result = data.get("keyword_report", {})
                 successful_results.append({
                     "keyword": keyword,
                     "result": keyword_result
@@ -112,9 +110,6 @@ class ConcurrentResearchNode(AsyncNode):
         successful_count = len(successful_results)
         failed_count = len(failed_results)
         
-        print(f"⏱️ 并发执行完成，耗时: {execution_time:.2f}秒")
-        print(f"✅ 成功: {successful_count}/{len(keywords)}")
-        print(f"❌ 失败: {failed_count}/{len(keywords)}")
         
         # 存储结果到实例变量
         self._execution_results = {
