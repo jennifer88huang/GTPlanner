@@ -151,27 +151,26 @@ async def execute_agent_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[
 
 
 async def _execute_short_planning(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """执行短期规划"""
+    """执行短期规划 - 使用ShortPlanningFlow"""
     user_requirements = arguments.get("user_requirements", "")
     previous_planning = arguments.get("previous_planning", "")
     improvement_points = arguments.get("improvement_points", [])
 
+    # 参数验证
     if not user_requirements:
         return {
             "success": False,
-            "error": "user_requirements is required"
+            "error": "user_requirements is required and cannot be empty"
         }
 
-    # 🔧 方案B：通过state_manager更新状态，工具只返回结果
-
-    # 创建pocketflow字典格式的数据
-    flow_data = {
-        "user_requirements": user_requirements,
-        "previous_planning": previous_planning,
-        "improvement_points": improvement_points
-    }
-
     try:
+        # 创建pocketflow字典格式的数据
+        flow_data = {
+            "user_requirements": user_requirements,
+            "previous_planning": previous_planning,
+            "improvement_points": improvement_points
+        }
+
         # 创建并执行异步流程（使用pocketflow字典）
         flow = ShortPlanningFlow()
         success = await flow.run_async(flow_data)
@@ -180,7 +179,6 @@ async def _execute_short_planning(arguments: Dict[str, Any]) -> Dict[str, Any]:
             # 从flow_data中获取结果
             planning_document = flow_data.get("planning_document", {})
 
-            # 🔧 方案B：只返回结果，状态更新由state_manager处理
             return {
                 "success": True,
                 "result": planning_document,
@@ -200,7 +198,7 @@ async def _execute_short_planning(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def _execute_research(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """执行技术调研 - 使用ProcessResearch节点"""
+    """执行技术调研 - 使用ResearchFlow"""
     keywords = arguments.get("keywords", [])
     focus_areas = arguments.get("focus_areas", [])
     project_context = arguments.get("project_context", "")
@@ -219,22 +217,17 @@ async def _execute_research(arguments: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     try:
-        print(f"🔍 开始技术调研")
-        print(f"📋 关键词: {keywords}")
-        print(f"🎯 关注点: {focus_areas}")
-        print(f"📝 项目背景: {project_context}")
-
-        # 🔧 修复：使用完整的ResearchFlow而不是直接调用节点
+        # 使用完整的ResearchFlow
         from agent.subflows.research.flows.research_flow import ResearchFlow
 
-        # 创建pocketflow字典格式的数据（使用新的参数格式）
+        # 创建pocketflow字典格式的数据
         flow_data = {
             "research_keywords": keywords,
             "focus_areas": focus_areas,
             "project_context": project_context
         }
 
-        # 创建并执行完整的研究流程（带tracing）
+        # 创建并执行完整的研究流程
         flow = ResearchFlow()
         success = await flow.run_async(flow_data)
 

@@ -15,6 +15,7 @@ from agent.function_calling import get_agent_function_definitions
 
 # 导入流式响应类型
 from agent.streaming.stream_types import StreamCallbackType
+from agent.streaming.stream_interface import StreamingSession
 
 # 导入重构后的组件
 from .constants import (
@@ -69,18 +70,18 @@ class ReActOrchestratorNode(AsyncNode):
             dialogue_history = shared_data.get("dialogue_history", {})
             messages = dialogue_history.get("messages", [])
 
-            # 使用Function Calling执行（从shared_data中获取流式响应参数）
+            # 使用Function Calling执行（传递shared_data作为shared参数）
             result = await self._execute_with_function_calling(messages, shared_data)
 
             return result
 
         except Exception as e:
-            print(f"❌ ReAct执行失败: {e}")
-            
+            # 在没有shared字典访问权限时，只能返回错误
             return {
                 "error": f"{ErrorMessages.REACT_EXEC_FAILED}: {str(e)}",
                 "user_message": ErrorMessages.GENERIC_ERROR,
-                "decision_success": False
+                "decision_success": False,
+                "exec_error": str(e)  # 添加详细错误信息供post_async处理
             }
 
     async def post_async(
@@ -92,6 +93,14 @@ class ReActOrchestratorNode(AsyncNode):
         """异步更新共享状态（无状态版本）"""
         try:
             if "error" in exec_res:
+                # 记录exec阶段的错误到shared
+                if "errors" not in shared:
+                    shared["errors"] = []
+                shared["errors"].append({
+                    "source": "ReActOrchestratorNode.exec",
+                    "error": exec_res.get("exec_error", exec_res["error"]),
+                    "timestamp": __import__('time').time()
+                })
                 shared["react_error"] = exec_res["error"]
                 return "error"
 
@@ -114,7 +123,14 @@ class ReActOrchestratorNode(AsyncNode):
             return "wait_for_user"
 
         except Exception as e:
-            print(f"❌ ReAct post处理失败: {e}")
+            # 记录错误到shared字典，不打印到控制台
+            if "errors" not in shared:
+                shared["errors"] = []
+            shared["errors"].append({
+                "source": "ReActOrchestratorNode.post",
+                "error": str(e),
+                "timestamp": __import__('time').time()
+            })
             shared["react_post_error"] = str(e)
             return "error"
 
@@ -180,22 +196,22 @@ class ReActOrchestratorNode(AsyncNode):
     async def _execute_with_function_calling(
         self,
         messages: List[Dict[str, str]],
-        shared: Dict[str, Any] = None
+        shared: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """使用Function Calling执行ReAct逻辑（支持流式响应）"""
+        """使用Function Calling执行ReAct逻辑（统一流式架构）"""
         try:
-            # 检查是否启用流式响应
-            streaming_session = shared.get("streaming_session") if shared else None
-            streaming_callbacks = shared.get("streaming_callbacks", {}) if shared else {}
+            # 获取流式响应参数
+            streaming_session = shared.get("streaming_session")
+            streaming_callbacks = shared.get("streaming_callbacks", {})
 
+            # 如果有流式会话，使用流式响应；否则使用简化的非流式处理
             if streaming_session and streaming_callbacks:
-                # 流式响应模式
                 return await self._execute_with_streaming(
-                    messages, streaming_session, streaming_callbacks
+                    messages, shared, streaming_session, streaming_callbacks
                 )
             else:
-                # 非流式响应模式（向后兼容）
-                return await self._execute_without_streaming(messages)
+                # 简化的非流式处理
+                return await self._execute_without_streaming_simple(messages, shared)
 
         except Exception as e:
             return {
@@ -207,61 +223,16 @@ class ReActOrchestratorNode(AsyncNode):
                 "execution_mode": "error"
             }
 
-    async def _execute_without_streaming(
-        self,
-        messages: List[Dict[str, str]]
-    ) -> Dict[str, Any]:
-        """非流式执行（向后兼容）"""
-        # 使用新的API接口：分离系统提示词和消息
-        response = await self.openai_client.chat_completion_async(
-            system_prompt=SystemPrompts.FUNCTION_CALLING_SYSTEM_PROMPT,
-            messages=messages,
-            tools=self.available_tools,
-            tool_choice="auto",
-            parallel_tool_calls=True
-        )
 
-        # 处理响应
-        choice = response.choices[0]
-        message = choice.message
-
-        # 提取助手回复
-        assistant_message = message.content or ""
-
-        # 处理工具调用（支持多个并行调用）
-        tool_calls = []
-
-        # 检查标准的OpenAI Function Calling格式
-        if message.tool_calls:
-            tool_calls = await self.tool_executor.execute_tools_parallel(message.tool_calls)
-
-        # 如果没有标准格式的工具调用，检查自定义格式
-        elif assistant_message and "<tool_call>" in assistant_message:
-            print("🔧 检测到自定义格式的工具调用")
-            custom_tool_calls = self.tool_executor.parse_custom_tool_calls(assistant_message)
-
-            if custom_tool_calls:
-                tool_calls = await self.tool_executor.execute_custom_tool_calls(custom_tool_calls)
-                # 清理assistant_message中的工具调用标记
-                assistant_message = self.tool_executor.clean_tool_call_markers(assistant_message)
-
-        # LLM已经通过Function Calling做出了决策，我们只需要处理结果
-        return {
-            "user_message": assistant_message,
-            "tool_calls": tool_calls,
-            "reasoning": f"LLM执行了{len(tool_calls)}个工具调用" if tool_calls else "LLM进行了对话回复",
-            "confidence": DefaultValues.DEFAULT_CONFIDENCE,
-            "decision_success": True,
-            "execution_mode": "parallel" if len(tool_calls) > 1 else "single"
-        }
 
     async def _execute_with_streaming(
         self,
         messages: List[Dict[str, str]],
-        streaming_session,
+        shared: Dict[str, Any],
+        streaming_session: StreamingSession,
         streaming_callbacks: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """流式执行（实时响应）"""
+        """流式执行（统一流式架构）"""
         try:
             # 触发LLM开始回调
             if StreamCallbackType.ON_LLM_START in streaming_callbacks:
@@ -276,9 +247,10 @@ class ReActOrchestratorNode(AsyncNode):
                 parallel_tool_calls=True
             )
 
-            # 收集流式响应
-            assistant_message = ""
-            tool_calls_data = []
+            # 收集流式响应 - 使用OpenAI SDK标准格式
+            assistant_message_content = ""
+            assistant_tool_calls = []
+            current_tool_calls = {}
             chunk_index = 0
 
             async for chunk in stream:
@@ -288,7 +260,7 @@ class ReActOrchestratorNode(AsyncNode):
 
                     # 处理内容片段
                     if delta.content:
-                        assistant_message += delta.content
+                        assistant_message_content += delta.content
 
                         # 触发流式内容回调
                         if StreamCallbackType.ON_LLM_CHUNK in streaming_callbacks:
@@ -299,69 +271,263 @@ class ReActOrchestratorNode(AsyncNode):
                             )
                         chunk_index += 1
 
-                    # 处理工具调用
+                    # 处理工具调用 - 使用OpenAI SDK标准格式
                     if delta.tool_calls:
-                        for tool_call in delta.tool_calls:
-                            # 收集工具调用数据
-                            if tool_call.function:
-                                tool_calls_data.append(tool_call)
+                        for tool_call_delta in delta.tool_calls:
+                            index = tool_call_delta.index
+
+                            # 初始化工具调用对象
+                            if index not in current_tool_calls:
+                                current_tool_calls[index] = {
+                                    "id": tool_call_delta.id or "",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "",
+                                        "arguments": ""
+                                    }
+                                }
+
+                            # 累积工具调用信息
+                            if tool_call_delta.id:
+                                current_tool_calls[index]["id"] = tool_call_delta.id
+                            if tool_call_delta.function:
+                                if tool_call_delta.function.name:
+                                    current_tool_calls[index]["function"]["name"] = tool_call_delta.function.name
+                                if tool_call_delta.function.arguments:
+                                    current_tool_calls[index]["function"]["arguments"] += tool_call_delta.function.arguments
+
+            # 构建完整的assistant消息（OpenAI标准格式）
+            assistant_tool_calls = [tool_call for tool_call in current_tool_calls.values() if tool_call["id"]]
+
+            # 构建完整的assistant消息（OpenAI标准格式）
+            assistant_message = {
+                "role": "assistant",
+                "content": assistant_message_content,
+                "tool_calls": assistant_tool_calls if assistant_tool_calls else None
+            }
 
             # 触发LLM结束回调
             if StreamCallbackType.ON_LLM_END in streaming_callbacks:
                 await streaming_callbacks[StreamCallbackType.ON_LLM_END](
                     streaming_session,
-                    complete_message=assistant_message
+                    complete_message=assistant_message_content
                 )
 
-            # 处理工具调用
-            tool_calls = []
-            if tool_calls_data:
-                # 触发工具调用开始回调
-                for tool_call in tool_calls_data:
-                    if StreamCallbackType.ON_TOOL_START in streaming_callbacks and tool_call.function:
-                        # 解析arguments（可能是JSON字符串）
-                        import json
-                        try:
-                            arguments = json.loads(tool_call.function.arguments) if isinstance(tool_call.function.arguments, str) else tool_call.function.arguments
-                        except:
-                            arguments = tool_call.function.arguments
+            # 处理工具调用 - 使用OpenAI SDK标准格式
+            if assistant_tool_calls:
+                # 将assistant消息添加到历史
+                messages.append(assistant_message)
 
-                        await streaming_callbacks[StreamCallbackType.ON_TOOL_START](
-                            streaming_session,
-                            tool_name=tool_call.function.name,
-                            arguments=arguments
-                        )
+                # 直接使用OpenAI标准格式的工具调用
+                tool_calls_data = assistant_tool_calls
 
-                # 执行工具调用
-                tool_calls = await self.tool_executor.execute_tools_parallel(tool_calls_data)
-
-                # 触发工具调用结束回调
-                for tool_call in tool_calls:
-                    if StreamCallbackType.ON_TOOL_END in streaming_callbacks:
-                        await streaming_callbacks[StreamCallbackType.ON_TOOL_END](
-                            streaming_session,
-                            tool_name=tool_call.get("tool_name", "unknown"),
-                            result=tool_call.get("result", {}),
-                            execution_time=tool_call.get("execution_time", 0),
-                            success=tool_call.get("success", True),
-                            error_message=tool_call.get("error")
-                        )
-
-            return {
-                "user_message": assistant_message,
-                "tool_calls": tool_calls,
-                "reasoning": f"LLM执行了{len(tool_calls)}个工具调用" if tool_calls else "LLM进行了对话回复",
-                "confidence": DefaultValues.DEFAULT_CONFIDENCE,
-                "decision_success": True,
-                "execution_mode": "parallel" if len(tool_calls) > 1 else "single"
-            }
+                # 🔄 使用统一的递归Function Calling循环处理
+                return await self._process_function_calling_cycle(
+                    messages, tool_calls_data, streaming_session, streaming_callbacks, recursion_depth=0
+                )
+            else:
+                # 没有工具调用，直接返回LLM的回复
+                return {
+                    "user_message": assistant_message_content,
+                    "tool_calls": [],
+                    "reasoning": "LLM直接回复，无需工具调用",
+                    "confidence": 0.9,
+                    "decision_success": True,
+                    "execution_mode": "direct_response"
+                }
 
         except Exception as e:
-            print(f"❌ 流式Function Calling执行失败: {e}")
+            # 在流式执行中记录错误到shared（如果可用）
+            if "errors" not in shared:
+                shared["errors"] = []
+            shared["errors"].append({
+                "source": "ReActOrchestratorNode.streaming",
+                "error": str(e),
+                "timestamp": __import__('time').time()
+            })
             return {
                 "error": f"{ErrorMessages.FUNCTION_CALLING_FAILED}: {str(e)}",
                 "user_message": ErrorMessages.GENERIC_ERROR,
-                "decision_success": False
+                "decision_success": False,
+                "exec_error": str(e)  # 添加详细错误信息
             }
+
+    async def _process_function_calling_cycle(
+        self,
+        messages: List[Dict[str, Any]],
+        tool_calls: List[Dict[str, Any]],
+        streaming_session,
+        streaming_callbacks: Dict,
+        recursion_depth: int = 0,
+        max_recursion_depth: int = 5
+    ) -> Dict[str, Any]:
+        """
+        递归处理Function Calling循环
+
+        Args:
+            messages: 消息历史
+            tool_calls: 当前需要执行的工具调用
+            streaming_session: 流式会话
+            streaming_callbacks: 流式回调
+            recursion_depth: 当前递归深度
+            max_recursion_depth: 最大递归深度限制
+
+        Returns:
+            最终的执行结果
+        """
+        # 防止无限递归
+        if recursion_depth >= max_recursion_depth:
+            return {
+                "user_message": f"已达到最大递归深度({max_recursion_depth})，停止进一步的工具调用。",
+                "tool_calls": tool_calls,
+                "reasoning": f"递归深度限制，停止在第{recursion_depth}轮",
+                "confidence": 0.7,
+                "decision_success": True,
+                "execution_mode": "recursion_limit_reached"
+            }
+
+        try:
+            # 触发工具调用开始回调
+            for tool_call in tool_calls:
+                if StreamCallbackType.ON_TOOL_START in streaming_callbacks:
+                    import json
+                    try:
+                        arguments = json.loads(tool_call["function"]["arguments"])
+                    except:
+                        arguments = tool_call["function"]["arguments"]
+
+                    await streaming_callbacks[StreamCallbackType.ON_TOOL_START](
+                        streaming_session,
+                        tool_name=tool_call["function"]["name"],
+                        arguments=arguments
+                    )
+
+            # 执行工具调用
+            tool_execution_results = await self.tool_executor.execute_tools_parallel(
+                tool_calls, {}, streaming_session  # 使用空的shared字典，因为这是递归调用
+            )
+
+            # 触发工具调用结束回调
+            for tool_result in tool_execution_results:
+                if StreamCallbackType.ON_TOOL_END in streaming_callbacks:
+                    await streaming_callbacks[StreamCallbackType.ON_TOOL_END](
+                        streaming_session,
+                        tool_name=tool_result.get("tool_name", "unknown"),
+                        result=tool_result.get("result", {}),
+                        execution_time=tool_result.get("execution_time", 0),
+                        success=tool_result.get("success", True),
+                        error_message=tool_result.get("error")
+                    )
+
+            # 将工具结果添加到消息历史
+            for i, tool_result in enumerate(tool_execution_results):
+                tool_call_id = tool_calls[i]["id"]
+                result_content = json.dumps(tool_result.get("result", {}), ensure_ascii=False)
+
+                tool_message = {
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": result_content
+                }
+                messages.append(tool_message)
+
+            # 再次调用LLM处理工具结果
+            if StreamCallbackType.ON_LLM_START in streaming_callbacks:
+                await streaming_callbacks[StreamCallbackType.ON_LLM_START](streaming_session)
+
+            stream = self.openai_client.chat_completion_stream_async(
+                system_prompt=SystemPrompts.FUNCTION_CALLING_SYSTEM_PROMPT,
+                messages=messages,
+                tools=self.available_tools,
+                tool_choice="auto",
+                parallel_tool_calls=True
+            )
+
+            # 收集流式响应
+            assistant_message_content = ""
+            new_tool_calls = []
+            current_tool_calls = {}
+            chunk_index = 0
+
+            async for chunk in stream:
+                if chunk.choices and len(chunk.choices) > 0:
+                    choice = chunk.choices[0]
+                    delta = choice.delta
+
+                    if delta.content:
+                        assistant_message_content += delta.content
+                        if StreamCallbackType.ON_LLM_CHUNK in streaming_callbacks:
+                            await streaming_callbacks[StreamCallbackType.ON_LLM_CHUNK](
+                                streaming_session,
+                                chunk_content=delta.content,
+                                chunk_index=chunk_index
+                            )
+                        chunk_index += 1
+
+                    if delta.tool_calls:
+                        for tool_call_delta in delta.tool_calls:
+                            index = tool_call_delta.index
+
+                            if index not in current_tool_calls:
+                                current_tool_calls[index] = {
+                                    "id": tool_call_delta.id or "",
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""}
+                                }
+
+                            if tool_call_delta.id:
+                                current_tool_calls[index]["id"] = tool_call_delta.id
+                            if tool_call_delta.function:
+                                if tool_call_delta.function.name:
+                                    current_tool_calls[index]["function"]["name"] = tool_call_delta.function.name
+                                if tool_call_delta.function.arguments:
+                                    current_tool_calls[index]["function"]["arguments"] += tool_call_delta.function.arguments
+
+            new_tool_calls = [tool_call for tool_call in current_tool_calls.values() if tool_call["id"]]
+
+            if StreamCallbackType.ON_LLM_END in streaming_callbacks:
+                await streaming_callbacks[StreamCallbackType.ON_LLM_END](
+                    streaming_session,
+                    complete_message=assistant_message_content
+                )
+
+            # 递归处理或返回最终结果
+            if new_tool_calls:
+                # 添加当前assistant消息到历史
+                assistant_message_obj = {
+                    "role": "assistant",
+                    "content": assistant_message_content,
+                    "tool_calls": new_tool_calls
+                }
+                messages.append(assistant_message_obj)
+
+                # 递归处理新的工具调用
+                return await self._process_function_calling_cycle(
+                    messages, new_tool_calls, streaming_session, streaming_callbacks,
+                    recursion_depth + 1, max_recursion_depth
+                )
+            else:
+                # 没有更多工具调用，返回最终结果
+                return {
+                    "user_message": assistant_message_content,
+                    "tool_calls": [],
+                    "reasoning": f"完成{recursion_depth + 1}轮Function Calling循环",
+                    "confidence": 0.9,
+                    "decision_success": True,
+                    "execution_mode": f"multi_turn_complete_depth_{recursion_depth + 1}"
+                }
+
+        except Exception as e:
+            return {
+                "user_message": f"在第{recursion_depth + 1}轮Function Calling中出现错误：{str(e)}",
+                "tool_calls": [],
+                "reasoning": f"第{recursion_depth + 1}轮执行失败",
+                "confidence": 0.0,
+                "decision_success": False,
+                "execution_mode": "recursion_error"
+            }
+
+
+
 
 

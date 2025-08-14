@@ -33,35 +33,48 @@ class ResultAssemblyNode(AsyncNode):
     
     async def exec_async(self, prep_res):
         """执行结果组装"""
-        # 组装单个关键词的完整报告
+        # 简化的关键词报告结构
+        analysis = prep_res.get("analysis", {})
+
         keyword_report = {
             "keyword": prep_res["keyword"],
-            "url": prep_res["url"],
-            "title": prep_res["title"],
-            "content": prep_res["content"][:1000] + "..." if len(prep_res["content"]) > 1000 else prep_res["content"],
-            "analysis": prep_res["analysis"],
+            "source": {
+                "url": prep_res["url"],
+                "title": prep_res["title"]
+            },
+            "summary": analysis.get("summary", ""),
+            "key_points": analysis.get("key_points", []),
+            "recommendations": analysis.get("recommendations", []),
             "processed_at": time.time()
         }
-        
+
         return {"keyword_report": keyword_report}
     
     async def post_async(self, shared, prep_res, exec_res):
         """保存组装结果到共享变量"""
         if "error" in exec_res:
+            # 记录错误到shared字典
+            if "errors" not in shared:
+                shared["errors"] = []
+            shared["errors"].append({
+                "source": "ResultAssemblyNode",
+                "error": exec_res["error"],
+                "timestamp": time.time()
+            })
             return "error"
 
-        # 保存单个关键词报告到共享变量
+        # 保存关键词报告
         keyword_report = exec_res["keyword_report"]
         shared["keyword_report"] = keyword_report
 
-        # 设置research_findings格式，供function calling工具使用
-        research_keywords = shared.get("research_keywords", ["技术调研"])
+        # 简化的research_findings格式
         shared["research_findings"] = {
-            "topics": research_keywords,
-            "results": [keyword_report],  # 包装为列表
-            "summary": keyword_report.get("summary", "技术调研完成")
+            "keyword": keyword_report["keyword"],
+            "summary": keyword_report["summary"],
+            "key_points": keyword_report["key_points"],
+            "recommendations": keyword_report["recommendations"],
+            "source": keyword_report["source"]
         }
 
-        print(f"✅ 研究结果组装完成，关键词: {research_keywords}")
-        
+        print(f"✅ 研究结果组装完成: {keyword_report['keyword']}")
         return "assembly_complete"

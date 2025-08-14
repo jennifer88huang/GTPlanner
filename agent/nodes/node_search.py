@@ -78,22 +78,17 @@ class NodeSearch(AsyncNode):
 
             # 验证输入
             if not search_keywords:
-                return self._create_error_result("No search keywords provided", search_type)
-            
-            # 优化关键词
-            optimized_keywords = self._optimize_keywords(search_keywords)
-            
+                return {"error": "No search keywords provided"}
+
             return {
-                "search_keywords": optimized_keywords,
+                "search_keywords": search_keywords,
                 "search_type": search_type,
                 "max_results": max_results,
-                "language": language,
-                "original_keywords": search_keywords,
-                "keyword_count": len(optimized_keywords)
+                "language": language
             }
             
         except Exception as e:
-            return self._create_error_result(f"Search preparation failed: {str(e)}")
+            return {"error": f"Search preparation failed: {str(e)}"}
     
     async def exec_async(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -128,19 +123,13 @@ class NodeSearch(AsyncNode):
 
                         # 转换为标准格式
                         formatted_results = []
-                        for i, result in enumerate(results):
+                        for result in results:
                             formatted_result = {
                                 "title": result.get("title", ""),
                                 "url": result.get("url", ""),
                                 "snippet": result.get("description", ""),
-                                "search_keyword": keyword,
-                                "rank": i + 1,
-                                "source_type": self._classify_source_type(result.get("url", "")),
                                 "content": result.get("content", "")
                             }
-                            formatted_result["relevance_score"] = self._calculate_relevance_score(
-                                formatted_result, keyword
-                            )
                             formatted_results.append(formatted_result)
 
                         all_results.extend(formatted_results)
@@ -157,12 +146,11 @@ class NodeSearch(AsyncNode):
                     print(f"❌ 搜索失败，关键词 '{keyword}': {str(e)}")
                     continue
             
-            # 去重和排序
+            # 去重
             deduplicated_results = self._deduplicate_results(all_results)
-            sorted_results = self._sort_results(deduplicated_results)
-            
+
             # 限制结果数量
-            final_results = sorted_results[:max_results]
+            final_results = deduplicated_results[:max_results]
             
             search_time = time.time() - start_time
             
@@ -260,9 +248,7 @@ class NodeSearch(AsyncNode):
         
         return deduplicated
     
-    def _sort_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """按相关性评分排序结果"""
-        return sorted(results, key=lambda x: x.get("relevance_score", 0), reverse=True)
+
     
 
     

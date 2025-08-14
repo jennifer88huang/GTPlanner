@@ -43,15 +43,15 @@ class StatelessGTPlanner:
         self,
         user_input: str,
         context: AgentContext,
-        streaming_session: Optional[StreamingSession] = None
+        streaming_session: StreamingSession
     ) -> AgentResult:
         """
-        处理用户请求（纯函数，原生支持流式响应）
+        处理用户请求（纯函数，统一流式架构）
 
         Args:
             user_input: 用户输入
             context: Agent上下文（只读，可能已压缩）
-            streaming_session: 可选的流式会话，提供时启用流式响应
+            streaming_session: 流式会话（必填）
 
         Returns:
             处理结果对象
@@ -60,31 +60,29 @@ class StatelessGTPlanner:
         
         try:
             # 流式响应：发送对话开始事件
-            if streaming_session:
-                await streaming_session.emit_event(
-                    StreamEventBuilder.conversation_start(streaming_session.session_id, user_input)
+            await streaming_session.emit_event(
+                StreamEventBuilder.conversation_start(streaming_session.session_id, user_input)
+            )
+            await streaming_session.emit_event(
+                StreamEventBuilder.processing_status(
+                    streaming_session.session_id,
+                    "正在初始化处理环境..."
                 )
-                await streaming_session.emit_event(
-                    StreamEventBuilder.processing_status(
-                        streaming_session.session_id,
-                        "正在初始化处理环境..."
-                    )
-                )
+            )
 
             # 1. 使用工厂创建独立的pocketflow shared字典
             shared = PocketFlowSharedFactory.create_shared_dict(user_input, context)
 
-            # 2. 注入流式回调（如果启用流式响应）
-            if streaming_session:
-                shared["streaming_session"] = streaming_session
-                shared["streaming_callbacks"] = {
-                    StreamCallbackType.ON_LLM_START: self._on_llm_start,
-                    StreamCallbackType.ON_LLM_CHUNK: self._on_llm_chunk,
-                    StreamCallbackType.ON_LLM_END: self._on_llm_end,
-                    StreamCallbackType.ON_TOOL_START: self._on_tool_start,
-                    StreamCallbackType.ON_TOOL_PROGRESS: self._on_tool_progress,
-                    StreamCallbackType.ON_TOOL_END: self._on_tool_end
-                }
+            # 2. 注入流式回调（统一流式架构）
+            shared["streaming_session"] = streaming_session
+            shared["streaming_callbacks"] = {
+                StreamCallbackType.ON_LLM_START: self._on_llm_start,
+                StreamCallbackType.ON_LLM_CHUNK: self._on_llm_chunk,
+                StreamCallbackType.ON_LLM_END: self._on_llm_end,
+                StreamCallbackType.ON_TOOL_START: self._on_tool_start,
+                StreamCallbackType.ON_TOOL_PROGRESS: self._on_tool_progress,
+                StreamCallbackType.ON_TOOL_END: self._on_tool_end
+            }
 
             # 3. 创建独立的orchestrator实例
             orchestrator = ReActOrchestratorFlow()
@@ -101,18 +99,17 @@ class StatelessGTPlanner:
             )
 
             # 流式响应：发送对话结束事件
-            if streaming_session:
-                await streaming_session.emit_event(
-                    StreamEventBuilder.conversation_end(
-                        streaming_session.session_id,
-                        {
-                            "success": result.success,
-                            "execution_time": result.execution_time,
-                            "new_messages_count": len(result.new_assistant_messages),
-                            "new_tool_executions_count": len(result.new_tool_executions)
-                        }
-                    )
+            await streaming_session.emit_event(
+                StreamEventBuilder.conversation_end(
+                    streaming_session.session_id,
+                    {
+                        "success": result.success,
+                        "execution_time": result.execution_time,
+                        "new_messages_count": len(result.new_assistant_messages),
+                        "new_tool_executions_count": len(result.new_tool_executions)
+                    }
                 )
+            )
 
             return result
             
@@ -121,14 +118,13 @@ class StatelessGTPlanner:
             execution_time = asyncio.get_event_loop().time() - start_time
 
             # 流式响应：发送错误事件
-            if streaming_session:
-                await streaming_session.emit_event(
-                    StreamEventBuilder.error(
-                        streaming_session.session_id,
-                        f"Processing failed: {str(e)}",
-                        {"exception_type": type(e).__name__}
-                    )
+            await streaming_session.emit_event(
+                StreamEventBuilder.error(
+                    streaming_session.session_id,
+                    f"Processing failed: {str(e)}",
+                    {"exception_type": type(e).__name__}
                 )
+            )
             
             return AgentResult.create_error(
                 error=f"Processing failed: {str(e)}",
@@ -191,17 +187,9 @@ class StatelessGTPlanner:
         arguments: dict,
         **kwargs
     ) -> None:
-        """工具调用开始回调"""
-        tool_status = ToolCallStatus(
-            tool_name=tool_name,
-            status="starting",
-            progress_message=f"正在调用{tool_name}工具...",
-            arguments=arguments
-        )
-
-        await session.emit_event(
-            StreamEventBuilder.tool_call_start(session.session_id, tool_status)
-        )
+        """工具调用开始回调（事件由ToolExecutor发送，此处仅作为占位符）"""
+        # 注意：实际的tool_call_start事件由ToolExecutor发送，避免重复
+        pass
 
     @staticmethod
     async def _on_tool_progress(
@@ -231,18 +219,9 @@ class StatelessGTPlanner:
         error_message: Optional[str] = None,
         **kwargs
     ) -> None:
-        """工具调用结束回调"""
-        tool_status = ToolCallStatus(
-            tool_name=tool_name,
-            status="completed" if success else "failed",
-            result=result,
-            execution_time=execution_time,
-            error_message=error_message
-        )
-
-        await session.emit_event(
-            StreamEventBuilder.tool_call_end(session.session_id, tool_status)
-        )
+        """工具调用结束回调（事件由ToolExecutor发送，此处仅作为占位符）"""
+        # 注意：实际的tool_call_end事件由ToolExecutor发送，避免重复
+        pass
 
 
 # 便捷函数

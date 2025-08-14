@@ -74,27 +74,24 @@ async def call_llm_async(
     """
     client = get_openai_client()
 
-    # 构建消息
-    messages = []
-    
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    
+    # 构建用户消息列表
+    user_messages = [{"role": "user", "content": prompt}]
+
     # 处理JSON格式要求
     if is_json:
+        # 如果有系统提示词，在其中添加JSON要求
         if system_prompt:
-            messages[0]["content"] += "\n\n请确保回复是有效的JSON格式。"
+            system_prompt += "\n\n请确保回复是有效的JSON格式。"
         else:
-            messages.append({
-                "role": "system", 
-                "content": "请以JSON格式回复，确保输出是有效的JSON。"
-            })
+            system_prompt = "请以JSON格式回复，确保输出是有效的JSON。"
         kwargs["response_format"] = {"type": "json_object"}
-    
-    messages.append({"role": "user", "content": prompt})
 
-    # 执行调用
-    response = await client.chat_completion_async(messages, **kwargs)
+    # 执行调用 - 使用正确的参数顺序
+    response = await client.chat_completion_async(
+        system_prompt=system_prompt,
+        messages=user_messages,
+        **kwargs
+    )
 
     # 提取内容
     if response.choices and response.choices[0].message.content:

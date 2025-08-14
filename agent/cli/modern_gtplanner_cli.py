@@ -238,15 +238,16 @@ class ModernGTPlannerCLI:
                 self.console.print("❌ [red]无法构建上下文[/red]")
                 return True
             
-            # 创建流式会话（如果启用）
-            streaming_session = None
+            # 创建流式会话（统一流式架构，总是创建）
+            streaming_session = self._create_streaming_session(
+                self.session_manager.current_session_id
+            )
+            self.current_streaming_session = streaming_session
+
+            # 只有在启用流式显示时才启动流式会话
             if self.enable_streaming:
-                streaming_session = self._create_streaming_session(
-                    self.session_manager.current_session_id
-                )
-                self.current_streaming_session = streaming_session
                 await streaming_session.start()
-            
+
             # 使用StatelessGTPlanner处理
             result = await self.planner.process(user_input, context, streaming_session)
             
