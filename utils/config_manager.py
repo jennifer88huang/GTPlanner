@@ -221,6 +221,62 @@ class MultilingualConfig:
 
         return {k: v for k, v in config.items() if v is not None}
 
+    def get_vector_service_config(self) -> Dict[str, Any]:
+        """Get vector service configuration.
+
+        Returns:
+            Dictionary containing vector service configuration
+        """
+        config = {}
+
+        # Try dynaconf settings first
+        if self._settings:
+            try:
+                config.update({
+                    "base_url": self._settings.get("vector_service.base_url"),
+                    "timeout": self._settings.get("vector_service.timeout", 30),
+                    "index_name": self._settings.get("vector_service.index_name", "default"),
+                    "vector_field": self._settings.get("vector_service.vector_field", "combined_text")
+                })
+            except Exception as e:
+                logger.warning(f"Error reading vector service config from settings: {e}")
+
+        # Try environment variables with fallbacks
+        config.update({
+            "base_url": config.get("base_url") or os.getenv("VECTOR_SERVICE_BASE_URL") or os.getenv("GTPLANNER_VECTOR_SERVICE_BASE_URL"),
+            "timeout": config.get("timeout") or int(os.getenv("VECTOR_SERVICE_TIMEOUT", "30")),
+            "index_name": config.get("index_name") or os.getenv("VECTOR_SERVICE_INDEX_NAME", "default"),
+            "vector_field": config.get("vector_field") or os.getenv("VECTOR_SERVICE_VECTOR_FIELD", "combined_text")
+        })
+
+        return {k: v for k, v in config.items() if v is not None}
+
+    def get_vector_service_config(self) -> Dict[str, Any]:
+        """Get vector service configuration.
+
+        Returns:
+            Dictionary containing vector service configuration
+        """
+        config = {}
+
+        # Try dynaconf settings first
+        if self._settings:
+            try:
+                config.update({
+                    "base_url": self._settings.get("vector_service.base_url"),
+                    "timeout": self._settings.get("vector_service.timeout", 30)
+                })
+            except Exception as e:
+                logger.warning(f"Error reading vector service config from settings: {e}")
+
+        # Try environment variables with fallbacks
+        config.update({
+            "base_url": config.get("base_url") or os.getenv("VECTOR_SERVICE_BASE_URL") or os.getenv("GTPLANNER_VECTOR_SERVICE_BASE_URL"),
+            "timeout": config.get("timeout") or int(os.getenv("VECTOR_SERVICE_TIMEOUT", "30"))
+        })
+
+        return {k: v for k, v in config.items() if v is not None}
+
     def get_all_config(self) -> Dict[str, Any]:
         """Get all configuration as a dictionary.
 
@@ -234,7 +290,8 @@ class MultilingualConfig:
             "supported_languages": self.get_supported_languages_config(),
             "all_available_languages": get_supported_languages(),
             "jina_api_key": self.get_jina_api_key(),
-            "llm_config": self.get_llm_config()
+            "llm_config": self.get_llm_config(),
+            "vector_service_config": self.get_vector_service_config()
         }
     
     def validate_config(self) -> List[str]:
@@ -332,6 +389,15 @@ def get_llm_config() -> Dict[str, Any]:
         Dictionary containing LLM configuration
     """
     return multilingual_config.get_llm_config()
+
+
+def get_vector_service_config() -> Dict[str, Any]:
+    """Convenience function to get vector service configuration.
+
+    Returns:
+        Dictionary containing vector service configuration
+    """
+    return multilingual_config.get_vector_service_config()
 
 
 def get_all_config() -> Dict[str, Any]:
