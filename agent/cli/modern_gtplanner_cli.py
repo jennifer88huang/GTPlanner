@@ -12,7 +12,6 @@
 使用方式:
     python cli/modern_gtplanner_cli.py                    # 启动交互式CLI
     python cli/modern_gtplanner_cli.py "设计用户管理系统"   # 直接处理需求
-    python cli/modern_gtplanner_cli.py --no-streaming     # 禁用流式响应
     python cli/modern_gtplanner_cli.py --load <session_id> # 加载指定会话
 """
 
@@ -20,7 +19,7 @@ import sys
 import asyncio
 import argparse
 import signal
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -171,7 +170,7 @@ class ModernGTPlannerCLI:
 ### 会话管理
 - `/sessions` - 查看所有会话列表
 - `/new [title]` - 创建新会话（可选标题）
-- `/load <session_id>` - 加载指定会话
+- `/load <session_id>` - 加载指定会话（支持部分ID匹配）
 - `/current` - 显示当前会话信息
 
 ### 配置选项
@@ -184,7 +183,8 @@ class ModernGTPlannerCLI:
 ```
 我想做一个在线教育平台
 /new 教育平台项目
-/load abc123
+/load 0a73b715    # 完整ID
+/load 0a73        # 部分ID匹配
 /streaming off
 ```
         """
@@ -215,10 +215,7 @@ class ModernGTPlannerCLI:
             self.console.print(f"🆕 [green]创建新会话:[/green] {session_id}")
 
         try:
-            # 添加用户消息到会话
-            self.session_manager.add_user_message(user_input)
-
-            # 构建AgentContext
+            # 构建AgentContext（不包含当前用户输入，避免重复保存）
             context = self._build_agent_context()
             if not context:
                 self.console.print("❌ [red]无法构建上下文[/red]")
@@ -236,30 +233,41 @@ class ModernGTPlannerCLI:
 
             # 使用StatelessGTPlanner处理
             result = await self.planner.process(user_input, context, streaming_session)
-            
+
             # 处理结果
             if result.success:
-                # 使用SQLiteSessionManager的update_from_agent_result方法
-                update_success = self.session_manager.update_from_agent_result(result)
+                # 使用SQLiteSessionManager的update_from_agent_result方法，传递用户输入以避免重复保存
+                update_success = self.session_manager.update_from_agent_result(result, user_input=user_input)
+
                 if not update_success:
                     self.console.print("⚠️ [yellow]保存结果到数据库时出现问题[/yellow]")
                 
                 # 如果没有启用流式响应，显示结果
-                if not self.enable_streaming and result.new_assistant_messages:
-                    self.console.print(Panel(
-                        result.new_assistant_messages[0].content,
-                        title="🤖 GTPlanner",
-                        border_style="blue"
-                    ))
+                if not self.enable_streaming and result.new_messages:
+                    # 查找最后一个assistant消息
+                    last_assistant_message = None
+                    for msg in reversed(result.new_messages):
+                        if msg.role.value == "assistant":
+                            last_assistant_message = msg
+                            break
+
+                    if last_assistant_message:
+                        self.console.print(Panel(
+                            last_assistant_message.content,
+                            title="🤖 GTPlanner",
+                            border_style="blue"
+                        ))
             else:
                 self.console.print(f"❌ [red]处理失败:[/red] {result.error}")
-            
+
+
+
         except Exception as e:
             self.console.print(f"💥 [red]处理异常:[/red] {str(e)}")
             if self.verbose:
                 import traceback
                 self.console.print(traceback.format_exc())
-        
+
         finally:
             # 清理流式会话
             if self.current_streaming_session:
@@ -295,11 +303,21 @@ class ModernGTPlannerCLI:
             if not args:
                 self.console.print("❌ [red]请指定会话ID[/red]")
             else:
-                session_id = args[0]
-                if self.session_manager.load_session(session_id):
-                    self.console.print(f"📂 [green]已加载会话:[/green] {session_id}")
+                partial_id = args[0]
+                success, loaded_id, matches = self.session_manager.load_session_by_partial_id(partial_id)
+
+                if success:
+                    self.console.print(f"📂 [green]已加载会话:[/green] {loaded_id}")
+                elif matches:
+                    # 找到多个匹配，显示选择界面
+                    selected_session = self._show_session_selection(matches, partial_id)
+                    if selected_session:
+                        if self.session_manager.load_session(selected_session["session_id"]):
+                            self.console.print(f"📂 [green]已加载会话:[/green] {selected_session['session_id']}")
+                        else:
+                            self.console.print(f"❌ [red]加载会话失败:[/red] {selected_session['session_id']}")
                 else:
-                    self.console.print(f"❌ [red]加载会话失败:[/red] {session_id}")
+                    self.console.print(f"❌ [red]未找到匹配的会话:[/red] {partial_id}")
 
         elif cmd == "current":
             self._show_current_session()
@@ -336,6 +354,66 @@ class ModernGTPlannerCLI:
             self.console.print("💡 [blue]输入 /help 查看可用命令[/blue]")
 
         return True
+
+    def _show_session_selection(self, matches: List[Dict[str, Any]], partial_id: str) -> Optional[Dict[str, Any]]:
+        """
+        显示会话选择界面
+
+        Args:
+            matches: 匹配的会话列表
+            partial_id: 用户输入的部分ID
+
+        Returns:
+            用户选择的会话信息或None
+        """
+        self.console.print(f"\n🔍 [yellow]找到 {len(matches)} 个匹配 '{partial_id}' 的会话，请选择：[/yellow]\n")
+
+        # 创建选择表格
+        table = Table(title="匹配的会话")
+        table.add_column("序号", style="cyan", width=6)
+        table.add_column("会话ID", style="green", width=20)
+        table.add_column("标题", style="blue", width=30)
+        table.add_column("创建时间", style="yellow", width=20)
+        table.add_column("消息数", style="magenta", width=8)
+
+        for i, session in enumerate(matches, 1):
+            # 显示前12位ID + ...
+            display_id = session["session_id"][:12] + "..." if len(session["session_id"]) > 12 else session["session_id"]
+            table.add_row(
+                str(i),
+                display_id,
+                session["title"][:28] + "..." if len(session["title"]) > 28 else session["title"],
+                session["created_at"],
+                str(session["total_messages"])
+            )
+
+        self.console.print(table)
+
+        # 获取用户选择
+        while True:
+            try:
+                choice = Prompt.ask(
+                    f"\n请输入序号 (1-{len(matches)}) 或 'c' 取消",
+                    default="c"
+                ).strip().lower()
+
+                if choice in ['c', 'cancel', '取消']:
+                    self.console.print("❌ [yellow]已取消选择[/yellow]")
+                    return None
+
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(matches):
+                    selected = matches[choice_num - 1]
+                    self.console.print(f"✅ [green]已选择会话:[/green] {selected['session_id'][:12]}... ({selected['title']})")
+                    return selected
+                else:
+                    self.console.print(f"❌ [red]请输入 1-{len(matches)} 之间的数字[/red]")
+
+            except ValueError:
+                self.console.print("❌ [red]请输入有效的数字或 'c' 取消[/red]")
+            except KeyboardInterrupt:
+                self.console.print("\n❌ [yellow]已取消选择[/yellow]")
+                return None
 
     def _show_sessions(self):
         """显示会话列表"""

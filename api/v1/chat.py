@@ -442,7 +442,8 @@ Current user message: {message}"""
         
 
         # 导入流式LLM调用
-        from utils.call_llm import call_llm_stream_async
+        from utils.openai_client import get_openai_client
+        client = get_openai_client()
 
         # 流式输出LLM的响应并监听ACTION标签
         action_buffer = []
@@ -451,7 +452,10 @@ Current user message: {message}"""
         content_buffer = ""
         pending_output = ""  # 缓冲待输出的内容
 
-        async for chunk in call_llm_stream_async(prompt):
+        async for chunk_response in client.chat_completion_stream(
+            messages=[{"role": "user", "content": prompt}]
+        ):
+            chunk = chunk_response.choices[0].delta.content if chunk_response.choices and chunk_response.choices[0].delta.content else ""
             if chunk:
                 content_buffer += chunk
                 pending_output += chunk

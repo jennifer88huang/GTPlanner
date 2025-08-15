@@ -36,23 +36,31 @@ class MessageRole(Enum):
 
 @dataclass
 class Message:
-    """标准化的对话消息数据结构"""
+    """标准化的对话消息数据结构（完全符合OpenAI API标准格式）"""
     role: MessageRole
     content: str
     timestamp: str
     metadata: Optional[Dict[str, Any]] = None
-    tool_calls: Optional[List[Dict[str, Any]]] = None
-    
+    tool_calls: Optional[List[Dict[str, Any]]] = None  # assistant消息专用
+    tool_call_id: Optional[str] = None  # tool消息专用
+
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式"""
-        return {
+        """转换为字典格式（OpenAI API标准格式）"""
+        result = {
             "role": self.role.value,
             "content": self.content,
             "timestamp": self.timestamp,
-            "metadata": self.metadata or {},
-            "tool_calls": self.tool_calls or []
+            "metadata": self.metadata or {}
         }
-    
+
+        # 根据消息类型添加特定字段
+        if self.role == MessageRole.ASSISTANT and self.tool_calls:
+            result["tool_calls"] = self.tool_calls
+        elif self.role == MessageRole.TOOL and self.tool_call_id:
+            result["tool_call_id"] = self.tool_call_id
+
+        return result
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Message':
         """从字典创建Message实例"""
@@ -61,48 +69,12 @@ class Message:
             content=data["content"],
             timestamp=data["timestamp"],
             metadata=data.get("metadata"),
-            tool_calls=data.get("tool_calls")
+            tool_calls=data.get("tool_calls"),
+            tool_call_id=data.get("tool_call_id")
         )
 
 
-@dataclass
-class ToolExecution:
-    """标准化的工具执行记录数据结构"""
-    id: str
-    tool_name: str
-    arguments: Dict[str, Any]
-    result: Dict[str, Any]
-    execution_time: Optional[float]
-    timestamp: str
-    success: bool
-    error_message: Optional[str] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式"""
-        return {
-            "id": self.id,
-            "tool_name": self.tool_name,
-            "arguments": self.arguments,
-            "result": self.result,
-            "execution_time": self.execution_time,
-            "timestamp": self.timestamp,
-            "success": self.success,
-            "error_message": self.error_message
-        }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ToolExecution':
-        """从字典创建ToolExecution实例"""
-        return cls(
-            id=data["id"],
-            tool_name=data["tool_name"],
-            arguments=data["arguments"],
-            result=data["result"],
-            execution_time=data.get("execution_time"),
-            timestamp=data["timestamp"],
-            success=data["success"],
-            error_message=data.get("error_message")
-        )
+# ToolExecution类已删除 - 过度设计，工具执行信息现在通过OpenAI标准格式的tool消息保存
 
 
 @dataclass
@@ -111,7 +83,7 @@ class AgentContext:
     session_id: str
     dialogue_history: List[Message]  # 可能是压缩后的对话历史
     tool_execution_results: Dict[str, Any]  # 工具执行结果集合（recommended_tools, short_planning, research_findings等）
-    tool_execution_history: List[ToolExecution]  # 可能是压缩后的工具历史
+    # tool_execution_history已删除 - 过度设计，不再需要
     session_metadata: Dict[str, Any]
     last_updated: Optional[str] = None
     is_compressed: bool = False  # 标识上下文是否已被压缩
@@ -122,7 +94,6 @@ class AgentContext:
             "session_id": self.session_id,
             "dialogue_history": [msg.to_dict() for msg in self.dialogue_history],
             "tool_execution_results": self.tool_execution_results,
-            "tool_execution_history": [te.to_dict() for te in self.tool_execution_history],
             "session_metadata": self.session_metadata,
             "last_updated": self.last_updated,
             "is_compressed": self.is_compressed
@@ -138,10 +109,7 @@ class AgentContext:
                 for msg_data in data.get("dialogue_history", [])
             ],
             tool_execution_results=data.get("tool_execution_results", {}),
-            tool_execution_history=[
-                ToolExecution.from_dict(te_data)
-                for te_data in data.get("tool_execution_history", [])
-            ],
+            # tool_execution_history已删除
             session_metadata=data.get("session_metadata", {}),
             last_updated=data.get("last_updated"),
             is_compressed=data.get("is_compressed", False)
@@ -155,18 +123,15 @@ class AgentContext:
         """获取工具执行结果值（只读操作）"""
         return self.tool_execution_results.get(key, default)
 
-    def get_recent_tool_executions(self, count: int = 5) -> List[ToolExecution]:
-        """获取最近的工具执行记录（只读操作）"""
-        return self.tool_execution_history[-count:] if self.tool_execution_history else []
+    # get_recent_tool_executions方法已删除 - 过度设计，不再需要
 
 
 @dataclass
 class AgentResult:
-    """Agent处理结果数据结构 - 只包含当次对话新增的内容"""
+    """Agent处理结果数据结构 - 只包含当次对话新增的内容（OpenAI API标准格式）"""
     success: bool
-    new_assistant_messages: List[Message]  # 当次对话新增的助手消息
-    new_tool_executions: List[ToolExecution]  # 当次对话新增的工具执行
-    tool_execution_results_updates: Dict[str, Any] = field(default_factory=dict)  # 当次对话产生的工具执行结果更新
+    new_messages: List[Message]  # 当次对话新增的所有消息（assistant、tool等，按时间顺序）
+    tool_execution_results_updates: Dict[str, Any] = field(default_factory=dict)  # 当次对话产生的工具执行结果更新（pocketflow内部传递）
     metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
     execution_time: Optional[float] = None
@@ -175,9 +140,7 @@ class AgentResult:
         """转换为字典格式"""
         return {
             "success": self.success,
-            "new_assistant_messages": [msg.to_dict() for msg in self.new_assistant_messages],
-            "new_tool_executions": [te.to_dict() for te in self.new_tool_executions],
-
+            "new_messages": [msg.to_dict() for msg in self.new_messages],
             "tool_execution_results_updates": self.tool_execution_results_updates,
             "metadata": self.metadata,
             "error": self.error,
@@ -189,17 +152,10 @@ class AgentResult:
         """从字典创建AgentResult实例"""
         return cls(
             success=data["success"],
-
-            new_assistant_messages=[
+            new_messages=[
                 Message.from_dict(msg_data)
-                for msg_data in data.get("new_assistant_messages", [])
+                for msg_data in data.get("new_messages", [])
             ],
-            new_tool_executions=[
-                ToolExecution.from_dict(te_data)
-                for te_data in data.get("new_tool_executions", [])
-            ],
-
-
             tool_execution_results_updates=data.get("tool_execution_results_updates", {}),
             metadata=data.get("metadata", {}),
             error=data.get("error"),
@@ -209,8 +165,7 @@ class AgentResult:
     @classmethod
     def create_success(
         cls,
-        new_assistant_messages: Optional[List[Message]] = None,
-        new_tool_executions: Optional[List[ToolExecution]] = None,
+        new_messages: Optional[List[Message]] = None,
         tool_execution_results_updates: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         execution_time: Optional[float] = None
@@ -218,8 +173,7 @@ class AgentResult:
         """创建成功结果"""
         return cls(
             success=True,
-            new_assistant_messages=new_assistant_messages or [],
-            new_tool_executions=new_tool_executions or [],
+            new_messages=new_messages or [],
             tool_execution_results_updates=tool_execution_results_updates or {},
             metadata=metadata or {},
             execution_time=execution_time
@@ -235,8 +189,7 @@ class AgentResult:
         """创建错误结果"""
         return cls(
             success=False,
-            new_assistant_messages=[],
-            new_tool_executions=[],
+            new_messages=[],
             tool_execution_results_updates={},
             metadata=metadata or {},
             error=error,
@@ -258,7 +211,7 @@ def create_user_message(content: str) -> Message:
 
 
 def create_assistant_message(
-    content: str, 
+    content: str,
     tool_calls: Optional[List[Dict[str, Any]]] = None
 ) -> Message:
     """创建助手消息的便捷函数"""
@@ -270,24 +223,14 @@ def create_assistant_message(
     )
 
 
-def create_tool_execution(
-    tool_name: str,
-    arguments: Dict[str, Any],
-    result: Dict[str, Any],
-    execution_time: Optional[float] = None,
-    success: bool = True,
-    error_message: Optional[str] = None
-) -> ToolExecution:
-    """创建工具执行记录的便捷函数"""
-    import uuid
-    
-    return ToolExecution(
-        id=str(uuid.uuid4()),
-        tool_name=tool_name,
-        arguments=arguments,
-        result=result,
-        execution_time=execution_time,
+def create_tool_message(
+    content: str,
+    tool_call_id: str
+) -> Message:
+    """创建工具消息的便捷函数（OpenAI API标准格式）"""
+    return Message(
+        role=MessageRole.TOOL,
+        content=content,
         timestamp=datetime.now().isoformat(),
-        success=success,
-        error_message=error_message
+        tool_call_id=tool_call_id
     )

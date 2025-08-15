@@ -13,7 +13,7 @@ PocketFlow工厂 - 无状态版本
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from .context_types import (
-    AgentContext, AgentResult, Message, ToolExecution,
+    AgentContext, AgentResult, Message,
     MessageRole
 )
 
@@ -47,10 +47,18 @@ class PocketFlowSharedFactory:
 
         # 添加历史消息（可能是压缩后的）
         for msg in context.dialogue_history:
-            current_messages.append({
+            message_dict = {
                 "role": msg.role.value,
                 "content": msg.content
-            })
+            }
+
+            # 添加OpenAI API标准字段
+            if msg.tool_calls:
+                message_dict["tool_calls"] = msg.tool_calls
+            if msg.tool_call_id:
+                message_dict["tool_call_id"] = msg.tool_call_id
+
+            current_messages.append(message_dict)
 
         # 添加当前用户输入
         current_messages.append({
@@ -76,20 +84,7 @@ class PocketFlowSharedFactory:
 
         # 继续添加其他字段
         shared.update({
-            # 工具执行历史
-            "tool_execution_history": [
-                {
-                    "id": te.id,
-                    "tool_name": te.tool_name,
-                    "arguments": te.arguments,
-                    "result": te.result,
-                    "execution_time": te.execution_time,
-                    "timestamp": te.timestamp,
-                    "success": te.success,
-                    "error_message": te.error_message
-                }
-                for te in context.tool_execution_history
-            ],
+            # 工具执行历史已删除 - 过度设计，不再需要
 
             # 流程控制数据
             "flow_start_time": None,  # 将在prep_async中设置
@@ -102,8 +97,7 @@ class PocketFlowSharedFactory:
             "last_updated": context.last_updated,
 
             # Agent执行过程中新增的内容（初始化为空）
-            "new_assistant_messages": [],  # 新增的助手消息
-            "new_tool_executions": [],     # 新增的工具执行记录
+            "new_messages": [],  # 新增的所有消息（assistant、tool等，OpenAI API标准格式）
         })
         
         return shared
@@ -134,13 +128,9 @@ class PocketFlowSharedFactory:
                     execution_time=execution_time
                 )
 
-            # 直接从预留字段获取新增内容
+            # 直接从预留字段获取新增内容（OpenAI API标准格式）
             new_messages = PocketFlowSharedFactory._parse_new_messages(
-                shared.get("new_assistant_messages", [])
-            )
-
-            new_tool_executions = PocketFlowSharedFactory._parse_new_tool_executions(
-                shared.get("new_tool_executions", [])
+                shared.get("new_messages", [])
             )
 
             # 提取工具执行结果更新 - 从shared字典中提取工具执行结果
@@ -157,8 +147,7 @@ class PocketFlowSharedFactory:
                 tool_execution_results_updates["short_planning"] = shared["short_planning"]
 
             result = AgentResult.create_success(
-                new_assistant_messages=new_messages,
-                new_tool_executions=new_tool_executions,
+                new_messages=new_messages,
                 tool_execution_results_updates=tool_execution_results_updates,
                 metadata=shared.get("flow_metadata", {}),
                 execution_time=execution_time
@@ -173,49 +162,32 @@ class PocketFlowSharedFactory:
             )
     
     @staticmethod
-    def _parse_new_messages(message_data_list: List[Dict[str, Any]]) -> List[Message]:
-        """解析新增的消息数据"""
+    def _parse_new_messages(message_data_list: List[Any]) -> List[Message]:
+        """解析新增的消息数据（支持OpenAI API标准格式）"""
         new_messages = []
 
         for msg_data in message_data_list:
             try:
-                message = Message(
-                    role=MessageRole(msg_data["role"]),
-                    content=msg_data["content"],
-                    timestamp=msg_data["timestamp"],
-                    metadata=msg_data.get("metadata", {}),
-                    tool_calls=msg_data.get("tool_calls", [])
-                )
-                new_messages.append(message)
+                # 支持Message对象和字典格式
+                if isinstance(msg_data, Message):
+                    new_messages.append(msg_data)
+                elif isinstance(msg_data, dict):
+                    message = Message(
+                        role=MessageRole(msg_data["role"]),
+                        content=msg_data["content"],
+                        timestamp=msg_data["timestamp"],
+                        metadata=msg_data.get("metadata", {}),
+                        tool_calls=msg_data.get("tool_calls"),
+                        tool_call_id=msg_data.get("tool_call_id")
+                    )
+                    new_messages.append(message)
             except (KeyError, ValueError) as e:
                 print(f"Warning: Failed to parse message: {e}")
                 continue
 
         return new_messages
     
-    @staticmethod
-    def _parse_new_tool_executions(execution_data_list: List[Dict[str, Any]]) -> List[ToolExecution]:
-        """解析新增的工具执行数据"""
-        new_executions = []
 
-        for exec_data in execution_data_list:
-            try:
-                tool_execution = ToolExecution(
-                    id=exec_data["id"],
-                    tool_name=exec_data["tool_name"],
-                    arguments=exec_data["arguments"],
-                    result=exec_data["result"],
-                    execution_time=exec_data.get("execution_time"),
-                    timestamp=exec_data["timestamp"],
-                    success=exec_data["success"],
-                    error_message=exec_data.get("error_message")
-                )
-                new_executions.append(tool_execution)
-            except (KeyError, ValueError) as e:
-                print(f"Warning: Failed to parse tool execution: {e}")
-                continue
-
-        return new_executions
 
 
 
@@ -236,8 +208,7 @@ class PocketFlowSharedFactory:
         if not isinstance(context.dialogue_history, list):
             raise ValueError("dialogue_history必须是列表")
 
-        if not isinstance(context.tool_execution_history, list):
-            raise ValueError("tool_execution_history必须是列表")
+        # tool_execution_history验证已删除
 
         if not isinstance(context.tool_execution_results, dict):
             raise ValueError("tool_execution_results必须是字典")

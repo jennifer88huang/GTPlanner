@@ -7,7 +7,7 @@ This module contains various node implementations for different planning tasks.
 # from typing import Dict, Any, List  # Unused imports
 from pocketflow import AsyncNode
 from utils.multilingual_utils import determine_language, get_localized_prompt
-from utils.call_llm import call_llm_async
+from utils.openai_client import get_openai_client
 
 
 class AsyncInputProcessingNode(AsyncNode):
@@ -53,7 +53,11 @@ class AsyncDocumentationGenerationNode(AsyncNode):
         )
 
         # Call LLM to generate documentation
-        llm_response = await call_llm_async(prompt, False)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        llm_response = response.choices[0].message.content if response.choices else ""
         return llm_response
 
     async def post_async(self, shared, prep_res, exec_res):
@@ -128,7 +132,11 @@ class AsyncRequirementsAnalysisNode(AsyncNode):
         )
 
         # Call LLM to analyze requirements
-        llm_response = await call_llm_async(prompt, False)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        llm_response = response.choices[0].message.content if response.choices else ""
 
         return llm_response
 
@@ -182,7 +190,11 @@ class AsyncDesignOptimizationNode(AsyncNode):
         )
 
         # Call LLM to generate optimizations
-        llm_response = await call_llm_async(prompt, False)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        llm_response = response.choices[0].message.content if response.choices else ""
 
         return llm_response
 
@@ -220,7 +232,7 @@ class AsyncRequirementsAnalysisStreamNode(AsyncNode):
 
     async def exec_async_stream(self, input_data):
         """Analyze requirements using streaming LLM."""
-        from utils.call_llm import call_llm_stream_async
+        client = get_openai_client()
 
         language = input_data["language"]
 
@@ -235,8 +247,11 @@ class AsyncRequirementsAnalysisStreamNode(AsyncNode):
         )
 
         # Call streaming LLM to analyze requirements
-        async for chunk in call_llm_stream_async(prompt):
-            yield chunk
+        async for chunk in client.chat_completion_stream(
+            messages=[{"role": "user", "content": prompt}]
+        ):
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
     async def exec_async(self, input_data):
         """Analyze requirements using LLM (non-streaming fallback)."""
@@ -253,7 +268,11 @@ class AsyncRequirementsAnalysisStreamNode(AsyncNode):
         )
 
         # Call LLM to analyze requirements
-        llm_response = await call_llm_async(prompt, False)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        llm_response = response.choices[0].message.content if response.choices else ""
         return llm_response
 
     async def post_async(self, shared, prep_res, exec_res):
@@ -293,7 +312,7 @@ class AsyncDesignOptimizationStreamNode(AsyncNode):
 
     async def exec_async_stream(self, input_data):
         """Generate optimization suggestions using streaming LLM."""
-        from utils.call_llm import call_llm_stream_async
+        client = get_openai_client()
 
         language = input_data["language"]
 
@@ -309,8 +328,11 @@ class AsyncDesignOptimizationStreamNode(AsyncNode):
         )
 
         # Call streaming LLM to generate optimizations
-        async for chunk in call_llm_stream_async(prompt):
-            yield chunk
+        async for chunk in client.chat_completion_stream(
+            messages=[{"role": "user", "content": prompt}]
+        ):
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
     async def exec_async(self, input_data):
         """Generate optimization suggestions using LLM (non-streaming fallback)."""
@@ -328,7 +350,11 @@ class AsyncDesignOptimizationStreamNode(AsyncNode):
         )
 
         # Call LLM to generate optimizations
-        llm_response = await call_llm_async(prompt, False)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        llm_response = response.choices[0].message.content if response.choices else ""
 
         return llm_response
 

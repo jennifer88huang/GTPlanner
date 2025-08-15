@@ -3,7 +3,7 @@ import sys
 
 from pocketflow import AsyncFlow, AsyncNode
 
-from utils.call_llm import call_llm_async
+from utils.openai_client import get_openai_client
 from utils.multilingual_utils import determine_language, get_localized_prompt
 
 
@@ -41,7 +41,11 @@ class GenerateStepsNode(AsyncNode):
         # Get localized prompt template
         prompt = get_localized_prompt("generate_steps", language, req=req)
 
-        return await call_llm_async(prompt)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content if response.choices else ""
 
     async def post_async(self, shared, prep_res, exec_res):
         shared["steps"] = exec_res
@@ -125,7 +129,11 @@ class OptimizeNode(AsyncNode):
             prev_version=prev_version,
         )
 
-        return await call_llm_async(prompt)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content if response.choices else ""
 
     async def post_async(self, shared, prep_res, exec_res):
         # 递增版本号
@@ -153,7 +161,7 @@ class GenerateStepsStreamNode(AsyncNode):
 
     async def exec_async_stream(self, prep_data):
         """流式生成步骤"""
-        from utils.call_llm import call_llm_stream_async
+        client = get_openai_client()
 
         req = prep_data["requirement"]
         language = prep_data["language"]
@@ -162,8 +170,11 @@ class GenerateStepsStreamNode(AsyncNode):
         prompt = get_localized_prompt("generate_steps", language, req=req)
 
         # 流式调用LLM
-        async for chunk in call_llm_stream_async(prompt):
-            yield chunk
+        async for chunk in client.chat_completion_stream(
+            messages=[{"role": "user", "content": prompt}]
+        ):
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
     async def exec_async(self, prep_data):
         """非流式版本作为fallback"""
@@ -173,7 +184,11 @@ class GenerateStepsStreamNode(AsyncNode):
         # Get localized prompt template
         prompt = get_localized_prompt("generate_steps", language, req=req)
 
-        return await call_llm_async(prompt)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content if response.choices else ""
 
     async def post_async(self, shared, prep_res, exec_res):
         shared["steps"] = exec_res
@@ -215,7 +230,7 @@ class OptimizeStreamNode(AsyncNode):
 
     async def exec_async_stream(self, prep_data):
         """流式优化步骤"""
-        from utils.call_llm import call_llm_stream_async
+        client = get_openai_client()
 
         steps = prep_data["steps"]
         feedback = prep_data["feedback"]
@@ -234,8 +249,11 @@ class OptimizeStreamNode(AsyncNode):
         )
 
         # 流式调用LLM
-        async for chunk in call_llm_stream_async(prompt):
-            yield chunk
+        async for chunk in client.chat_completion_stream(
+            messages=[{"role": "user", "content": prompt}]
+        ):
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
 
     async def exec_async(self, prep_data):
         """非流式版本作为fallback"""
@@ -255,7 +273,11 @@ class OptimizeStreamNode(AsyncNode):
             prev_version=prev_version,
         )
 
-        return await call_llm_async(prompt)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content if response.choices else ""
 
     async def post_async(self, shared, prep_res, exec_res):
         # 递增版本号

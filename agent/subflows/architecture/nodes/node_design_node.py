@@ -12,7 +12,7 @@ from typing import Dict, Any
 from pocketflow import AsyncNode
 
 # 导入LLM调用工具
-from agent.llm_utils import call_llm_async
+from utils.openai_client import get_openai_client
 
 
 class NodeDesignNode(AsyncNode):
@@ -201,7 +201,12 @@ class NodeDesignNode(AsyncNode):
 重要：请严格按照上述Markdown格式输出，不要输出JSON格式！直接输出完整的Markdown文档。"""
 
             # 使用系统提示词调用LLM
-            result = await call_llm_async(prompt, is_json=False, system_prompt=system_prompt)
+            client = get_openai_client()
+            response = await client.chat_completion(
+                messages=[{"role": "user", "content": prompt}],
+                system_prompt=system_prompt
+            )
+            result = response.choices[0].message.content if response.choices else ""
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")

@@ -26,7 +26,6 @@ context = AgentContext(
     session_id="test-session",
     dialogue_history=[create_user_message("我需要设计一个用户管理系统")],
     tool_execution_results={},
-    tool_execution_history=[],
     session_metadata={}
 )
 
@@ -36,8 +35,8 @@ result = planner.process_user_request("我需要设计一个用户管理系统",
 """
 
 from .context_types import (
-    AgentContext, AgentResult, Message, ToolExecution,
-    MessageRole, create_user_message, create_assistant_message
+    AgentContext, AgentResult, Message,
+    MessageRole, create_user_message, create_assistant_message, create_tool_message
 )
 from .pocketflow_factory import PocketFlowSharedFactory, create_pocketflow_shared
 # from .gtplanner import GTPlanner  # 暂时注释掉，文件过时需要重构
@@ -51,6 +50,7 @@ __all__ = [
     'MessageRole',
     'create_user_message',
     'create_assistant_message',
+    'create_tool_message',
     'PocketFlowSharedFactory',
     'create_pocketflow_shared',
     # 'GTPlanner',  # 暂时注释掉

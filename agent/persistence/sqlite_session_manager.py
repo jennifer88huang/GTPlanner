@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 
 from .database_dao import DatabaseDAO
-from ..context_types import AgentContext, Message, MessageRole, ToolExecution
+from ..context_types import AgentContext, Message, MessageRole
 
 
 class SQLiteSessionManager:
@@ -77,10 +77,10 @@ class SQLiteSessionManager:
     def load_session(self, session_id: str) -> bool:
         """
         加载指定会话
-        
+
         Args:
             session_id: 会话ID
-            
+
         Returns:
             是否加载成功
         """
@@ -91,6 +91,46 @@ class SQLiteSessionManager:
             self._session_cache.clear()
             return True
         return False
+
+    def find_sessions_by_partial_id(self, partial_id: str) -> List[Dict[str, Any]]:
+        """
+        根据部分会话ID查找会话
+
+        Args:
+            partial_id: 部分会话ID
+
+        Returns:
+            匹配的会话列表
+        """
+        return self.dao.find_sessions_by_partial_id(partial_id)
+
+    def load_session_by_partial_id(self, partial_id: str) -> Tuple[bool, Optional[str], List[Dict[str, Any]]]:
+        """
+        根据部分会话ID加载会话
+
+        Args:
+            partial_id: 部分会话ID
+
+        Returns:
+            (是否成功, 加载的会话ID, 匹配的会话列表)
+        """
+        # 首先尝试精确匹配（向后兼容）
+        if self.load_session(partial_id):
+            return True, partial_id, []
+
+        # 精确匹配失败，尝试模糊匹配
+        matches = self.find_sessions_by_partial_id(partial_id)
+
+        if not matches:
+            return False, None, []
+        elif len(matches) == 1:
+            # 只有一个匹配，直接加载
+            session_id = matches[0]["session_id"]
+            success = self.load_session(session_id)
+            return success, session_id if success else None, matches
+        else:
+            # 多个匹配，返回列表供用户选择
+            return False, None, matches
     
     def get_current_session(self) -> Optional[Dict[str, Any]]:
         """
@@ -274,8 +314,56 @@ class SQLiteSessionManager:
             del self._session_cache[target_session_id]
 
         return message_id
-    
-    def add_assistant_message(self, content: str, 
+
+    def add_tool_message(self, content: str, tool_call_id: str,
+                        metadata: Optional[Dict[str, Any]] = None,
+                        parent_message_id: Optional[str] = None,
+                        session_id: Optional[str] = None) -> Optional[str]:
+        """
+        添加工具消息（OpenAI API标准格式）
+
+        Args:
+            content: 工具执行结果内容（JSON字符串）
+            tool_call_id: 工具调用ID（关联assistant消息中的tool_calls）
+            metadata: 消息元数据
+            parent_message_id: 父消息ID
+            session_id: 会话ID，如果为None则使用当前会话
+
+        Returns:
+            消息ID或None（如果失败）
+        """
+        target_session_id = session_id or self.current_session_id
+        if not target_session_id:
+            return None
+
+        # 估算token数量（工具结果通常是JSON格式）
+        token_count = max(1, len(content) // 4)  # 简单估算
+
+        # 保存到messages表
+        message_id = self.dao.add_message(
+            session_id=target_session_id,
+            role="tool",
+            content=content,
+            metadata=metadata,
+            tool_call_id=tool_call_id,
+            parent_message_id=parent_message_id,
+            token_count=int(token_count)
+        )
+
+        if message_id:
+            # 更新compressed_context表
+            self._update_compressed_context_with_new_message(
+                target_session_id, message_id, "tool", content,
+                int(token_count), metadata, tool_call_id=tool_call_id
+            )
+
+        # 清除会话缓存以更新统计信息
+        if target_session_id in self._session_cache:
+            del self._session_cache[target_session_id]
+
+        return message_id
+
+    def add_assistant_message(self, content: str,
                             metadata: Optional[Dict[str, Any]] = None,
                             tool_calls: Optional[List[Dict[str, Any]]] = None,
                             parent_message_id: Optional[str] = None,
@@ -330,7 +418,8 @@ class SQLiteSessionManager:
     def _update_compressed_context_with_new_message(self, session_id: str, message_id: str,
                                                    role: str, content: str, token_count: int,
                                                    metadata: Optional[Dict[str, Any]] = None,
-                                                   tool_calls: Optional[List[Dict[str, Any]]] = None):
+                                                   tool_calls: Optional[List[Dict[str, Any]]] = None,
+                                                   tool_call_id: Optional[str] = None):
         """
         更新compressed_context表，添加新消息
 
@@ -346,16 +435,21 @@ class SQLiteSessionManager:
         # 获取当前活跃的压缩上下文
         current_context = self.dao.get_active_compressed_context(session_id)
 
-        # 构建新消息对象
+        # 构建新消息对象（OpenAI API标准格式）
         new_message = {
             "message_id": message_id,
             "role": role,
             "content": content,
             "timestamp": datetime.now().isoformat(),
             "token_count": token_count,
-            "metadata": metadata or {},
-            "tool_calls": tool_calls or []
+            "metadata": metadata or {}
         }
+
+        # 根据消息类型添加特定字段
+        if role == "assistant" and tool_calls:
+            new_message["tool_calls"] = tool_calls
+        elif role == "tool" and tool_call_id:
+            new_message["tool_call_id"] = tool_call_id
 
         if current_context:
             # 更新现有压缩上下文
@@ -463,58 +557,9 @@ class SQLiteSessionManager:
         
         return self.dao.get_recent_messages(target_session_id, count=count)
 
-    # ==================== 工具执行管理 ====================
-
-    def add_tool_execution(self, tool_execution: ToolExecution,
-                          message_id: Optional[str] = None,
-                          session_id: Optional[str] = None) -> Optional[str]:
-        """
-        添加工具执行记录
-
-        Args:
-            tool_execution: 工具执行对象
-            message_id: 关联的消息ID
-            session_id: 会话ID，如果为None则使用当前会话
-
-        Returns:
-            执行ID或None（如果失败）
-        """
-        target_session_id = session_id or self.current_session_id
-        if not target_session_id:
-            return None
-
-        return self.dao.add_tool_execution(
-            session_id=target_session_id,
-            tool_name=tool_execution.tool_name,
-            arguments=tool_execution.arguments,
-            result=tool_execution.result,
-            success=tool_execution.success,
-            execution_time=tool_execution.execution_time,
-            message_id=message_id,
-            error_message=tool_execution.error_message,
-            metadata={
-                "timestamp": tool_execution.timestamp,
-                "execution_id": tool_execution.id
-            }
-        )
-
-    def get_tool_executions(self, limit: Optional[int] = None,
-                           session_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        获取工具执行记录
-
-        Args:
-            limit: 限制数量
-            session_id: 会话ID，如果为None则使用当前会话
-
-        Returns:
-            工具执行记录列表
-        """
-        target_session_id = session_id or self.current_session_id
-        if not target_session_id:
-            return []
-
-        return self.dao.get_tool_executions(target_session_id, limit=limit)
+    # ==================== 工具执行管理已删除 ====================
+    # 注意：工具执行信息现在通过OpenAI标准格式的tool消息保存
+    # 使用add_tool_message()和相关消息方法即可
 
     # ==================== AgentContext转换 ====================
 
@@ -555,26 +600,11 @@ class SQLiteSessionManager:
                 content=msg_data["content"],
                 timestamp=msg_data["timestamp"],
                 metadata=msg_data["metadata"],
-                tool_calls=msg_data["tool_calls"]
+                tool_calls=msg_data.get("tool_calls"),
+                tool_call_id=msg_data.get("tool_call_id")
             )
             dialogue_history.append(message)
 
-        # 获取工具执行历史
-        tool_execution_data = self.dao.get_tool_executions(target_session_id)
-        tool_execution_history = []
-
-        for exec_data in tool_execution_data:
-            tool_execution = ToolExecution(
-                id=exec_data["execution_id"],
-                tool_name=exec_data["tool_name"],
-                arguments=exec_data["arguments"],
-                result=exec_data["result"],
-                success=exec_data["success"],
-                execution_time=exec_data["execution_time"],
-                timestamp=exec_data["started_at"],
-                error_message=exec_data["error_message"]
-            )
-            tool_execution_history.append(tool_execution)
 
         # 构建工具执行结果（从会话元数据中获取）
         tool_execution_results = session["metadata"].get("tool_execution_results", {})
@@ -584,18 +614,19 @@ class SQLiteSessionManager:
             session_id=target_session_id,
             dialogue_history=dialogue_history,
             tool_execution_results=tool_execution_results,
-            tool_execution_history=tool_execution_history,
+            # tool_execution_history已删除
             session_metadata=session["metadata"]
         )
 
         return context
 
-    def update_from_agent_result(self, agent_result, session_id: Optional[str] = None) -> bool:
+    def update_from_agent_result(self, agent_result, user_input: Optional[str] = None, session_id: Optional[str] = None) -> bool:
         """
         从AgentResult更新会话数据
 
         Args:
             agent_result: StatelessGTPlanner的处理结果
+            user_input: 用户输入（如果提供，会先保存用户消息）
             session_id: 会话ID，如果为None则使用当前会话
 
         Returns:
@@ -606,24 +637,41 @@ class SQLiteSessionManager:
             return False
 
         try:
-            # 保存新的助手消息
-            for message in agent_result.new_assistant_messages:
-                self.add_assistant_message(
-                    content=message.content,
-                    metadata=message.metadata,
-                    tool_calls=message.tool_calls,
+            # 如果提供了用户输入，先保存用户消息
+            if user_input:
+                self.add_user_message(
+                    content=user_input,
                     session_id=target_session_id
                 )
 
-            # 保存新的工具执行记录
-            for tool_execution in agent_result.new_tool_executions:
-                self.add_tool_execution(
-                    tool_execution=tool_execution,
-                    session_id=target_session_id
-                )
+            # 保存新的消息（支持OpenAI API标准格式）
+            for message in agent_result.new_messages:
+                if message.role.value == "assistant":
+                    self.add_assistant_message(
+                        content=message.content,
+                        metadata=message.metadata,
+                        tool_calls=message.tool_calls if message.tool_calls else None,
+                        session_id=target_session_id
+                    )
+                elif message.role.value == "tool":
+                    # 确保tool_call_id不为空，否则跳过这条消息
+                    if message.tool_call_id and message.tool_call_id.strip():
+                        self.add_tool_message(
+                            content=message.content,
+                            tool_call_id=message.tool_call_id,
+                            metadata=message.metadata,
+                            session_id=target_session_id
+                        )
+                    else:
+                        print(f"⚠️ 跳过无效的tool消息：tool_call_id为空")
+                elif message.role.value == "user":
+                    self.add_user_message(
+                        content=message.content,
+                        metadata=message.metadata,
+                        session_id=target_session_id
+                    )
 
             # 更新工具执行结果到compressed_context表（如果有变化）
-
             if hasattr(agent_result, 'tool_execution_results_updates') and agent_result.tool_execution_results_updates:
                 self._update_compressed_context_tool_results(
                     target_session_id, agent_result.tool_execution_results_updates
@@ -674,58 +722,7 @@ class SQLiteSessionManager:
         """
         return self.dao.get_global_statistics()
 
-    # ==================== 工具执行管理 ====================
 
-    def add_tool_execution(self, tool_execution: ToolExecution,
-                          message_id: Optional[str] = None,
-                          session_id: Optional[str] = None) -> Optional[str]:
-        """
-        添加工具执行记录
-
-        Args:
-            tool_execution: 工具执行对象
-            message_id: 关联的消息ID
-            session_id: 会话ID，如果为None则使用当前会话
-
-        Returns:
-            执行ID或None（如果失败）
-        """
-        target_session_id = session_id or self.current_session_id
-        if not target_session_id:
-            return None
-
-        return self.dao.add_tool_execution(
-            session_id=target_session_id,
-            tool_name=tool_execution.tool_name,
-            arguments=tool_execution.arguments,
-            result=tool_execution.result,
-            success=tool_execution.success,
-            execution_time=tool_execution.execution_time,
-            message_id=message_id,
-            error_message=tool_execution.error_message,
-            metadata={
-                "timestamp": tool_execution.timestamp,
-                "execution_id": tool_execution.id
-            }
-        )
-
-    def get_tool_executions(self, limit: Optional[int] = None,
-                           session_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """
-        获取工具执行记录
-
-        Args:
-            limit: 限制数量
-            session_id: 会话ID，如果为None则使用当前会话
-
-        Returns:
-            工具执行记录列表
-        """
-        target_session_id = session_id or self.current_session_id
-        if not target_session_id:
-            return []
-
-        return self.dao.get_tool_executions(target_session_id, limit=limit)
 
     # ==================== AgentContext转换 ====================
 
@@ -765,26 +762,12 @@ class SQLiteSessionManager:
                 content=msg_data["content"],
                 timestamp=msg_data["timestamp"],
                 metadata=msg_data["metadata"],
-                tool_calls=msg_data["tool_calls"]
+                tool_calls=msg_data.get("tool_calls"),
+                tool_call_id=msg_data.get("tool_call_id")
             )
             dialogue_history.append(message)
 
-        # 获取工具执行历史
-        tool_execution_data = self.dao.get_tool_executions(target_session_id)
-        tool_execution_history = []
-
-        for exec_data in tool_execution_data:
-            tool_execution = ToolExecution(
-                id=exec_data["execution_id"],
-                tool_name=exec_data["tool_name"],
-                arguments=exec_data["arguments"],
-                result=exec_data["result"],
-                success=exec_data["success"],
-                execution_time=exec_data["execution_time"],
-                timestamp=exec_data["started_at"],
-                error_message=exec_data["error_message"]
-            )
-            tool_execution_history.append(tool_execution)
+        # 工具执行历史已删除 - 过度设计，不再需要
 
         # 从compressed_context表获取工具执行结果
         tool_execution_results = compressed_context.get("tool_execution_results", {})
@@ -796,58 +779,13 @@ class SQLiteSessionManager:
             session_id=target_session_id,
             dialogue_history=dialogue_history,
             tool_execution_results=tool_execution_results,
-            tool_execution_history=tool_execution_history,
             session_metadata=session["metadata"],  # 基本元数据从session表获取
             is_compressed=compressed_context["compression_version"] > 1  # 标识是否已压缩
         )
 
         return context
 
-    def update_from_agent_result(self, agent_result, session_id: Optional[str] = None) -> bool:
-        """
-        从AgentResult更新会话数据
-
-        Args:
-            agent_result: StatelessGTPlanner的处理结果
-            session_id: 会话ID，如果为None则使用当前会话
-
-        Returns:
-            是否更新成功
-        """
-        target_session_id = session_id or self.current_session_id
-        if not target_session_id:
-            return False
-
-        try:
-            # 保存新的助手消息
-            for message in agent_result.new_assistant_messages:
-                self.add_assistant_message(
-                    content=message.content,
-                    metadata=message.metadata,
-                    tool_calls=message.tool_calls,
-                    session_id=target_session_id
-                )
-
-            # 保存新的工具执行记录
-            for tool_execution in agent_result.new_tool_executions:
-                self.add_tool_execution(
-                    tool_execution=tool_execution,
-                    session_id=target_session_id
-                )
-
-            # 更新工具执行结果到compressed_context表（如果有变化）
-            if hasattr(agent_result, 'tool_execution_results_updates') and agent_result.tool_execution_results_updates:
-                self._update_compressed_context_tool_results(
-                    target_session_id, agent_result.tool_execution_results_updates
-                )
-
-
-
-            return True
-
-        except Exception as e:
-            print(f"更新会话数据失败: {e}")
-            return False
+    # 重复的update_from_agent_result方法已删除
 
     # ==================== 搜索和统计 ====================
 

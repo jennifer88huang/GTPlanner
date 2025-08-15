@@ -189,8 +189,7 @@ class CLIStreamHandler(StreamHandler):
         
         if self.show_metadata:
             new_messages_count = event.data.get("new_messages_count", 0)
-            new_tool_executions_count = event.data.get("new_tool_executions_count", 0)
-            print(f"📊 统计: {new_messages_count}条新消息, {new_tool_executions_count}次工具调用")
+            print(f"📊 统计: {new_messages_count}条新消息")
     
     async def handle_error(self, error: Exception, session_id: Optional[str] = None) -> None:
         """处理错误"""

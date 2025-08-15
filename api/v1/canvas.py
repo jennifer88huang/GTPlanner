@@ -6,7 +6,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from utils.call_llm import _request_llm_stream_async, settings
+from utils.openai_client import get_openai_client
 
 canvas_router = APIRouter(prefix="/canvas", tags=["canvas"])
 
@@ -121,14 +121,17 @@ async def canvas_modify_stream(body: CanvasModifyRequest):
         yield "data: [MODIFICATION_START]\n"
 
         # 流式调用LLM
-        model = settings.llm.model
+        client = get_openai_client()
         full_response = ""
 
-        async for chunk in _request_llm_stream_async(prompt, model):
-            if chunk:
-                full_response += chunk
+        async for chunk in client.chat_completion_stream(
+            messages=[{"role": "user", "content": prompt}]
+        ):
+            if chunk.choices and chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                full_response += content
                 # 使用占位符保护换行符，避免与SSE协议冲突
-                protected_chunk = chunk.replace('\n', '<|newline|>')
+                protected_chunk = content.replace('\n', '<|newline|>')
                 yield f"data: {protected_chunk}\n"
 
         # 发送结束信号

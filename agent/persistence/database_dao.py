@@ -132,27 +132,27 @@ class DatabaseDAO:
                 "status": row["status"]
             }
     
-    def list_sessions(self, limit: int = 50, offset: int = 0, 
+    def list_sessions(self, limit: int = 50, offset: int = 0,
                      status: str = "active") -> List[Dict[str, Any]]:
         """
         列出会话
-        
+
         Args:
             limit: 限制数量
             offset: 偏移量
             status: 会话状态
-            
+
         Returns:
             会话列表
         """
         with self.get_connection() as conn:
             cursor = conn.execute("""
-                SELECT * FROM sessions 
+                SELECT * FROM sessions
                 WHERE status = ?
                 ORDER BY updated_at DESC
                 LIMIT ? OFFSET ?
             """, (status, limit, offset))
-            
+
             sessions = []
             for row in cursor.fetchall():
                 sessions.append({
@@ -166,7 +166,50 @@ class DatabaseDAO:
                     "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
                     "status": row["status"]
                 })
-            
+
+            return sessions
+
+    def find_sessions_by_partial_id(self, partial_id: str,
+                                   status: str = "active") -> List[Dict[str, Any]]:
+        """
+        根据部分会话ID查找会话
+
+        Args:
+            partial_id: 部分会话ID
+            status: 会话状态
+
+        Returns:
+            匹配的会话列表，按匹配优先级和更新时间排序
+        """
+        with self.get_connection() as conn:
+            # 使用CASE WHEN给前缀匹配更高优先级
+            cursor = conn.execute("""
+                SELECT *,
+                       CASE
+                           WHEN session_id LIKE ? THEN 1  -- 前缀匹配优先级高
+                           ELSE 2                         -- 包含匹配优先级低
+                       END as match_priority
+                FROM sessions
+                WHERE status = ?
+                  AND (session_id LIKE ? OR session_id LIKE ?)
+                ORDER BY match_priority ASC, updated_at DESC
+            """, (partial_id + '%', status, partial_id + '%', '%' + partial_id + '%'))
+
+            sessions = []
+            for row in cursor.fetchall():
+                sessions.append({
+                    "session_id": row["session_id"],
+                    "title": row["title"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "project_stage": row["project_stage"],
+                    "total_messages": row["total_messages"],
+                    "total_tokens": row["total_tokens"],
+                    "metadata": json.loads(row["metadata"]) if row["metadata"] else {},
+                    "status": row["status"],
+                    "match_priority": row["match_priority"]
+                })
+
             return sessions
     
     def update_session(self, session_id: str, **kwargs) -> bool:
@@ -226,44 +269,46 @@ class DatabaseDAO:
     def add_message(self, session_id: str, role: str, content: str,
                    metadata: Optional[Dict[str, Any]] = None,
                    tool_calls: Optional[List[Dict[str, Any]]] = None,
+                   tool_call_id: Optional[str] = None,
                    parent_message_id: Optional[str] = None,
                    token_count: Optional[int] = None) -> str:
         """
-        添加消息
-        
+        添加消息（支持OpenAI API标准格式）
+
         Args:
             session_id: 会话ID
-            role: 角色（user, assistant, system）
+            role: 角色（user, assistant, system, tool）
             content: 消息内容
             metadata: 元数据
-            tool_calls: 工具调用信息
+            tool_calls: 工具调用信息（assistant消息专用）
+            tool_call_id: 工具调用ID（tool消息专用）
             parent_message_id: 父消息ID
             token_count: token数量
-            
+
         Returns:
             消息ID
         """
         message_id = str(uuid.uuid4())
         metadata_json = json.dumps(metadata) if metadata else None
         tool_calls_json = json.dumps(tool_calls) if tool_calls else None
-        
+
         with self.transaction() as conn:
             conn.execute("""
                 INSERT INTO messages (
                     message_id, session_id, role, content, token_count,
-                    metadata, tool_calls, parent_message_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    metadata, tool_calls, tool_call_id, parent_message_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (message_id, session_id, role, content, token_count,
-                  metadata_json, tool_calls_json, parent_message_id))
-            
+                  metadata_json, tool_calls_json, tool_call_id, parent_message_id))
+
             # 更新会话的token计数
             if token_count:
                 conn.execute("""
-                    UPDATE sessions 
+                    UPDATE sessions
                     SET total_tokens = total_tokens + ?
                     WHERE session_id = ?
                 """, (token_count, session_id))
-        
+
         return message_id
     
     def get_messages(self, session_id: str, limit: Optional[int] = None,
@@ -601,98 +646,9 @@ class DatabaseDAO:
 
     # ==================== 工具执行管理 ====================
 
-    def add_tool_execution(self, session_id: str, tool_name: str,
-                          arguments: Dict[str, Any], result: Optional[Dict[str, Any]] = None,
-                          success: bool = True, execution_time: float = 0.0,
-                          message_id: Optional[str] = None,
-                          error_message: Optional[str] = None,
-                          metadata: Optional[Dict[str, Any]] = None) -> str:
-        """
-        添加工具执行记录
 
-        Args:
-            session_id: 会话ID
-            tool_name: 工具名称
-            arguments: 工具参数
-            result: 执行结果
-            success: 是否成功
-            execution_time: 执行时间
-            message_id: 关联的消息ID
-            error_message: 错误信息
-            metadata: 元数据
 
-        Returns:
-            执行ID
-        """
-        execution_id = str(uuid.uuid4())
-        started_at = datetime.now().isoformat()
-        completed_at = started_at  # 简化处理，实际可以分开记录
 
-        arguments_json = json.dumps(arguments)
-        result_json = json.dumps(result) if result else None
-        metadata_json = json.dumps(metadata) if metadata else None
-
-        with self.transaction() as conn:
-            conn.execute("""
-                INSERT INTO tool_executions (
-                    execution_id, session_id, message_id, tool_name,
-                    arguments, result, success, execution_time,
-                    started_at, completed_at, error_message, metadata
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (execution_id, session_id, message_id, tool_name,
-                  arguments_json, result_json, success, execution_time,
-                  started_at, completed_at, error_message, metadata_json))
-
-        return execution_id
-
-    def get_tool_executions(self, session_id: str,
-                           tool_name_filter: Optional[str] = None,
-                           limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """
-        获取工具执行记录
-
-        Args:
-            session_id: 会话ID
-            tool_name_filter: 工具名称过滤
-            limit: 限制数量
-
-        Returns:
-            工具执行记录列表
-        """
-        sql = "SELECT * FROM tool_executions WHERE session_id = ?"
-        params = [session_id]
-
-        if tool_name_filter:
-            sql += " AND tool_name = ?"
-            params.append(tool_name_filter)
-
-        sql += " ORDER BY started_at DESC"
-
-        if limit:
-            sql += " LIMIT ?"
-            params.append(limit)
-
-        with self.get_connection() as conn:
-            cursor = conn.execute(sql, params)
-
-            executions = []
-            for row in cursor.fetchall():
-                executions.append({
-                    "execution_id": row["execution_id"],
-                    "session_id": row["session_id"],
-                    "message_id": row["message_id"],
-                    "tool_name": row["tool_name"],
-                    "arguments": json.loads(row["arguments"]),
-                    "result": json.loads(row["result"]) if row["result"] else None,
-                    "success": bool(row["success"]),
-                    "execution_time": row["execution_time"],
-                    "started_at": row["started_at"],
-                    "completed_at": row["completed_at"],
-                    "error_message": row["error_message"],
-                    "metadata": json.loads(row["metadata"]) if row["metadata"] else {}
-                })
-
-            return executions
 
     # ==================== 搜索功能 ====================
 
@@ -762,19 +718,7 @@ class DatabaseDAO:
 
             stats = dict(cursor.fetchone())
 
-            # 工具执行统计
-            cursor = conn.execute("""
-                SELECT
-                    COUNT(*) as total_executions,
-                    SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_executions,
-                    AVG(execution_time) as avg_execution_time,
-                    COUNT(DISTINCT tool_name) as unique_tools
-                FROM tool_executions
-                WHERE session_id = ?
-            """, (session_id,))
-
-            tool_stats = dict(cursor.fetchone())
-            stats.update(tool_stats)
+            # 简化统计：只保留基本的消息统计
 
             return stats
 
@@ -800,15 +744,6 @@ class DatabaseDAO:
             """)
             stats.update(dict(cursor.fetchone()))
 
-            # 工具使用统计
-            cursor = conn.execute("""
-                SELECT
-                    COUNT(*) as total_tool_executions,
-                    COUNT(DISTINCT tool_name) as unique_tools,
-                    AVG(execution_time) as avg_execution_time,
-                    SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) as success_rate
-                FROM tool_executions
-            """)
-            stats.update(dict(cursor.fetchone()))
+            # 简化统计：删除复杂的工具统计
 
             return stats

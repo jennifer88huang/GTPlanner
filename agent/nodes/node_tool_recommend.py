@@ -431,7 +431,7 @@ class NodeToolRecommend(AsyncNode):
         try:
             # 调用大模型
             messages = [{"role": "user", "content": prompt}]
-            response = await self.openai_client.chat_completion_async(
+            response = await self.openai_client.chat_completion(
                 messages=messages,
                 temperature=0.3,
                 max_tokens=2000

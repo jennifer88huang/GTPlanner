@@ -9,7 +9,7 @@ import json
 from typing import Dict, Any
 
 # 导入LLM工具
-from agent.llm_utils import call_llm_async
+from utils.openai_client import get_openai_client
 
 
 from pocketflow import AsyncNode
@@ -128,7 +128,11 @@ class ShortPlanningNode(AsyncNode):
         )
 
         # 调用异步LLM，不再要求JSON格式
-        result_str = await call_llm_async(prompt, is_json=False)
+        client = get_openai_client()
+        response = await client.chat_completion(
+            messages=[{"role": "user", "content": prompt}]
+        )
+        result_str = response.choices[0].message.content if response.choices else ""
 
         # 直接返回纯文本结果
         return result_str.strip()

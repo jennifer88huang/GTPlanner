@@ -10,8 +10,8 @@ import json
 from typing import Dict, Any
 from pocketflow import AsyncNode
 
-# 导入LLM调用工具
-from agent.llm_utils import call_llm_async
+# 导入OpenAI客户端
+from utils.openai_client import get_openai_client
 
 
 class DocumentGenerationNode(AsyncNode):
@@ -231,7 +231,11 @@ class DocumentGenerationNode(AsyncNode):
         """调用LLM生成完整文档"""
         try:
             # 使用重试机制调用LLM
-            result = await call_llm_async(prompt, is_json=False)
+            client = get_openai_client()
+            response = await client.chat_completion(
+                messages=[{"role": "user", "content": prompt}]
+            )
+            result = response.choices[0].message.content if response.choices else ""
             return result
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")

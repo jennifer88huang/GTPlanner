@@ -275,9 +275,9 @@ class SmartCompressor:
 
         prompt = f"请对以下对话历史进行智能压缩：\n\n{formatted}"
 
-        response = await self.openai_client.chat_completion_async(
-            system_prompt=system_prompt,
+        response = await self.openai_client.chat_completion(
             messages=[{"role": "user", "content": prompt}],
+            system_prompt=system_prompt,
             temperature=0.1,
             max_tokens=2000
         )

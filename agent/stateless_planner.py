@@ -105,8 +105,7 @@ class StatelessGTPlanner:
                     {
                         "success": result.success,
                         "execution_time": result.execution_time,
-                        "new_messages_count": len(result.new_assistant_messages),
-                        "new_tool_executions_count": len(result.new_tool_executions)
+                        "new_messages_count": len(result.new_messages)
                     }
                 )
             )

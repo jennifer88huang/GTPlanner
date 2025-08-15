@@ -1,8 +1,23 @@
 [default]
-debug = false
+debug = true
+
+[default.logging]
+level = "INFO"
+file_enabled = true
+console_enabled = false  # 关闭控制台输出
+max_file_size = 10485760  # 10MB
+backup_count = 5
+
+[default.openai]
+debug_enabled = true
+log_requests = true
+log_responses = true
+log_level = "DEBUGE"
+log_to_file = true
+log_to_console = false  # 关闭控制台输出
 
 [default.llm]
-base_url = "https://gateway.chat.sensedeal.vip/v1"
+base_url = "https://api.siliconflow.cn/v1"
 api_key = "@format {env[LLM_API_KEY]}"
 model = "@format {env[LLM_MODEL]}"
 

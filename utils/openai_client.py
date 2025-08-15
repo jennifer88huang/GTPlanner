@@ -1,20 +1,113 @@
 """
 OpenAI SDK封装层
 
-提供统一的OpenAI SDK接口，保持与现有API的兼容性，支持同步和异步调用。
-集成配置管理、错误处理、重试机制和Function Calling功能。
+提供统一的OpenAI SDK异步接口，集成配置管理、错误处理、重试机制和Function Calling功能。
 """
 
 import asyncio
-import json
+import os
 import time
-import random
-from typing import Dict, List, Any, Optional, AsyncIterator, Iterator, Union, Callable
-from openai import AsyncOpenAI, OpenAI
+from typing import Dict, List, Any, Optional, AsyncIterator, Callable, TypedDict
+from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
-from openai.types.chat.chat_completion_chunk import ChoiceDelta
 
-from config.openai_config import get_openai_config, OpenAIConfig
+from utils.logger_config import get_openai_logger
+
+try:
+    from dynaconf import Dynaconf
+    DYNACONF_AVAILABLE = True
+except ImportError:
+    DYNACONF_AVAILABLE = False
+
+
+class Message(TypedDict):
+    """消息类型定义"""
+    role: str
+    content: str
+
+
+class SimpleOpenAIConfig:
+    """简化的OpenAI配置类"""
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model: str = "gpt-4",
+        temperature: float = 0.0,
+        max_tokens: Optional[int] = None,
+        timeout: float = 120.0,
+        max_retries: int = 3,
+        retry_delay: float = 2.0,
+        log_requests: bool = True,
+        log_responses: bool = True,
+        function_calling_enabled: bool = True,
+        tool_choice: str = "auto",
+    ):
+        # 尝试从 settings.toml 加载配置
+        settings = self._load_settings()
+
+        self.api_key = api_key or self._get_setting(settings, "llm.api_key") or os.getenv("OPENAI_API_KEY")
+        self.base_url = base_url or self._get_setting(settings, "llm.base_url") or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+        self.model = self._get_setting(settings, "llm.model") or os.getenv("OPENAI_MODEL", model)
+        self.temperature = self._get_setting(settings, "llm.temperature", temperature)
+        self.max_tokens = self._get_setting(settings, "llm.max_tokens", max_tokens)
+        self.timeout = self._get_setting(settings, "llm.timeout", timeout)
+        self.max_retries = self._get_setting(settings, "llm.max_retries", max_retries)
+        self.retry_delay = self._get_setting(settings, "llm.retry_delay", retry_delay)
+        self.log_requests = self._get_setting(settings, "llm.log_requests", log_requests)
+        self.log_responses = self._get_setting(settings, "llm.log_responses", log_responses)
+        self.function_calling_enabled = self._get_setting(settings, "llm.function_calling_enabled", function_calling_enabled)
+        self.tool_choice = self._get_setting(settings, "llm.tool_choice", tool_choice)
+
+        if not self.api_key:
+            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or configure llm.api_key in settings.toml.")
+
+    def _load_settings(self):
+        """加载 Dynaconf 设置"""
+        if not DYNACONF_AVAILABLE:
+            return None
+
+        try:
+            return Dynaconf(
+                settings_files=["settings.toml", "settings.local.toml", ".secrets.toml"],
+                environments=True,
+                env_switcher="ENV_FOR_DYNACONF",
+                load_dotenv=True,
+            )
+        except Exception:
+            return None
+
+    def _get_setting(self, settings, key: str, default: Any = None) -> Any:
+        """从设置中获取值"""
+        if settings is None:
+            return default
+
+        try:
+            return settings.get(key, default)
+        except Exception:
+            return default
+
+    def to_openai_client_kwargs(self) -> Dict[str, Any]:
+        """转换为OpenAI客户端初始化参数"""
+        return {
+            "api_key": self.api_key,
+            "base_url": self.base_url,
+            "timeout": self.timeout,
+            "max_retries": self.max_retries,
+        }
+
+    def to_chat_completion_kwargs(self) -> Dict[str, Any]:
+        """转换为chat completion调用参数"""
+        kwargs = {
+            "model": self.model,
+            "temperature": self.temperature,
+        }
+
+        if self.max_tokens:
+            kwargs["max_tokens"] = self.max_tokens
+
+        return kwargs
 
 
 class OpenAIClientError(Exception):
@@ -80,8 +173,11 @@ class RetryManager:
                 # 计算延迟时间
                 delay = self._calculate_delay(attempt)
 
-                print(f"⚠️ API调用失败 (尝试 {attempt + 1}/{self.max_retries + 1}): {e}")
-                print(f"🔄 {delay:.1f}秒后重试...")
+                # 使用日志记录重试信息
+                from utils.logger_config import get_logger
+                logger = get_logger("retry_manager")
+                logger.warning(f"⚠️ API调用失败 (尝试 {attempt + 1}/{self.max_retries + 1}): {e}")
+                logger.info(f"🔄 等待 {delay:.1f}秒后重试...")
 
                 await asyncio.sleep(delay)
 
@@ -143,19 +239,21 @@ class RetryManager:
 class OpenAIClient:
     """OpenAI SDK封装客户端"""
 
-    def __init__(self, config: Optional[OpenAIConfig] = None):
+    def __init__(self, config: Optional[SimpleOpenAIConfig] = None):
         """
         初始化OpenAI客户端
 
         Args:
             config: OpenAI配置对象，如果为None则使用默认配置
         """
-        self.config = config or get_openai_config()
+        self.config = config or SimpleOpenAIConfig()
 
-        # 创建异步和同步客户端
+        # 获取日志器（会自动初始化日志系统）
+        self.logger = get_openai_logger()
+
+        # 创建异步客户端
         client_kwargs = self.config.to_openai_client_kwargs()
         self.async_client = AsyncOpenAI(**client_kwargs)
-        self.sync_client = OpenAI(**client_kwargs)
 
         # 创建重试管理器
         self.retry_manager = RetryManager(
@@ -168,7 +266,6 @@ class OpenAIClient:
             "total_requests": 0,
             "successful_requests": 0,
             "failed_requests": 0,
-            "retry_attempts": 0,
             "total_tokens": 0,
             "total_time": 0.0
         }
@@ -176,43 +273,96 @@ class OpenAIClient:
         # 全局系统提示词
         self.global_system_prompt = "如果是JSON输出，最终输出只包含JSON文本，不要使用代码块包裹"
 
-    def _prepare_messages_with_global_system_prompt(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        # 记录初始化日志
+        self.logger.info(f"OpenAI客户端初始化完成 - 模型: {self.config.model}, 基础URL: {self.config.base_url}")
+
+    def _prepare_messages(
+        self,
+        messages: Optional[List[Message]] = None,
+        system_prompt: Optional[str] = None
+    ) -> List[Message]:
         """
-        为消息列表添加全局系统提示词
+        准备消息列表，统一处理系统提示词和全局系统提示词
 
         Args:
             messages: 原始消息列表
+            system_prompt: 系统提示词
 
         Returns:
-            添加了全局系统提示词的消息列表
+            准备好的消息列表
         """
-        if not messages:
-            return [{"role": "system", "content": self.global_system_prompt}]
+        prepared_messages = []
 
-        # 检查是否已有系统消息
-        has_system_message = any(msg.get("role") == "system" for msg in messages)
+        # 添加全局系统提示词
+        if self.global_system_prompt:
+            prepared_messages.append({"role": "system", "content": self.global_system_prompt})
 
-        if has_system_message:
-            # 如果已有系统消息，在第一个系统消息前添加全局系统提示词
-            prepared_messages = []
-            global_system_added = False
+        # 添加自定义系统提示词
+        if system_prompt:
+            prepared_messages.append({"role": "system", "content": system_prompt})
 
-            for msg in messages:
-                if msg.get("role") == "system" and not global_system_added:
-                    # 在第一个系统消息前添加全局系统提示词
-                    prepared_messages.append({"role": "system", "content": self.global_system_prompt})
-                    global_system_added = True
-                prepared_messages.append(msg)
+        # 添加对话消息
+        if messages:
+            prepared_messages.extend(messages)
 
-            return prepared_messages
-        else:
-            # 如果没有系统消息，在开头添加全局系统提示词
-            return [{"role": "system", "content": self.global_system_prompt}] + messages
+        return prepared_messages
 
-    async def chat_completion_async(
+    def _prepare_request_params(
         self,
+        messages: Optional[List[Message]] = None,
         system_prompt: Optional[str] = None,
-        messages: Optional[List[Dict[str, str]]] = None,
+        tools: Optional[List[Dict]] = None,
+        stream: bool = False,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        准备API请求参数
+
+        Args:
+            messages: 消息列表
+            system_prompt: 系统提示词
+            tools: 工具列表
+            stream: 是否流式响应
+            **kwargs: 其他参数
+
+        Returns:
+            准备好的请求参数
+        """
+        # 准备消息
+        prepared_messages = self._prepare_messages(messages, system_prompt)
+
+        # 合并配置参数
+        params = self.config.to_chat_completion_kwargs()
+        params.update(kwargs)
+        params["messages"] = prepared_messages
+
+        if stream:
+            params["stream"] = True
+
+        # 添加工具支持
+        if tools and self.config.function_calling_enabled:
+            params["tools"] = tools
+            if "tool_choice" not in params:
+                params["tool_choice"] = self.config.tool_choice
+
+        return params
+
+    def _update_success_stats(self, response: Any) -> None:
+        """更新成功统计信息"""
+        self.stats["successful_requests"] += 1
+        if hasattr(response, 'usage') and response.usage:
+            self.stats["total_tokens"] += response.usage.total_tokens
+
+    def _update_failure_stats(self) -> None:
+        """更新失败统计信息"""
+        self.stats["failed_requests"] += 1
+
+
+
+    async def chat_completion(
+        self,
+        messages: Optional[List[Message]] = None,
+        system_prompt: Optional[str] = None,
         tools: Optional[List[Dict]] = None,
         **kwargs
     ) -> ChatCompletion:
@@ -220,8 +370,8 @@ class OpenAIClient:
         异步聊天完成调用
 
         Args:
+            messages: 消息列表
             system_prompt: 系统提示词（可选）
-            messages: 消息列表（可选）
             tools: Function Calling工具列表
             **kwargs: 其他参数
 
@@ -232,35 +382,16 @@ class OpenAIClient:
         self.stats["total_requests"] += 1
 
         try:
-            # 构建完整的消息列表
-            prepared_messages = []
-
-            # 添加全局系统提示词
-            if self.global_system_prompt:
-                prepared_messages.append({"role": "system", "content": self.global_system_prompt})
-
-            # 添加自定义系统提示词
-            if system_prompt:
-                prepared_messages.append({"role": "system", "content": system_prompt})
-
-            # 添加对话消息
-            if messages:
-                prepared_messages.extend(messages)
-
-            # 合并配置参数
-            params = self.config.to_chat_completion_kwargs()
-            params.update(kwargs)
-            params["messages"] = prepared_messages
-
-            # 添加工具支持
-            if tools and self.config.function_calling_enabled:
-                params["tools"] = tools
-                if "tool_choice" not in params:
-                    params["tool_choice"] = self.config.tool_choice
+            # 准备请求参数
+            params = self._prepare_request_params(
+                messages=messages,
+                system_prompt=system_prompt,
+                tools=tools,
+                **kwargs
+            )
 
             # 记录请求日志
-            if self.config.log_requests:
-                self._log_request("chat_completion", params)
+            self._log_request("chat_completion", params)
 
             # 使用重试机制执行API调用
             async def _api_call():
@@ -269,36 +400,33 @@ class OpenAIClient:
             response = await self.retry_manager.execute_with_retry(_api_call)
 
             # 更新统计信息
-            self.stats["successful_requests"] += 1
-            if hasattr(response, 'usage') and response.usage:
-                self.stats["total_tokens"] += response.usage.total_tokens
+            self._update_success_stats(response)
 
             # 记录响应日志
-            if self.config.log_responses:
-                self._log_response("chat_completion", response)
+            self._log_response("chat_completion", response)
 
             return response
 
         except Exception as e:
-            self.stats["failed_requests"] += 1
+            self._update_failure_stats()
             raise self._handle_error(e)
-        
+
         finally:
             self.stats["total_time"] += time.time() - start_time
     
-    async def chat_completion_stream_async(
+    async def chat_completion_stream(
         self,
-        messages: List[Dict[str, str]] = None,
+        messages: Optional[List[Message]] = None,
         system_prompt: Optional[str] = None,
         tools: Optional[List[Dict]] = None,
         **kwargs
     ) -> AsyncIterator[ChatCompletionChunk]:
         """
-        异步流式聊天完成调用（支持system_prompt参数）
+        异步流式聊天完成调用
 
         Args:
             messages: 消息列表
-            system_prompt: 系统提示词（可选，与chat_completion_async保持一致）
+            system_prompt: 系统提示词（可选）
             tools: Function Calling工具列表
             **kwargs: 其他参数
 
@@ -309,169 +437,56 @@ class OpenAIClient:
         self.stats["total_requests"] += 1
 
         try:
-            # 处理system_prompt和messages参数
-            if system_prompt and messages:
-                # 如果提供了system_prompt，将其添加到消息列表开头
-                system_message = {"role": "system", "content": system_prompt}
-                full_messages = [system_message] + messages
-            elif system_prompt and not messages:
-                # 只有system_prompt，没有messages
-                full_messages = [{"role": "system", "content": system_prompt}]
-            elif messages:
-                # 只有messages，没有system_prompt
-                full_messages = messages
-            else:
-                # 都没有，使用空列表
-                full_messages = []
+            # 准备请求参数
+            params = self._prepare_request_params(
+                messages=messages,
+                system_prompt=system_prompt,
+                tools=tools,
+                stream=True,
+                **kwargs
+            )
 
-            # 准备消息列表（添加全局系统提示词）
-            prepared_messages = self._prepare_messages_with_global_system_prompt(full_messages)
-
-            # 合并配置参数
-            params = self.config.to_chat_completion_kwargs()
-            params.update(kwargs)
-            params["messages"] = prepared_messages
-            params["stream"] = True
-            
-            # 添加工具支持
-            if tools and self.config.function_calling_enabled:
-                params["tools"] = tools
-                if "tool_choice" not in params:
-                    params["tool_choice"] = self.config.tool_choice
-            
             # 记录请求日志
-            if self.config.log_requests:
-                self._log_request("chat_completion_stream", params)
-            
+            self._log_request("chat_completion_stream", params)
+
             # 执行流式API调用
             stream = await self.async_client.chat.completions.create(**params)
-            
-            async for chunk in stream:
-                yield chunk
-            
-            self.stats["successful_requests"] += 1
-            
-        except Exception as e:
-            self.stats["failed_requests"] += 1
-            raise self._handle_error(e)
-        
-        finally:
-            self.stats["total_time"] += time.time() - start_time
-    
-    def chat_completion(
-        self,
-        messages: List[Dict[str, str]],
-        tools: Optional[List[Dict]] = None,
-        **kwargs
-    ) -> ChatCompletion:
-        """
-        同步聊天完成调用
-        
-        Args:
-            messages: 消息列表
-            tools: Function Calling工具列表
-            **kwargs: 其他参数
-            
-        Returns:
-            聊天完成响应
-        """
-        start_time = time.time()
-        self.stats["total_requests"] += 1
-        
-        try:
-            # 准备消息列表（添加全局系统提示词）
-            prepared_messages = self._prepare_messages_with_global_system_prompt(messages)
 
-            # 合并配置参数
-            params = self.config.to_chat_completion_kwargs()
-            params.update(kwargs)
-            params["messages"] = prepared_messages
-            
-            # 添加工具支持
-            if tools and self.config.function_calling_enabled:
-                params["tools"] = tools
-                if "tool_choice" not in params:
-                    params["tool_choice"] = self.config.tool_choice
-            
-            # 记录请求日志
-            if self.config.log_requests:
-                self._log_request("chat_completion", params)
-            
-            # 执行API调用
-            response = self.sync_client.chat.completions.create(**params)
-            
+            chunk_count = 0
+            full_content = ""
+            total_tokens = 0
+
+            async for chunk in stream:
+                chunk_count += 1
+
+                # 收集响应内容用于日志记录
+                if chunk.choices and chunk.choices[0].delta.content:
+                    full_content += chunk.choices[0].delta.content
+
+                # 收集token使用信息
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    total_tokens = chunk.usage.total_tokens
+
+                yield chunk
+
             # 更新统计信息
             self.stats["successful_requests"] += 1
-            if hasattr(response, 'usage') and response.usage:
-                self.stats["total_tokens"] += response.usage.total_tokens
-            
-            # 记录响应日志
-            if self.config.log_responses:
-                self._log_response("chat_completion", response)
-            
-            return response
-            
-        except Exception as e:
-            self.stats["failed_requests"] += 1
-            raise self._handle_error(e)
-        
-        finally:
-            self.stats["total_time"] += time.time() - start_time
-    
-    def chat_completion_stream(
-        self,
-        messages: List[Dict[str, str]],
-        tools: Optional[List[Dict]] = None,
-        **kwargs
-    ) -> Iterator[ChatCompletionChunk]:
-        """
-        同步流式聊天完成调用
-        
-        Args:
-            messages: 消息列表
-            tools: Function Calling工具列表
-            **kwargs: 其他参数
-            
-        Yields:
-            聊天完成流式响应块
-        """
-        start_time = time.time()
-        self.stats["total_requests"] += 1
-        
-        try:
-            # 准备消息列表（添加全局系统提示词）
-            prepared_messages = self._prepare_messages_with_global_system_prompt(messages)
+            if total_tokens > 0:
+                self.stats["total_tokens"] += total_tokens
 
-            # 合并配置参数
-            params = self.config.to_chat_completion_kwargs()
-            params.update(kwargs)
-            params["messages"] = prepared_messages
-            params["stream"] = True
-            
-            # 添加工具支持
-            if tools and self.config.function_calling_enabled:
-                params["tools"] = tools
-                if "tool_choice" not in params:
-                    params["tool_choice"] = self.config.tool_choice
-            
-            # 记录请求日志
-            if self.config.log_requests:
-                self._log_request("chat_completion_stream", params)
-            
-            # 执行流式API调用
-            stream = self.sync_client.chat.completions.create(**params)
-            
-            for chunk in stream:
-                yield chunk
-            
-            self.stats["successful_requests"] += 1
-            
+            # 记录响应日志（流式响应）
+            self._log_stream_response("chat_completion_stream", chunk_count, full_content)
+
         except Exception as e:
-            self.stats["failed_requests"] += 1
+            self._update_failure_stats()
             raise self._handle_error(e)
-        
+
         finally:
             self.stats["total_time"] += time.time() - start_time
+
+
+
+
     
     def _handle_error(self, error: Exception) -> OpenAIClientError:
         """
@@ -534,22 +549,23 @@ class OpenAIClient:
     
     def _log_request(self, method: str, params: Dict[str, Any]) -> None:
         """记录请求日志"""
-        if self.config.debug_enabled:
-            # 隐藏敏感信息
-            safe_params = params.copy()
-            if "messages" in safe_params:
-                safe_params["messages"] = f"[{len(safe_params['messages'])} messages]"
-            
-            print(f"🔄 OpenAI {method} request: {safe_params}")
-    
+        if self.config.log_requests:
+            self.logger.info(f"🔄 OpenAI {method} 请求:")
+            self.logger.info(f"� 完整请求参数: {params}")
+
     def _log_response(self, method: str, response: Any) -> None:
         """记录响应日志"""
-        if self.config.debug_enabled:
-            if hasattr(response, 'usage') and response.usage:
-                print(f"✅ OpenAI {method} response: {response.usage.total_tokens} tokens")
-            else:
-                print(f"✅ OpenAI {method} response received")
-    
+        if self.config.log_responses:
+            self.logger.info(f"✅ OpenAI {method} 响应:")
+            self.logger.info(f"📝 完整响应: {response}")
+
+    def _log_stream_response(self, method: str, chunk_count: int, content: str = "") -> None:
+        """记录流式响应日志"""
+        if self.config.log_responses:
+            self.logger.info(f"✅ OpenAI {method} 流式响应完成: 接收到 {chunk_count} 个数据块")
+            if content:
+                self.logger.info(f"📝 完整流式响应内容: {content}")
+
     def get_stats(self) -> Dict[str, Any]:
         """获取性能统计信息"""
         return self.stats.copy()
@@ -569,7 +585,7 @@ class OpenAIClient:
 _global_client: Optional[OpenAIClient] = None
 
 
-def get_openai_client(config: Optional[OpenAIConfig] = None) -> OpenAIClient:
+def get_openai_client(config: Optional[SimpleOpenAIConfig] = None) -> OpenAIClient:
     """
     获取全局OpenAI客户端实例
 
@@ -586,134 +602,3 @@ def get_openai_client(config: Optional[OpenAIConfig] = None) -> OpenAIClient:
 
     return _global_client
 
-
-
-
-
-# ============================================================================
-# Function Calling工具调用支持
-# ============================================================================
-
-class FunctionCallResult:
-    """Function Calling调用结果"""
-
-    def __init__(
-        self,
-        function_name: str,
-        arguments: Dict[str, Any],
-        result: Any,
-        success: bool = True,
-        error: Optional[str] = None
-    ):
-        self.function_name = function_name
-        self.arguments = arguments
-        self.result = result
-        self.success = success
-        self.error = error
-
-    def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式"""
-        return {
-            "function_name": self.function_name,
-            "arguments": self.arguments,
-            "result": self.result,
-            "success": self.success,
-            "error": self.error
-        }
-
-
-async def execute_function_calls(
-    messages: List[Dict[str, str]],
-    tools: List[Dict],
-    tool_executor: Callable[[str, Dict[str, Any]], Any],
-    max_iterations: int = 5
-) -> List[FunctionCallResult]:
-    """
-    执行Function Calling调用
-
-    Args:
-        messages: 消息历史
-        tools: 可用工具列表
-        tool_executor: 工具执行器函数
-        max_iterations: 最大迭代次数
-
-    Returns:
-        工具调用结果列表
-    """
-    client = get_openai_client()
-    results = []
-    current_messages = messages.copy()
-
-    for _ in range(max_iterations):
-        # 调用LLM
-        response = await client.chat_completion_async(
-            current_messages,
-            tools=tools,
-            tool_choice="auto"
-        )
-
-        # 检查是否有工具调用
-        if not response.choices[0].message.tool_calls:
-            break
-
-        # 添加助手消息
-        current_messages.append({
-            "role": "assistant",
-            "content": response.choices[0].message.content or "",
-            "tool_calls": [
-                {
-                    "id": tc.id,
-                    "type": tc.type,
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments
-                    }
-                }
-                for tc in response.choices[0].message.tool_calls
-            ]
-        })
-
-        # 执行工具调用
-        for tool_call in response.choices[0].message.tool_calls:
-            try:
-                # 解析参数
-                arguments = json.loads(tool_call.function.arguments)
-
-                # 执行工具
-                result = await tool_executor(tool_call.function.name, arguments)
-
-                # 记录结果
-                function_result = FunctionCallResult(
-                    function_name=tool_call.function.name,
-                    arguments=arguments,
-                    result=result,
-                    success=True
-                )
-                results.append(function_result)
-
-                # 添加工具结果消息
-                current_messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": json.dumps(result, ensure_ascii=False)
-                })
-
-            except Exception as e:
-                # 记录错误
-                function_result = FunctionCallResult(
-                    function_name=tool_call.function.name,
-                    arguments=json.loads(tool_call.function.arguments) if tool_call.function.arguments else {},
-                    result=None,
-                    success=False,
-                    error=str(e)
-                )
-                results.append(function_result)
-
-                # 添加错误消息
-                current_messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": f"Error: {str(e)}"
-                })
-
-    return results

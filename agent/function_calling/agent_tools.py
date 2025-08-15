@@ -31,7 +31,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "short_planning",
-                "description": "基于用户需求和推荐工具生成精炼的短规划文档，用于确认项目核心范围与颗粒度。工具会自动获取项目状态中的相关信息（如推荐工具、之前的规划等），可以多次调用来逐步细化和完善项目范围。",
+                "description": "定义和细化项目范围的核心工具，在『范围确认』阶段使用。此工具旨在根据用户反馈被**重复调用**，直到与用户就项目范围达成最终共识。当用户提出修改意见时，应使用`improvement_points`参数来更新范围",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -42,7 +42,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
                         "improvement_points": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "需要改进的点或新的需求（可选）"
+                            "description": "需要改进的点或新的需求"
                         }
                     },
                     "required": ["user_requirements"]
@@ -53,7 +53,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "tool_recommend",
-                "description": "基于查询文本推荐相关的API、第三方库等技术工具。在进行技术调研和项目规划时使用，确保推荐的技术栈在平台支持范围内。应该在调用research工具之前使用，为下游AI coding服务选择合适的技术栈。",
+                "description": "『技术实现』阶段的**第一步**。基于在『范围确认』阶段已达成共识的项目范围，为项目推荐平台支持的API或库。它是`research`工具的**强制前置步骤**。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -90,7 +90,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "research",
-                "description": "基于关键词列表进行技术调研和解决方案研究，职责专一，只负责搜索和分析。这是一个可选工具，仅在需要技术调研时使用。建议在调用此工具前先使用tool_recommend工具获取平台支持的技术栈。",
+                "description": "(可选工具) 用于对`tool_recommend`推荐的技术栈进行深入的可行性或实现方案调研。**必须**在`tool_recommend`成功调用之后才能使用。",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -117,7 +117,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
             "type": "function",
             "function": {
                 "name": "architecture_design",
-                "description": "基于之前工具的执行结果（short_planning、research、tool_recommend）生成详细的系统架构设计方案。此工具会自动获取项目状态中的所有必要信息，同时支持用户直接传入项目需求描述。生成的完整设计文档会自动输出到文件中，调用后只需提示用户查看生成的文档即可。",
+                "description": "**『技术实现』阶段的终点和收尾工具**。它综合所有前期成果（已确认的范围和技术选型），生成最终的系统架构方案。调用此工具意味着整个规划流程的结束。`user_requirements`参数**必须**使用在『范围确认』阶段与用户达成共识的最终版本。",
                 "parameters": {
                     "type": "object",
                     "properties": {

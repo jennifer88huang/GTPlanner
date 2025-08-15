@@ -7,7 +7,7 @@ LLM分析节点 - Research Agent的2c步骤
 import asyncio
 from pocketflow import AsyncNode
 
-from agent.llm_utils import call_llm_async
+from utils.openai_client import get_openai_client
 
 
 class LLMAnalysisNode(AsyncNode):
@@ -154,11 +154,13 @@ class LLMAnalysisNode(AsyncNode):
 }}"""
 
         try:
-            result = await call_llm_async(
-                user_prompt,
-                is_json=True,
-                system_prompt=system_prompt
+            client = get_openai_client()
+            response = await client.chat_completion(
+                messages=[{"role": "user", "content": user_prompt}],
+                system_prompt=system_prompt,
+                response_format={"type": "json_object"}
             )
+            result = response.choices[0].message.content if response.choices else ""
 
             # 确保返回标准格式
             if isinstance(result, str):
