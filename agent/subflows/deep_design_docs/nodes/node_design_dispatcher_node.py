@@ -8,6 +8,10 @@ Node Design Dispatcher Node
 import time
 from typing import Dict, Any, List
 from pocketflow import AsyncNode
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 class NodeDesignDispatcherNode(AsyncNode):
@@ -237,16 +241,16 @@ class NodeDesignAggregatorNode(AsyncNode):
         try:
             if "error" in exec_res:
                 shared["node_design_aggregation_error"] = exec_res["error"]
-                print(f"❌ Node设计结果聚合失败: {exec_res['error']}")
+                await emit_error(shared, f"❌ Node设计结果聚合失败: {exec_res['error']}")
                 return "error"
-            
+
             # 保存聚合的markdown结果
             node_design_markdown = exec_res["node_design_markdown"]
             shared["node_design_markdown"] = node_design_markdown
 
             # 使用简化文件工具直接写入markdown
-            from ..utils.simple_file_util import write_file_directly
-            write_file_directly("05_node_design.md", node_design_markdown, shared)
+            from ....utils.simple_file_util import write_file_directly
+            await write_file_directly("05_node_design.md", node_design_markdown, shared)
 
             # 更新系统消息
             if "system_messages" not in shared:
@@ -262,14 +266,14 @@ class NodeDesignAggregatorNode(AsyncNode):
                 "message": f"Node设计聚合完成：{processed_count}/{total_tasks}个任务成功"
             })
 
-            print(f"✅ Node设计聚合完成")
-            print(f"   成功处理: {processed_count}/{total_tasks} 个任务")
-            
+            await emit_processing_status(shared, f"✅ Node设计聚合完成")
+            await emit_processing_status(shared, f"   成功处理: {processed_count}/{total_tasks} 个任务")
+
             return "aggregation_complete"
-            
+
         except Exception as e:
             shared["node_design_aggregation_post_error"] = str(e)
-            print(f"❌ Node设计聚合后处理失败: {str(e)}")
+            await emit_error(shared, f"❌ Node设计聚合后处理失败: {str(e)}")
             return "error"
 
     async def _design_single_node_concurrent(self, node_design_node, task: Dict[str, Any], task_num: int, total_tasks: int) -> Dict[str, Any]:

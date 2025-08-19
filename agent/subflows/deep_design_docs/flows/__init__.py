@@ -2,6 +2,6 @@
 Architecture Flow 模块
 """
 
-from .architecture_flow import ArchitectureFlow
+from .deep_design_docs_flow import ArchitectureFlow
 
 __all__ = ['ArchitectureFlow']

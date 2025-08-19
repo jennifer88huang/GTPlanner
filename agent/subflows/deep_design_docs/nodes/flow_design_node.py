@@ -11,6 +11,10 @@ from pocketflow import AsyncNode
 
 # 导入OpenAI客户端
 from utils.openai_client import get_openai_client
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 import asyncio
 
 
@@ -32,6 +36,7 @@ class FlowDesignNode(AsyncNode):
             # 获取项目状态信息
             short_planning = shared.get("short_planning", "")
             user_requirements = shared.get("user_requirements", "")
+            research_findings = shared.get("research_findings", {})
             recommended_tools = shared.get("recommended_tools", [])
 
             # 检查必需的输入
@@ -46,6 +51,7 @@ class FlowDesignNode(AsyncNode):
                 "nodes_markdown": nodes_markdown,
                 "short_planning": short_planning,
                 "user_requirements": user_requirements,
+                "research_findings": research_findings,
                 "recommended_tools": recommended_tools,
                 "timestamp": time.time()
             }
@@ -78,7 +84,7 @@ class FlowDesignNode(AsyncNode):
         try:
             if "error" in exec_res:
                 shared["flow_design_error"] = exec_res["error"]
-                print(f"❌ Flow设计失败: {exec_res['error']}")
+                await emit_error(shared, f"❌ Flow设计失败: {exec_res['error']}")
                 return "error"
             
             # 保存Flow设计markdown
@@ -97,16 +103,16 @@ class FlowDesignNode(AsyncNode):
             })
 
             # 使用简化文件工具直接写入markdown
-            from ..utils.simple_file_util import write_file_directly
-            write_file_directly("03_flow_design.md", flow_markdown, shared)
+            from ....utils.simple_file_util import write_file_directly
+            await write_file_directly("03_flow_design.md", flow_markdown, shared)
 
-            print(f"✅ Flow设计完成")
+            await emit_processing_status(shared, "✅ Flow设计完成")
 
             return "flow_designed"
-            
+
         except Exception as e:
             shared["flow_design_post_error"] = str(e)
-            print(f"❌ Flow设计后处理失败: {str(e)}")
+            await emit_error(shared, f"❌ Flow设计后处理失败: {str(e)}")
             return "error"
     
     def _build_flow_design_prompt(self, prep_result: Dict[str, Any]) -> str:
@@ -115,6 +121,7 @@ class FlowDesignNode(AsyncNode):
         nodes_markdown = prep_result.get("nodes_markdown", "")
         short_planning = prep_result.get("short_planning", "")
         user_requirements = prep_result.get("user_requirements", "")
+        research_findings = prep_result.get("research_findings", {})
         recommended_tools = prep_result.get("recommended_tools", [])
 
         # 构建推荐工具信息
@@ -122,11 +129,33 @@ class FlowDesignNode(AsyncNode):
         if recommended_tools:
             tools_list = []
             for tool in recommended_tools:
-                tool_name = tool.get("name", tool.get("id", "未知工具"))
-                tool_type = tool.get("type", "")
-                tool_summary = tool.get("summary", tool.get("description", ""))
-                tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
+                # 添加 None 检查，防止 tool 为 None
+                if tool and isinstance(tool, dict):
+                    tool_name = tool.get("name", tool.get("id", "未知工具"))
+                    tool_type = tool.get("type", "")
+                    tool_summary = tool.get("summary", tool.get("description", ""))
+                    tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
             tools_info = "\n".join(tools_list)
+
+        # 构建技术调研信息
+        research_info = ""
+        if research_findings and isinstance(research_findings, dict):
+            # 使用正确的字段名
+            if research_findings.get("summary"):
+                research_info += f"**调研摘要：**\n{research_findings['summary']}\n\n"
+
+            # 从关键词结果中提取关键信息
+            keyword_results = research_findings.get("keyword_results", [])
+            if keyword_results:
+                successful_results = [r for r in keyword_results if r.get("success", False)]
+                if successful_results:
+                    research_info += "**关键发现：**\n"
+                    for result in successful_results[:3]:  # 只显示前3个结果
+                        keyword = result.get("keyword", "")
+                        result_data = result.get("result", {})
+                        if result_data and result_data.get("summary"):
+                            research_info += f"- {keyword}: {result_data['summary'][:100]}...\n"
+                    research_info += "\n"
 
         prompt = f"""基于以下已识别的Node列表，设计完整的Flow编排。
 
@@ -141,6 +170,9 @@ class FlowDesignNode(AsyncNode):
 
 **项目规划：**
 {short_planning if short_planning else "未提供项目规划"}
+
+**技术调研结果：**
+{research_info if research_info else "未提供技术调研结果"}
 
 **推荐工具：**
 {tools_info if tools_info else "无推荐工具"}

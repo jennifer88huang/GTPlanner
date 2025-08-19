@@ -11,6 +11,10 @@ from pocketflow import AsyncNode
 
 # 导入OpenAI客户端
 from utils.openai_client import get_openai_client
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 class AgentRequirementsAnalysisNode(AsyncNode):
@@ -91,16 +95,16 @@ class AgentRequirementsAnalysisNode(AsyncNode):
             })
 
             # 使用简化文件工具直接写入markdown
-            from ..utils.simple_file_util import write_file_directly
-            write_file_directly("01_agent_analysis.md", analysis_markdown, shared)
+            from ....utils.simple_file_util import write_file_directly
+            await write_file_directly("01_agent_analysis.md", analysis_markdown, shared)
 
-            print(f"✅ Agent需求分析完成")
+            await emit_processing_status(shared, "✅ Agent需求分析完成")
 
             return "analysis_complete"
-            
+
         except Exception as e:
             shared["agent_analysis_post_error"] = str(e)
-            print(f"❌ Agent需求分析后处理失败: {str(e)}")
+            await emit_error(shared, f"❌ Agent需求分析后处理失败: {str(e)}")
             return "error"
     
     def _build_analysis_prompt(self, prep_result: Dict[str, Any]) -> str:
@@ -115,11 +119,18 @@ class AgentRequirementsAnalysisNode(AsyncNode):
         if recommended_tools:
             tools_list = []
             for tool in recommended_tools:
-                tool_name = tool.get("name", tool.get("id", "未知工具"))
-                tool_type = tool.get("type", "")
-                tool_summary = tool.get("summary", tool.get("description", ""))
-                tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
+                # 添加 None 检查，防止 tool 为 None
+                if tool and isinstance(tool, dict):
+                    # 安全获取工具名称
+                    tool_name = tool.get("name") or tool.get("id", "未知工具")
+                    tool_type = tool.get("type", "")
+                    # 安全获取工具摘要
+                    tool_summary = tool.get("summary") or tool.get("description", "")
+                    tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
             tools_info = "\n".join(tools_list)
+
+        # 安全获取技术调研摘要
+        research_summary = research_findings.get('summary', '无技术调研结果') if research_findings else '无技术调研结果'
 
         prompt = f"""基于以下信息，分析并明确要设计的Agent类型和核心功能。
 
@@ -130,7 +141,7 @@ class AgentRequirementsAnalysisNode(AsyncNode):
 {tools_info if tools_info else "无推荐工具"}
 
 **技术调研结果：**
-{research_findings.get('research_summary', '无技术调研结果')}
+{research_summary}
 
 请分析上述信息，生成完整的Agent需求分析报告。"""
         

@@ -9,6 +9,12 @@ from typing import Dict, List, Any
 from pocketflow_tracing import trace_flow
 from pocketflow import AsyncFlow, AsyncNode
 from .keyword_research_flow import create_keyword_research_subflow
+from agent.streaming import (
+    emit_processing_status_from_prep,
+    emit_error_from_prep,
+    emit_processing_status,
+    emit_error
+)
 
 
 class ConcurrentResearchNode(AsyncNode):
@@ -28,42 +34,62 @@ class ConcurrentResearchNode(AsyncNode):
         focus_areas = shared.get("focus_areas", [])
         project_context = shared.get("project_context", "")
 
-
-        # 创建子流程和数据对
-        subflows_and_data = []
+        # 创建子流程列表，但不创建单独的数据字典
+        # 而是直接使用主shared字典，只是为每个关键词设置当前关键词
+        subflows_and_keywords = []
         for keyword in research_keywords:
             keyword_subflow = create_keyword_research_subflow()
-            keyword_data = {
-                "current_keyword": keyword,
-                "focus_areas": focus_areas,
-                "project_context": project_context
-            }
-            subflows_and_data.append((keyword_subflow, keyword_data))
+            subflows_and_keywords.append((keyword_subflow, keyword))
 
         # 存储到实例变量
-        self._subflows_and_data = subflows_and_data
+        self._subflows_and_keywords = subflows_and_keywords
 
         return {
             "keywords": research_keywords,
             "focus_areas": focus_areas,
             "project_context": project_context,
             "total_keywords": len(research_keywords),
-            "execution_start_time": asyncio.get_event_loop().time()
+            "execution_start_time": asyncio.get_event_loop().time(),
+            "streaming_session": shared.get("streaming_session")
         }
 
     async def exec_async(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
         """并发执行关键词研究"""
 
-        subflows_and_data = self._subflows_and_data
+        subflows_and_keywords = self._subflows_and_keywords
         keywords = prep_res["keywords"]
 
-        print(f"🚀 开始并发执行 {len(subflows_and_data)} 个关键词研究...")
+        # 发送处理状态事件
+        await emit_processing_status_from_prep(
+            prep_res,
+            f"🚀 开始并发执行 {len(subflows_and_keywords)} 个关键词研究..."
+        )
+
         start_time = asyncio.get_event_loop().time()
+
+        # 为每个关键词创建独立的shared字典副本，但包含当前关键词信息
+        async def run_keyword_research(subflow, keyword, shared_template):
+            # 创建该关键词的shared字典副本
+            keyword_shared = shared_template.copy()
+            keyword_shared["current_keyword"] = keyword
+
+            # 运行子流程
+            result = await subflow.run_async(keyword_shared)
+
+            # 返回关键词和结果
+            return keyword, keyword_shared.get("research_findings", {}), result
+
+        # 创建shared模板（包含所有公共数据）
+        shared_template = {
+            "focus_areas": prep_res["focus_areas"],
+            "project_context": prep_res["project_context"],
+            "streaming_session": prep_res.get("streaming_session")
+        }
 
         # 🔧 关键：在节点内部并发执行所有子流程
         results = await asyncio.gather(*[
-            subflow.run_async(data)
-            for subflow, data in subflows_and_data
+            run_keyword_research(subflow, keyword, shared_template)
+            for subflow, keyword in subflows_and_keywords
         ], return_exceptions=True)
 
         execution_time = asyncio.get_event_loop().time() - start_time
@@ -72,25 +98,34 @@ class ConcurrentResearchNode(AsyncNode):
         successful_results = []
         failed_results = []
 
-        for result, (_, data) in zip(results, subflows_and_data):
-            keyword = data["current_keyword"]
-
+        for result in results:
             if isinstance(result, Exception):
-                print(f"⚠️ 关键词 '{keyword}' 处理失败: {result}")
+                # 发送错误事件
+                await emit_error_from_prep(
+                    prep_res,
+                    f"⚠️ 关键词研究处理失败: {result}"
+                )
+
                 failed_results.append({
-                    "keyword": keyword,
+                    "keyword": "unknown",
                     "error": str(result)
                 })
             else:
-                keyword_result = data.get("keyword_result", {})
-                successful_results.append({
-                    "keyword": keyword,
-                    "result": keyword_result
-                })
+                keyword, keyword_result, _ = result  # 忽略 subflow_result
+
+                if keyword_result:  # 如果有研究结果
+                    successful_results.append({
+                        "keyword": keyword,
+                        "result": keyword_result
+                    })
+                else:
+                    failed_results.append({
+                        "keyword": keyword,
+                        "error": "No research findings generated"
+                    })
 
         successful_count = len(successful_results)
         failed_count = len(failed_results)
-
 
         # 存储结果到实例变量
         self._execution_results = {
@@ -201,7 +236,13 @@ class TracedResearchFlow(AsyncFlow):
     async def post_async(self, shared: Dict[str, Any], prep_res: Dict[str, Any], exec_res: Dict[str, Any]) -> Dict[str, Any]:
         """流程级后处理"""
         flow_duration = asyncio.get_event_loop().time() - prep_res["flow_start_time"]
-        print(f"✅ 研究调研流程完成，耗时: {flow_duration:.2f}秒")
+
+        # 发送完成状态事件
+        await emit_processing_status(
+            shared,
+            f"✅ 研究调研流程完成，耗时: {flow_duration:.2f}秒"
+        )
+
         return exec_res
 
 
@@ -228,12 +269,14 @@ class ResearchFlow:
             project_context = shared.get("project_context", "")
 
             if not research_keywords:
-                print("❌ 缺少研究关键词")
+                # 发送错误事件
+                await emit_error(shared, "❌ 缺少研究关键词")
                 shared["research_error"] = "缺少研究关键词"
                 return False
 
             if not focus_areas:
-                print("❌ 缺少关注点")
+                # 发送错误事件
+                await emit_error(shared, "❌ 缺少关注点")
                 shared["research_error"] = "缺少关注点"
                 return False
 
@@ -242,14 +285,20 @@ class ResearchFlow:
             result = await self.flow.run_async(shared)
 
             if result and shared.get("research_findings"):
-                print(f"✅ 研究调研流程完成，处理了 {len(research_keywords)} 个关键词")
+                # 发送成功完成事件
+                await emit_processing_status(
+                    shared,
+                    f"✅ 研究调研流程完成，处理了 {len(research_keywords)} 个关键词"
+                )
                 return True
             else:
-                print("❌ 研究调研流程未能产生有效结果")
+                # 发送失败事件
+                await emit_error(shared, "❌ 研究调研流程未能产生有效结果")
                 return False
 
         except Exception as e:
-            print(f"❌ 研究调研流程失败: {e}")
+            # 发送异常事件
+            await emit_error(shared, f"❌ 研究调研流程失败: {e}")
             shared["research_error"] = str(e)
             return False
 

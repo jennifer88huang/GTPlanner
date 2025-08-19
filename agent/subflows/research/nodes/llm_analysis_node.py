@@ -8,6 +8,10 @@ import asyncio
 from pocketflow import AsyncNode
 
 from utils.openai_client import get_openai_client
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 class LLMAnalysisNode(AsyncNode):
@@ -158,7 +162,7 @@ class LLMAnalysisNode(AsyncNode):
             response = await client.chat_completion(
                 messages=[{"role": "user", "content": user_prompt}],
                 system_prompt=system_prompt,
-                response_format={"type": "json_object"}
+                ##todo 公司网关 kimi 会报错不支持json_object response_format={"type": "json_object"}
             )
             result = response.choices[0].message.content if response.choices else ""
 

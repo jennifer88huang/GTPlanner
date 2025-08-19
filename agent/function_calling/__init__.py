@@ -11,7 +11,7 @@ from .agent_tools import (
     validate_tool_arguments,
     call_tool_recommend,
     call_research,
-    call_architecture_design
+    call_design
 )
 
 __all__ = [
@@ -21,5 +21,5 @@ __all__ = [
     "validate_tool_arguments",
     "call_tool_recommend",
     "call_research",
-    "call_architecture_design"
+    "call_design"
 ]

@@ -28,6 +28,17 @@ from .stream_interface import (
 
 from .cli_handler import CLIStreamHandler
 
+from .event_helpers import (
+    emit_processing_status,
+    emit_error,
+    emit_tool_start,
+    emit_tool_progress,
+    emit_tool_end,
+    emit_processing_status_from_prep,
+    emit_error_from_prep,
+    emit_event_auto
+)
+
 __all__ = [
     # 核心类型
     "StreamEvent",
@@ -38,17 +49,27 @@ __all__ = [
     "ToolCallStatus",
     "StreamEventIterator",
     "StreamEventHandler",
-    
+
     # 接口和管理
     "StreamHandler",
-    "StreamProducer", 
+    "StreamProducer",
     "StreamConsumer",
     "StreamingSession",
     "StreamingManager",
     "StreamingCapable",
     "StreamingResult",
     "streaming_manager",
-    
+
     # 具体实现
-    "CLIStreamHandler"
+    "CLIStreamHandler",
+
+    # 辅助函数
+    "emit_processing_status",
+    "emit_error",
+    "emit_tool_start",
+    "emit_tool_progress",
+    "emit_tool_end",
+    "emit_processing_status_from_prep",
+    "emit_error_from_prep",
+    "emit_event_auto"
 ]

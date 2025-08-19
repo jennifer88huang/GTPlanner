@@ -11,7 +11,7 @@ Architecture Agent - 重构版本
 - 包含Flow设计、Node设计、数据结构等核心内容
 """
 
-from .flows.architecture_flow import ArchitectureFlow
+from .flows.deep_design_docs_flow import ArchitectureFlow
 from .nodes.process_architecture_node import ProcessArchitectureNode
 
 __all__ = [

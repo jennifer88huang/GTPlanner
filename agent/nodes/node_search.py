@@ -16,6 +16,10 @@ import time
 from typing import Dict, List, Any, Optional
 from pocketflow import AsyncNode
 from ..utils.search import JinaSearchClient
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 class NodeSearch(AsyncNode):
@@ -39,7 +43,7 @@ class NodeSearch(AsyncNode):
         except ValueError:
             self.search_client = None
             self.search_available = False
-            print("⚠️ 搜索API未配置")
+            # 注意：初始化阶段无法发送流式事件，这里保留日志或移除
 
         # 搜索配置
         self.default_max_results = 10
@@ -84,7 +88,8 @@ class NodeSearch(AsyncNode):
                 "search_keywords": search_keywords,
                 "search_type": search_type,
                 "max_results": max_results,
-                "language": language
+                "language": language,
+                "streaming_session": shared.get("streaming_session")
             }
             
         except Exception as e:
@@ -135,7 +140,10 @@ class NodeSearch(AsyncNode):
                         all_results.extend(formatted_results)
                     else:
                         # 搜索API不可用，跳过此关键词
-                        print(f"⚠️ 搜索API不可用，跳过关键词: {keyword}")
+                        streaming_session = prep_res.get("streaming_session")
+                        if streaming_session:
+                            from agent.streaming import emit_error_from_prep
+                            await emit_error_from_prep(prep_res, f"⚠️ 搜索API不可用，跳过关键词: {keyword}")
                         continue
 
                     # 避免请求过于频繁
@@ -143,7 +151,10 @@ class NodeSearch(AsyncNode):
 
                 except Exception as e:
                     # 单个关键词搜索失败不影响其他关键词
-                    print(f"❌ 搜索失败，关键词 '{keyword}': {str(e)}")
+                    streaming_session = prep_res.get("streaming_session")
+                    if streaming_session:
+                        from agent.streaming import emit_error_from_prep
+                        await emit_error_from_prep(prep_res, f"❌ 搜索失败，关键词 '{keyword}': {str(e)}")
                     continue
             
             # 去重
@@ -206,7 +217,8 @@ class NodeSearch(AsyncNode):
             return "search_complete"
 
         except Exception as e:
-            print(f"❌ NodeSearch post处理失败: {e}")
+            # 发送错误事件
+            await emit_error(shared, f"❌ NodeSearch post处理失败: {e}")
             # 记录错误到shared字典
             if "errors" not in shared:
                 shared["errors"] = []

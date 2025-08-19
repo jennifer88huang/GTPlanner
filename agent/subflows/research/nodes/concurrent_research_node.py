@@ -8,6 +8,12 @@ import asyncio
 from typing import Dict, List, Any
 from pocketflow import AsyncNode
 from ..flows.keyword_research_flow import create_keyword_research_subflow
+from agent.streaming import (
+    emit_processing_status_from_prep,
+    emit_error_from_prep,
+    emit_processing_status,
+    emit_error
+)
 
 
 class ConcurrentResearchNode(AsyncNode):
@@ -63,7 +69,8 @@ class ConcurrentResearchNode(AsyncNode):
             "focus_areas": focus_areas,
             "project_context": project_context,
             "total_keywords": len(research_keywords),
-            "execution_start_time": asyncio.get_event_loop().time()
+            "execution_start_time": asyncio.get_event_loop().time(),
+            "streaming_session": shared.get("streaming_session")
         }
 
     async def exec_async(self, prep_res: Dict[str, Any]) -> Dict[str, Any]:
@@ -74,8 +81,13 @@ class ConcurrentResearchNode(AsyncNode):
         
         subflows_and_data = self._subflows_and_data
         keywords = prep_res["keywords"]
-        
-        print(f"🚀 开始并发执行 {len(subflows_and_data)} 个关键词研究...")
+
+        # 发送处理状态事件
+        await emit_processing_status_from_prep(
+            prep_res,
+            f"🚀 开始并发执行 {len(subflows_and_data)} 个关键词研究..."
+        )
+
         start_time = asyncio.get_event_loop().time()
         
         # 🔧 关键：在单个节点内部并发执行所有子流程
@@ -94,7 +106,12 @@ class ConcurrentResearchNode(AsyncNode):
             keyword = data["current_keyword"]
             
             if isinstance(result, Exception):
-                print(f"⚠️ 关键词 '{keyword}' 处理失败: {result}")
+                # 发送错误事件
+                await emit_error_from_prep(
+                    prep_res,
+                    f"⚠️ 关键词 '{keyword}' 处理失败: {result}"
+                )
+
                 failed_results.append({
                     "keyword": keyword,
                     "error": str(result)
@@ -190,15 +207,27 @@ class ConcurrentResearchNode(AsyncNode):
         # 确定成功状态
         if success_rate >= 0.8:  # 80%成功率
             shared["research_status"] = "success"
-            print(f"🎉 并发研究成功: {success_rate:.1%} 成功率")
+            # 发送成功事件
+            await emit_processing_status(
+                shared,
+                f"🎉 并发研究成功: {success_rate:.1%} 成功率"
+            )
             return "research_complete"
         elif success_rate >= 0.5:  # 50%成功率
             shared["research_status"] = "partial_success"
-            print(f"⚠️ 并发研究部分成功: {success_rate:.1%} 成功率")
+            # 发送部分成功事件
+            await emit_processing_status(
+                shared,
+                f"⚠️ 并发研究部分成功: {success_rate:.1%} 成功率"
+            )
             return "research_partial"
         else:
             shared["research_status"] = "failed"
-            print(f"❌ 并发研究失败: {success_rate:.1%} 成功率")
+            # 发送失败事件
+            await emit_error(
+                shared,
+                f"❌ 并发研究失败: {success_rate:.1%} 成功率"
+            )
             return "research_failed"
 
     def _generate_summary(self, keywords: List[str], focus_areas: List[str], successful: int, total: int) -> str:

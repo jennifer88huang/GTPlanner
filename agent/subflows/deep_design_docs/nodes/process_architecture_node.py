@@ -7,6 +7,10 @@ Process Architecture Node
 import time
 from typing import Dict, Any
 from pocketflow import AsyncNode
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 class ProcessArchitectureNode(AsyncNode):
@@ -34,12 +38,15 @@ class ProcessArchitectureNode(AsyncNode):
             user_requirements = shared.get("user_requirements", shared.get("short_planning", ""))
             research_findings = shared.get("research_findings", {})
             confirmation_document = shared.get("confirmation_document", "")
+            recommended_tools = shared.get("recommended_tools", [])
 
             return {
                 "user_requirements": user_requirements,
                 "research_findings": research_findings,
                 "confirmation_document": confirmation_document,
-                "processing_start_time": time.time()
+                "recommended_tools": recommended_tools,
+                "processing_start_time": time.time(),
+                "streaming_session": shared.get("streaming_session")
             }
             
         except Exception as e:
@@ -51,18 +58,24 @@ class ProcessArchitectureNode(AsyncNode):
             if "error" in prep_result:
                 raise ValueError(prep_result["error"])
 
-            print("🔄 开始Agent设计文档生成...")
+            # 发送处理状态事件
+            streaming_session = prep_result.get("streaming_session")
+            if streaming_session:
+                from agent.streaming import emit_processing_status_from_prep
+                await emit_processing_status_from_prep(prep_result, "🔄 开始Agent设计文档生成...")
 
             # 动态导入避免循环导入
             if self.architecture_flow is None:
-                from ..flows.architecture_flow import ArchitectureFlow
+                from ..flows.deep_design_docs_flow import ArchitectureFlow
                 self.architecture_flow = ArchitectureFlow()
 
             # 创建流程共享状态
             flow_shared = {
                 "user_requirements": prep_result["user_requirements"],
                 "research_findings": prep_result["research_findings"],
-                "confirmation_document": prep_result["confirmation_document"]
+                "confirmation_document": prep_result["confirmation_document"],
+                "recommended_tools": prep_result.get("recommended_tools", []),  # 添加推荐工具
+                "streaming_session": prep_result.get("streaming_session")  # 添加流式会话
             }
 
             # 异步执行架构设计流程
@@ -103,7 +116,7 @@ class ProcessArchitectureNode(AsyncNode):
                 shared["architecture_processing_error"] = error_msg
 
                 
-                print(f"❌ 架构设计处理失败: {error_msg}")
+                await emit_error(shared, f"❌ 架构设计处理失败: {error_msg}")
                 return "error"
             
             # 处理成功，更新共享状态
@@ -139,18 +152,17 @@ class ProcessArchitectureNode(AsyncNode):
                 }
             })
             
-            print(f"✅ Agent设计处理完成")
-            print(f"   处理时间: {exec_res['processing_time']:.2f}秒")
-            
+            await emit_processing_status(shared, f"✅ Agent设计处理完成")
+            await emit_processing_status(shared, f"   处理时间: {exec_res['processing_time']:.2f}秒")
+
             if flow_summary.get("generated_files"):
                 files_count = len(flow_summary["generated_files"])
-                print(f"   生成文件: {files_count}个")
-                print(f"   输出目录: {flow_summary.get('output_directory', '')}")
-            
+                await emit_processing_status(shared, f"   生成文件: {files_count}个")
+                await emit_processing_status(shared, f"   输出目录: {flow_summary.get('output_directory', '')}")
+
             return "success"
-            
+
         except Exception as e:
             shared["architecture_post_error"] = str(e)
-
-            print(f"❌ 架构设计后处理失败: {str(e)}")
+            await emit_error(shared, f"❌ 架构设计后处理失败: {str(e)}")
             return "error"

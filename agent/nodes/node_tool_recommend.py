@@ -20,6 +20,10 @@ from typing import Dict, List, Any, Optional
 from pocketflow import AsyncNode
 from utils.openai_client import OpenAIClient
 from utils.config_manager import get_vector_service_config
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 class NodeToolRecommend(AsyncNode):
@@ -103,7 +107,8 @@ class NodeToolRecommend(AsyncNode):
                 "index_name": index_name,
                 "tool_types": tool_types,
                 "min_score": min_score,
-                "use_llm_filter": use_llm_filter
+                "use_llm_filter": use_llm_filter,
+                "streaming_session": shared.get("streaming_session")
             }
 
         except Exception as e:
@@ -145,7 +150,9 @@ class NodeToolRecommend(AsyncNode):
 
             # 调用向量服务进行检索（获取更多候选）
             search_top_k = max(top_k, self.llm_candidate_count) if use_llm_filter else top_k
-            search_results = self._search_tools(query, index_name, search_top_k)
+            # 从 prep_res 中获取 streaming_session 用于事件发送
+            shared_for_events = {"streaming_session": prep_res.get("streaming_session")}
+            search_results = await self._search_tools(query, index_name, search_top_k, shared_for_events)
 
             # 过滤和处理结果
             filtered_results = self._filter_results(
@@ -160,11 +167,11 @@ class NodeToolRecommend(AsyncNode):
             # 使用大模型筛选（如果启用）
             if use_llm_filter and len(processed_results) > 1:
                 try:
-                    llm_selected_results = await self._llm_filter_tools(query, processed_results, top_k)
+                    llm_selected_results = await self._llm_filter_tools(query, processed_results, top_k, shared_for_events)
                     processed_results = llm_selected_results
-                    print(f"✅ 大模型筛选完成，返回 {len(processed_results)} 个工具")
+                    await emit_processing_status(shared_for_events, f"✅ 大模型筛选完成，返回 {len(processed_results)} 个工具")
                 except Exception as e:
-                    print(f"⚠️ 大模型筛选失败，使用原始排序: {str(e)}")
+                    await emit_error(shared_for_events, f"⚠️ 大模型筛选失败，使用原始排序: {str(e)}")
                     processed_results = processed_results[:top_k]
             else:
                 processed_results = processed_results[:top_k]
@@ -327,7 +334,7 @@ class NodeToolRecommend(AsyncNode):
 
         return processed
 
-    def _search_tools(self, query: str, index_name: str, top_k: int) -> Dict[str, Any]:
+    async def _search_tools(self, query: str, index_name: str, top_k: int, shared: Dict[str, Any]) -> Dict[str, Any]:
         """调用向量服务进行工具检索"""
         try:
             # 构建搜索请求
@@ -348,11 +355,11 @@ class NodeToolRecommend(AsyncNode):
 
             if response.status_code == 200:
                 result = response.json()
-                print(f"✅ 检索到 {result.get('total', 0)} 个相关工具")
+                await emit_processing_status(shared, f"✅ 检索到 {result.get('total', 0)} 个相关工具")
                 return result
             else:
                 error_msg = f"向量服务返回错误: {response.status_code}, {response.text}"
-                print(f"❌ {error_msg}")
+                await emit_error(shared, f"❌ {error_msg}")
                 raise RuntimeError(error_msg)
 
         except requests.exceptions.RequestException as e:
@@ -420,7 +427,7 @@ class NodeToolRecommend(AsyncNode):
 
 
 
-    async def _llm_filter_tools(self, query: str, tools: List[Dict[str, Any]], top_k: int) -> List[Dict[str, Any]]:
+    async def _llm_filter_tools(self, query: str, tools: List[Dict[str, Any]], top_k: int, shared: Dict[str, Any]) -> List[Dict[str, Any]]:
         """使用大模型筛选最合适的工具"""
         if not tools:
             return []
@@ -442,16 +449,16 @@ class NodeToolRecommend(AsyncNode):
             try:
                 response_json = json.loads(response_content)
             except json.JSONDecodeError:
-                print(f"❌ 大模型返回的不是有效JSON: {response_content}")
+                await emit_error(shared, f"❌ 大模型返回的不是有效JSON: {response_content}")
                 return tools[:top_k]
 
             # 解析大模型响应
-            selected_tools = self._parse_llm_filter_response(response_json, tools)
+            selected_tools = await self._parse_llm_filter_response(response_json, tools, shared)
 
             return selected_tools
 
         except Exception as e:
-            print(f"❌ 大模型调用失败: {str(e)}")
+            await emit_error(shared, f"❌ 大模型调用失败: {str(e)}")
             return tools[:top_k]
 
     def _build_filter_prompt(self, query: str, tools: List[Dict[str, Any]], top_k: int) -> str:
@@ -508,21 +515,21 @@ class NodeToolRecommend(AsyncNode):
 
         return prompt
 
-    def _parse_llm_filter_response(self, response: Dict[str, Any], original_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    async def _parse_llm_filter_response(self, response: Dict[str, Any], original_tools: List[Dict[str, Any]], shared: Dict[str, Any]) -> List[Dict[str, Any]]:
         """解析大模型筛选响应"""
         try:
             if "selected_tools" not in response:
-                print("⚠️ 大模型响应格式错误：缺少selected_tools字段")
+                await emit_error(shared, "⚠️ 大模型响应格式错误：缺少selected_tools字段")
                 return original_tools[:3]  # 返回前3个作为默认
 
             selected_tools = response["selected_tools"]
             if not isinstance(selected_tools, list):
-                print("⚠️ 大模型响应格式错误：selected_tools不是列表")
+                await emit_error(shared, "⚠️ 大模型响应格式错误：selected_tools不是列表")
                 return original_tools[:3]
 
             # 如果大模型没有选择任何工具，返回空列表或前几个
             if not selected_tools:
-                print("⚠️ 大模型没有选择任何工具")
+                await emit_processing_status(shared, "⚠️ 大模型没有选择任何工具")
                 return original_tools[:1]  # 至少返回最相关的一个
 
             filtered_tools = []
@@ -546,14 +553,14 @@ class NodeToolRecommend(AsyncNode):
                 filtered_tools.append(tool)
 
             # 注意：这里不补充未选中的工具，只返回大模型筛选出的工具
-            print(f"✅ 大模型筛选解析成功，筛选出 {len(filtered_tools)} 个工具")
+            await emit_processing_status(shared, f"✅ 大模型筛选解析成功，筛选出 {len(filtered_tools)} 个工具")
             if "analysis" in response:
-                print(f"📝 大模型分析: {response['analysis']}")
+                await emit_processing_status(shared, f"📝 大模型分析: {response['analysis']}")
 
             return filtered_tools
 
         except Exception as e:
-            print(f"❌ 解析大模型响应失败: {str(e)}")
+            await emit_error(shared, f"❌ 解析大模型响应失败: {str(e)}")
             return original_tools[:3]  # 返回前3个作为默认
         
 if __name__ == '__main__':
@@ -567,16 +574,16 @@ if __name__ == '__main__':
     }
     prep_init_result = init_node.prep(shared_with_init)
     exec_init_result = init_node.exec(prep_init_result)
-    print(exec_init_result)
+    # print(exec_init_result)  # 注释掉测试代码中的 print
     time.sleep(1) #现在需要休眠1秒，等待索引刷新。之后会修复这个问题
     shared_with_llm = {
         "query": "我想解析视频字幕",
         "top_k": 10,
         "index_name": exec_init_result.get("index_name", "default"),  # 使用之前创建的索引
-        "use_llm_filter": True  
+        "use_llm_filter": True
     }
     prep_result = recommend_node.prep(shared=shared_with_llm)
     exec_result = recommend_node.exec(prep_result)
-    print("---------")
-    print(exec_result)
+    # print("---------")  # 注释掉测试代码中的 print
+    # print(exec_result)   # 注释掉测试代码中的 print
 

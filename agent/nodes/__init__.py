@@ -10,17 +10,12 @@ GTPlanner 原子能力节点模块 - 优化版本
 
 注意：
 - Node_Req已被移动到deprecated目录，由UnifiedRequirementsNode替代
-- Node_Recall已被删除，因为功能未实现且未被使用
-- Node_Compress已被删除，由更智能的异步无感压缩替代
-- Node_Output已被删除，为过时的文件生成逻辑
 """
 
 from .node_search import NodeSearch
 from .node_url import NodeURL
-from .node_output import NodeOutput
 
 __all__ = [
     'NodeSearch',
-    'NodeURL',
-    'NodeOutput'
+    'NodeURL'
 ]

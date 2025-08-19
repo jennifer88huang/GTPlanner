@@ -21,6 +21,10 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from pocketflow import AsyncNode
 from utils.config_manager import get_vector_service_config
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 class NodeToolIndex(AsyncNode):
@@ -55,7 +59,7 @@ class NodeToolIndex(AsyncNode):
             self.vector_service_available = response.status_code == 200
         except Exception:
             self.vector_service_available = False
-            print("⚠️ 向量服务不可用")
+            # 注意：初始化阶段无法发送流式事件
     
     async def prep_async(self, shared) -> Dict[str, Any]:
         """
@@ -74,27 +78,27 @@ class NodeToolIndex(AsyncNode):
             force_reindex = shared.get("force_reindex", False)
             
             # 扫描工具文件
-            tool_files = self._scan_tool_files(tools_dir)
-            
+            tool_files = await self._scan_tool_files(tools_dir, shared)
+
             if not tool_files:
                 return {
                     "error": f"No tool files found in {tools_dir}",
                     "tool_files": [],
                     "tools_count": 0
                 }
-            
+
             # 解析工具文件
             parsed_tools = []
             failed_files = []
-            
+
             for file_path in tool_files:
                 try:
-                    tool_data = self._parse_tool_file(file_path)
+                    tool_data = await self._parse_tool_file(file_path, shared)
                     if tool_data:
                         parsed_tools.append(tool_data)
                 except Exception as e:
                     failed_files.append({"file": file_path, "error": str(e)})
-                    print(f"❌ 解析工具文件失败: {file_path}, 错误: {e}")
+                    # 错误已在 _parse_tool_file 中发送事件
             
             if not parsed_tools:
                 return {
@@ -111,7 +115,8 @@ class NodeToolIndex(AsyncNode):
                 "failed_files": failed_files,
                 "tools_count": len(parsed_tools),
                 "index_name": index_name,
-                "force_reindex": force_reindex
+                "force_reindex": force_reindex,
+                "streaming_session": shared.get("streaming_session")
             }
             
         except Exception as e:
@@ -154,7 +159,9 @@ class NodeToolIndex(AsyncNode):
                 documents.append(doc)
             
             # 调用向量服务进行批量索引
-            index_result = self._index_documents(documents, index_name)
+            # 从 prep_res 中获取 streaming_session 用于事件发送
+            shared_for_events = {"streaming_session": prep_res.get("streaming_session")}
+            index_result = await self._index_documents(documents, index_name, shared_for_events)
             
             index_time = time.time() - start_time
             
@@ -246,20 +253,22 @@ class NodeToolIndex(AsyncNode):
             "total_processed": prep_res.get("tools_count", 0)
         }
     
-    def _scan_tool_files(self, tools_dir: str) -> List[str]:
+    async def _scan_tool_files(self, tools_dir: str, shared: Dict[str, Any]) -> List[str]:
         """扫描工具描述文件"""
         if not os.path.exists(tools_dir):
-            print(f"⚠️ 工具目录不存在: {tools_dir}")
+            # 发送错误事件
+            await emit_error(shared, f"⚠️ 工具目录不存在: {tools_dir}")
             return []
-        
+
         # 扫描所有子目录下的yml文件
         pattern = os.path.join(tools_dir, "**", "*.yml")
         tool_files = glob.glob(pattern, recursive=True)
-        
-        print(f"📁 发现 {len(tool_files)} 个工具描述文件")
+
+        # 发送发现文件的状态事件
+        await emit_processing_status(shared, f"📁 发现 {len(tool_files)} 个工具描述文件")
         return tool_files
     
-    def _parse_tool_file(self, file_path: str) -> Optional[Dict[str, Any]]:
+    async def _parse_tool_file(self, file_path: str, shared: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """解析单个工具描述文件"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -272,7 +281,8 @@ class NodeToolIndex(AsyncNode):
             required_fields = ['id', 'type', 'summary']
             for field in required_fields:
                 if field not in data:
-                    print(f"⚠️ 工具文件缺少必需字段 {field}: {file_path}")
+                    # 发送警告事件
+                    await emit_error(shared, f"⚠️ 工具文件缺少必需字段 {field}: {file_path}")
                     return None
             
             # 添加文件路径信息
@@ -282,7 +292,8 @@ class NodeToolIndex(AsyncNode):
             return data
             
         except Exception as e:
-            print(f"❌ 解析工具文件失败: {file_path}, 错误: {e}")
+            # 发送错误事件
+            await emit_error(shared, f"❌ 解析工具文件失败: {file_path}, 错误: {e}")
             return None
 
     def _build_document(self, tool_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -357,7 +368,7 @@ class NodeToolIndex(AsyncNode):
 
         return doc
 
-    def _index_documents(self, documents: List[Dict[str, Any]], index_name: str) -> Dict[str, Any]:
+    async def _index_documents(self, documents: List[Dict[str, Any]], index_name: str, shared: Dict[str, Any]) -> Dict[str, Any]:
         """调用向量服务进行文档索引"""
         try:
             # 构建请求数据
@@ -380,7 +391,7 @@ class NodeToolIndex(AsyncNode):
 
             # 如果指定索引不存在，尝试不指定索引名让服务自动创建
             if (response.status_code in [400, 404]) and "不存在" in response.text and index_name:
-                print(f"⚠️ 索引 {index_name} 不存在，尝试自动创建索引...")
+                await emit_processing_status(shared, f"⚠️ 索引 {index_name} 不存在，尝试自动创建索引...")
                 request_data.pop("index", None)  # 移除索引名
                 response = requests.post(
                     f"{self.vector_service_url}/documents",
@@ -391,14 +402,14 @@ class NodeToolIndex(AsyncNode):
 
             if response.status_code == 200:
                 result = response.json()
-                print(f"✅ 成功索引 {result.get('count', 0)} 个工具到 {result.get('index', index_name)}")
+                await emit_processing_status(shared, f"✅ 成功索引 {result.get('count', 0)} 个工具到 {result.get('index', index_name)}")
                 return result
             else:
                 error_msg = f"向量服务返回错误: {response.status_code}, {response.text}"
-                print(f"❌ {error_msg}")
+                await emit_error(shared, f"❌ {error_msg}")
                 raise RuntimeError(error_msg)
 
         except requests.exceptions.RequestException as e:
             error_msg = f"调用向量服务失败: {str(e)}"
-            print(f"❌ {error_msg}")
+            await emit_error(shared, f"❌ {error_msg}")
             raise RuntimeError(error_msg)

@@ -10,7 +10,7 @@ from typing import Dict, List, Any, Optional
 
 # 导入现有的子Agent流程
 from agent.subflows.short_planning.flows.short_planning_flow import ShortPlanningFlow
-from agent.subflows.architecture.flows.architecture_flow import ArchitectureFlow
+from agent.subflows.deep_design_docs.flows.deep_design_docs_flow import ArchitectureFlow
 from agent.subflows.research.flows.research_flow import ResearchFlow
 
 # 导入新的工具节点
@@ -116,7 +116,7 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
         {
             "type": "function",
             "function": {
-                "name": "architecture_design",
+                "name": "design",
                 "description": "**『技术实现』阶段的终点和收尾工具**。它综合所有前期成果（已确认的范围和技术选型），生成最终的系统架构方案。调用此工具意味着整个规划流程的结束。`user_requirements`参数**必须**使用在『范围确认』阶段与用户达成共识的最终版本。",
                 "parameters": {
                     "type": "object",
@@ -147,14 +147,18 @@ async def execute_agent_tool(tool_name: str, arguments: Dict[str, Any], shared: 
         工具执行结果
     """
     try:
+        # 确保 shared 字典存在
+        if shared is None:
+            shared = {}
+
         if tool_name == "short_planning":
             return await _execute_short_planning(arguments, shared)
         elif tool_name == "tool_recommend":
             return await _execute_tool_recommend(arguments, shared)
         elif tool_name == "research":
             return await _execute_research(arguments, shared)
-        elif tool_name == "architecture_design":
-            return await _execute_architecture_design(arguments, shared)
+        elif tool_name == "design":
+            return await _execute_design(arguments, shared)
         else:
             return {
                 "success": False,
@@ -386,21 +390,21 @@ async def _execute_research(arguments: Dict[str, Any], shared: Dict[str, Any] = 
 
 
 
-async def _execute_architecture_design(arguments: Dict[str, Any], shared: Dict[str, Any] = None) -> Dict[str, Any]:
-    """执行架构设计 - 基于shared字典中的状态数据和用户需求参数"""
+async def _execute_design(arguments: Dict[str, Any], shared: Dict[str, Any] = None) -> Dict[str, Any]:
+    """执行设计 - 基于shared字典中的状态数据和用户需求参数"""
 
     # 验证shared字典是否可用
     if not shared:
         return {
             "success": False,
-            "error": "shared context is required for architecture design"
+            "error": "shared context is required for  design"
         }
 
     # 验证必需的状态数据是否存在
     if not shared.get("short_planning"):
         return {
             "success": False,
-            "error": "short_planning results are required for architecture design"
+            "error": "short_planning results are required for  design"
         }
 
     # 从参数中获取用户需求，如果没有则使用short_planning结果
@@ -409,8 +413,22 @@ async def _execute_architecture_design(arguments: Dict[str, Any], shared: Dict[s
         shared["user_requirements"] = user_requirements
 
     try:
+        # 根据配置选择设计模式
+        from utils.config_manager import is_deep_design_docs_enabled
+
+        if is_deep_design_docs_enabled():
+            # 使用深度设计模式（原architecture模块的循序渐进逻辑）
+            flow = ArchitectureFlow()
+            design_mode = "深度设计"
+        else:
+            # 使用快速设计模式（复用planning.py的简单逻辑）
+            from agent.subflows.quick_design.flows.quick_design_flow import QuickDesignFlow
+            flow = QuickDesignFlow()
+            design_mode = "快速设计"
+
+        print(f"🎯 使用{design_mode}模式生成设计文档...")
+
         # 直接使用shared字典执行流程，确保状态传递
-        flow = ArchitectureFlow()
         result = await flow.run_async(shared)
 
         # 从shared字典中获取结果（PocketFlow已经直接修改了shared）
@@ -418,25 +436,27 @@ async def _execute_architecture_design(arguments: Dict[str, Any], shared: Dict[s
 
         # 判断成功的条件：流程执行完成且有设计文档结果
         if result and agent_design_document:
-            # 🔧 方案B：只返回结果，状态更新由state_manager处理
             return {
                 "success": True,
                 "result": agent_design_document,
-                "tool_name": "architecture_design"
+                "tool_name": "design",
+                "design_mode": design_mode
             }
         else:
             # 检查是否有错误信息
             error_msg = shared.get('last_error', {}).get('error_message') or \
                        shared.get('architecture_flow_error') or \
-                       "架构设计执行失败：未生成设计文档"
+                       shared.get('quick_design_flow_error') or \
+                       f"{design_mode}执行失败：未生成设计文档"
             return {
                 "success": False,
-                "error": error_msg
+                "error": error_msg,
+                "design_mode": design_mode
             }
     except Exception as e:
         return {
             "success": False,
-            "error": f"架构设计执行异常: {str(e)}"
+            "error": f"设计执行异常: {str(e)}"
         }
 
 
@@ -525,9 +545,9 @@ async def call_tool_recommend(
     return await execute_agent_tool("tool_recommend", arguments)
 
 
-async def call_architecture_design(user_requirements: str = None) -> Dict[str, Any]:
+async def call_design(user_requirements: str = None) -> Dict[str, Any]:
     """便捷的架构设计调用 - 支持传入用户需求或自动使用项目状态中的数据"""
     arguments = {}
     if user_requirements:
         arguments["user_requirements"] = user_requirements
-    return await execute_agent_tool("architecture_design", arguments)
+    return await execute_agent_tool("design", arguments)

@@ -10,6 +10,10 @@ ShortPlanningNode (直接处理用户需求)
 from pocketflow import AsyncFlow
 from pocketflow_tracing import trace_flow
 from ..nodes.short_planning_node import ShortPlanningNode
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 @trace_flow(flow_name="ShortPlanningFlow")
@@ -83,7 +87,8 @@ class ShortPlanningFlow:
             return result
 
         except Exception as e:
-            print(f"❌ 异步短规划流程执行失败: {e}")
+            # 发送错误事件
+            await emit_error(shared, f"❌ 异步短规划流程执行失败: {e}")
             # 在共享状态中记录错误
             shared["short_planning_flow_error"] = str(e)
             raise e
@@ -101,7 +106,8 @@ class ShortPlanningFlow:
         # 检查必需的用户需求
         user_requirements = shared.get("user_requirements")
         if not user_requirements:
-            print("❌ 缺少'user_requirements'数据，流程无法启动。")
+            # 注意：这是一个同步方法，无法使用 await，所以我们只能记录错误
+            # 在实际使用中，这个错误会在异步方法中被处理
             return False
         
         # previous_planning 和 improvement_points 是可选的，无需强制检查

@@ -12,6 +12,10 @@ from pocketflow import AsyncNode
 
 # 导入OpenAI客户端
 from utils.openai_client import get_openai_client
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 class DocumentGenerationNode(AsyncNode):
@@ -90,7 +94,7 @@ class DocumentGenerationNode(AsyncNode):
         try:
             if "error" in exec_res:
                 shared["document_generation_error"] = exec_res["error"]
-                print(f"❌ 文档生成失败: {exec_res['error']}")
+                await emit_error(shared, f"❌ 文档生成失败: {exec_res['error']}")
                 return "error"
             
             # 保存生成的文档
@@ -98,8 +102,8 @@ class DocumentGenerationNode(AsyncNode):
             shared["agent_design_document"] = agent_design_document
 
             # 使用简化文件工具直接写入markdown
-            from ..utils.simple_file_util import write_file_directly
-            write_file_directly("06_agent_design_complete.md", agent_design_document, shared)
+            from ....utils.simple_file_util import write_file_directly
+            await write_file_directly("06_agent_design_complete.md", agent_design_document, shared)
             
             # 更新系统消息
             if "system_messages" not in shared:
@@ -112,12 +116,12 @@ class DocumentGenerationNode(AsyncNode):
                 "message": "完整Agent设计文档生成完成"
             })
             
-            print("✅ 完整Agent设计文档生成完成")
+            await emit_processing_status(shared, "✅ 完整Agent设计文档生成完成")
             return "documentation_complete"
-            
+
         except Exception as e:
             shared["document_generation_post_error"] = str(e)
-            print(f"❌ 文档生成后处理失败: {str(e)}")
+            await emit_error(shared, f"❌ 文档生成后处理失败: {str(e)}")
             return "error"
     
     def _build_document_generation_prompt(self, prep_result: Dict[str, Any]) -> str:
@@ -146,11 +150,15 @@ class DocumentGenerationNode(AsyncNode):
         tools_info = ""
         if recommended_tools:
             tools_list = []
-            for tool in recommended_tools:
-                tool_name = tool.get("name", tool.get("id", "未知工具"))
-                tool_type = tool.get("type", "")
-                tool_summary = tool.get("summary", tool.get("description", ""))
-                tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
+            for i, tool in enumerate(recommended_tools):
+                # 添加 None 检查，防止 tool 为 None
+                if tool and isinstance(tool, dict):
+                    tool_name = tool.get("name", tool.get("id", "未知工具"))
+                    tool_type = tool.get("type", "")
+                    tool_summary = tool.get("summary", tool.get("description", ""))
+                    tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
+                else:
+                    print(f"🔍 DEBUG - DocumentGenerationNode - 跳过无效工具: {tool}")
             tools_info = "\n".join(tools_list)
 
         prompt = f"""你是一个专业的AI助手，擅长编写基于pocketflow的Agent设计文档。请根据以下完整的设计结果，生成一份高质量的Agent设计文档。
@@ -167,7 +175,7 @@ class DocumentGenerationNode(AsyncNode):
 {tools_info if tools_info else "无推荐工具"}
 
 **技术调研结果：**
-{research_findings.get('research_summary', '无技术调研结果')}
+{research_findings.get('summary', '无技术调研结果') if research_findings else '无技术调研结果'}
 
 **Agent分析结果：**
 {analysis_markdown}
@@ -240,35 +248,4 @@ class DocumentGenerationNode(AsyncNode):
         except Exception as e:
             raise Exception(f"LLM调用失败: {str(e)}")
     
-    def _generate_document_file(self, shared: Dict[str, Any], document_content: str):
-        """生成文档文件"""
-        try:
-            # 导入Node_Output
-            from agent.nodes.node_output import NodeOutput
-            
-            node_output = NodeOutput(output_dir="output")
-            
-            # 准备文件数据
-            files_to_generate = [
-                {
-                    "filename": "agent_design_complete.md",
-                    "content": document_content
-                }
-            ]
-            
-            # 生成文件
-            result = node_output.generate_files_directly(files_to_generate)
-            
-            if result["status"] == "success":
-                # 更新或合并生成的文件信息
-                if "generated_files" not in shared:
-                    shared["generated_files"] = []
-                shared["generated_files"].extend(result["generated_files"])
-                shared["output_directory"] = result["output_directory"]
-                print(f"✅ 完整设计文档已生成: {result['output_directory']}/agent_design_complete.md")
-            else:
-                print(f"⚠️ 文件生成失败: {result.get('error', '未知错误')}")
-                
-        except Exception as e:
-            print(f"⚠️ 文件生成出错: {str(e)}")
-            # 即使文件生成失败，也不影响主流程
+

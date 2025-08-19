@@ -17,6 +17,10 @@ from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse
 from pocketflow import AsyncNode
 from ..utils.URL_to_Markdown import JinaWebClient
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 class NodeURL(AsyncNode):
@@ -40,7 +44,7 @@ class NodeURL(AsyncNode):
         except ValueError:
             self.web_client = None
             self.client_available = False
-            print("⚠️ URL解析API未配置，将使用模拟结果")
+            # 注意：初始化阶段无法发送流式事件
 
         # 配置
         self.max_content_length = 10000  # 默认最大内容长度
@@ -186,7 +190,8 @@ class NodeURL(AsyncNode):
             return "url_parsed"
 
         except Exception as e:
-            print(f"❌ NodeURL post处理失败: {e}")
+            # 发送错误事件
+            await emit_error(shared, f"❌ NodeURL post处理失败: {e}")
             # 记录错误到shared字典
             if "errors" not in shared:
                 shared["errors"] = []

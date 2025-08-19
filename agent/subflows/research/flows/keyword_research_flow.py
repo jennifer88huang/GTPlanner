@@ -40,6 +40,8 @@ class TracedKeywordResearchFlow(AsyncFlow):
             "keyword": keyword
         }
 
+        # 研究结果已经保存在 shared["research_findings"] 中
+        # 主流程会直接从 shared 中获取，不需要特殊的返回格式
         return exec_result
 
 

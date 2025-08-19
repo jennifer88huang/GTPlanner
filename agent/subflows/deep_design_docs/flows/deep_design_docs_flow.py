@@ -20,6 +20,10 @@ from ..nodes.flow_design_node import FlowDesignNode
 from ..nodes.data_structure_design_node import DataStructureDesignNode
 from ..nodes.document_generation_node import DocumentGenerationNode
 from ..nodes.node_design_dispatcher_node import NodeDesignDispatcherNode, NodeDesignAggregatorNode
+from agent.streaming import (
+    emit_processing_status,
+    emit_error
+)
 
 
 @trace_flow(flow_name="ArchitectureFlow")
@@ -28,7 +32,9 @@ class TracedArchitectureFlow(AsyncFlow):
 
     async def prep_async(self, shared):
         """流程级准备"""
-        print("🏗️ 启动架构设计流程...")
+        # 发送流程启动事件
+        await emit_processing_status(shared, "🏗️ 启动架构设计流程...")
+
         shared["flow_start_time"] = __import__('asyncio').get_event_loop().time()
 
         return {
@@ -46,7 +52,12 @@ class TracedArchitectureFlow(AsyncFlow):
             "status": "completed"
         }
 
-        print(f"✅ 架构设计流程完成，耗时: {flow_duration:.2f}秒")
+        # 发送流程完成事件
+        await emit_processing_status(
+            shared,
+            f"✅ 架构设计流程完成，耗时: {flow_duration:.2f}秒"
+        )
+
         return exec_result
 
 
@@ -55,7 +66,7 @@ def create_architecture_flow():
     创建完整的Architecture Agent流程，支持批处理。
 
     流程设计：
-    1. Agent需求分析 -> 2. Node识别 -> 3. Flow设计 -> 4. 数据结构设计
+    1. Agent需求分析 -> 2. Node识别 -> 3. Flow设计 -> 4. 数据结构设计 -> 
     5. Node详细设计（批处理） -> 6. 文档生成
 
     Node详细设计阶段使用批处理，为每个识别出的Node并行创建设计实例。
@@ -113,25 +124,30 @@ class ArchitectureFlow:
             流程执行结果
         """
         try:
-            print("🚀 启动Agent设计文档生成流程...")
+            # 发送流程启动事件
+            await emit_processing_status(shared, "🚀 启动Agent设计文档生成流程...")
 
             # 验证输入数据
-            if not self._validate_input(shared):
+            if not await self._validate_input(shared):
                 raise ValueError("输入数据验证失败")
 
             # 执行pocketflow异步流程
             result = await self.flow.run_async(shared)
 
-            print("✅ Agent设计文档生成流程执行完成")
+            # 发送流程完成事件
+            await emit_processing_status(shared, "✅ Agent设计文档生成流程执行完成")
+
             return result
 
         except Exception as e:
-            print(f"❌ Agent设计流程执行失败: {e}")
+            # 发送错误事件
+            await emit_error(shared, f"❌ Agent设计流程执行失败: {e}")
+
             # 在共享状态中记录错误
             shared["architecture_flow_error"] = str(e)
             raise e
     
-    def _validate_input(self, shared: dict) -> bool:
+    async def _validate_input(self, shared: dict) -> bool:
         """验证输入数据"""
         try:
             # 检查必需的输入 - 支持多种输入源
@@ -139,17 +155,17 @@ class ArchitectureFlow:
             has_short_planning = "short_planning" in shared and shared["short_planning"]
 
             if not (has_user_requirements or has_short_planning):
-                print("❌ 缺少必需输入: 需要 user_requirements 或 short_planning 中的任意一个")
+                await emit_error(shared, "❌ 缺少必需输入: 需要 user_requirements 或 short_planning 中的任意一个")
                 return False
 
             # 如果有用户需求，优先使用；否则使用短期规划结果
             if has_user_requirements:
-                print("✅ 使用用户需求作为架构设计输入")
+                await emit_processing_status(shared, "✅ 使用用户需求作为架构设计输入")
             else:
-                print("✅ 使用短期规划结果作为架构设计输入")
+                await emit_processing_status(shared, "✅ 使用短期规划结果作为架构设计输入")
 
             return True
 
         except Exception as e:
-            print(f"❌ 输入数据验证失败: {str(e)}")
+            await emit_error(shared, f"❌ 输入数据验证失败: {str(e)}")
             return False
