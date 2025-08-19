@@ -1,16 +1,13 @@
-id: "public.tts-api"
-type: "APIS"
-summary: "文本转语音（TTS）服务，支持本地参考音色或服务器音色。"
+id: "public.presenton-api"
+type: "APIS/MCP"
+summary: "运行presenton工具生成ppt。"
 description: |
-  通过公开TTS API，可以将任意文本生成语音音频。支持参考音频的音色模仿或选择已有服务器音色。
-  支持 WAV/MP3 等音频格式，并可控制生成长度、随机性和重复惩罚等参数。
+  通过api调用可以生成任意类型的ppt,可以选择ppt的语言，内容。
 
   主要功能：
-  - 文本转语音生成
-  - 支持本地参考音色文件
-  - 可选择服务器已有音色
-  - 支持控制生成参数：长度、温度、重复惩罚、top_p
-  - 支持流式或非流式生成
+  - 生成ppt
+  - 下载ppt
+  - 使用mcp服务
 
 examples:      
   - title: "fastapi - 生成PPT并导出"
@@ -70,7 +67,7 @@ examples:
 
       print(f"PPTX文件已保存为: {output_filename}")
       
-  - title: "fastmcp-ppt生成导出"
+  - title: "fastmcp-ppt生成导出代码形式，可以直接在支持mcp服务的应用中使用mcp服务"
     content: |
       """
       优化后的MCP完整工作流程测试
