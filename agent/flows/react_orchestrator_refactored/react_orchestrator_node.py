@@ -5,7 +5,7 @@ ReAct Orchestrator Node
 负责处理单次ReAct推理和决策逻辑。
 """
 
-
+## ✅ 已实现：处理content中包含标签的方式 - 使用ContentToolCallAdapter适配器
 from typing import Dict, List, Any, Optional
 from pocketflow import AsyncNode
 
@@ -284,12 +284,16 @@ class ReActOrchestratorNode(AsyncNode):
                 messages, streaming_session, streaming_callbacks
             )
 
-            # 步骤2: 保存assistant消息到shared字典
+            # 步骤2: 现在工具调用转换在源头进行，直接使用结果
+            # assistant_message_content 已经是过滤后的显示内容
+            # assistant_tool_calls 已经包含了从content标签转换的工具调用
+
+            # 步骤3: 保存assistant消息到shared字典（使用清理后的内容）
             self._add_assistant_message(shared, assistant_message_content, assistant_tool_calls)
 
-            # 步骤3: 处理工具调用或返回最终结果
+            # 步骤4: 处理工具调用或返回最终结果
             if assistant_tool_calls:
-                # 将assistant消息添加到历史
+                # 将assistant消息添加到历史（使用清理后的内容）
                 assistant_message = {
                     "role": "assistant",
                     "content": assistant_message_content,
@@ -297,12 +301,12 @@ class ReActOrchestratorNode(AsyncNode):
                 }
                 messages.append(assistant_message)
 
-                # 步骤4: 执行工具调用
+                # 步骤5: 执行工具调用
                 tool_execution_results = await self._execute_tools_with_callbacks(
                     assistant_tool_calls, shared, streaming_session, streaming_callbacks
                 )
 
-                # 步骤5: 将工具结果添加到消息历史
+                # 步骤6: 将工具结果添加到消息历史
                 self._add_tool_results_to_messages(
                     messages, assistant_tool_calls, tool_execution_results, shared
                 )
@@ -358,12 +362,13 @@ class ReActOrchestratorNode(AsyncNode):
             if StreamCallbackType.ON_LLM_START in streaming_callbacks:
                 await streaming_callbacks[StreamCallbackType.ON_LLM_START](streaming_session)
 
-            # 使用流式API
+            # 使用流式API（启用工具调用标签过滤）
             stream = self.openai_client.chat_completion_stream(
                 system_prompt=SystemPrompts.FUNCTION_CALLING_SYSTEM_PROMPT,
                 messages=messages,
                 tools=self.available_tools,
-                parallel_tool_calls=True
+                parallel_tool_calls=True,
+                filter_tool_tags=True
             )
 
             # 收集流式响应
@@ -376,16 +381,18 @@ class ReActOrchestratorNode(AsyncNode):
                     choice = chunk.choices[0]
                     delta = choice.delta
 
-                    # 处理内容片段
+                    # 处理内容片段（现在已经在源头过滤了工具调用标签）
                     if delta.content:
                         assistant_message_content += delta.content
+
+                        # 直接输出已过滤的内容
                         if StreamCallbackType.ON_LLM_CHUNK in streaming_callbacks:
                             await streaming_callbacks[StreamCallbackType.ON_LLM_CHUNK](
                                 streaming_session,
                                 chunk_content=delta.content,
                                 chunk_index=chunk_index
                             )
-                        chunk_index += 1
+                            chunk_index += 1
 
                     # 处理工具调用
                     if delta.tool_calls:
@@ -408,7 +415,7 @@ class ReActOrchestratorNode(AsyncNode):
             # 构建工具调用列表
             assistant_tool_calls = [tool_call for tool_call in current_tool_calls.values() if tool_call["id"]]
 
-            # 触发LLM结束回调
+            # 触发LLM结束回调（使用已过滤的内容）
             if StreamCallbackType.ON_LLM_END in streaming_callbacks:
                 await streaming_callbacks[StreamCallbackType.ON_LLM_END](
                     streaming_session,
@@ -421,6 +428,8 @@ class ReActOrchestratorNode(AsyncNode):
             # LLM调用失败，记录错误并抛出异常让上层处理
             print(f"❌ LLM调用失败: {str(e)}")
             raise Exception(f"LLM调用失败: {str(e)}")
+
+
 
     async def _execute_tools_with_callbacks(
         self,

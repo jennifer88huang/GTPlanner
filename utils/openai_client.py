@@ -8,6 +8,7 @@ import asyncio
 import os
 import time
 from typing import Dict, List, Any, Optional, AsyncIterator, Callable, TypedDict
+import copy
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
@@ -24,6 +25,222 @@ class Message(TypedDict):
     """消息类型定义"""
     role: str
     content: str
+
+
+class ToolCallTagFilter:
+    """
+    工具调用标签过滤器和转换器（状态机模式）
+
+    使用状态机模式处理跨chunk的工具调用标签分割情况，
+    支持标签被任意分割的边界情况（如 chunk1="<tool_", chunk2="call>{"name""）
+    """
+
+    def __init__(self):
+        # 状态机状态
+        self.state = "NORMAL"  # NORMAL, COLLECTING_START_TAG, IN_TOOL_CALL, COLLECTING_END_TAG
+
+        # 标签定义
+        self.start_tag = "<tool_call>"
+        self.end_tag = "</tool_call>"
+
+        # 标签收集缓冲区
+        self.tag_buffer = ""
+        self.tag_target = ""
+
+        # 内容缓冲区
+        self.content_buffer = ""
+        self.tool_call_content = ""
+
+        # 输出缓冲区
+        self.output_buffer = ""
+
+        # 提取的工具调用
+        self.extracted_tool_calls = []
+
+    def process_chunk(self, content: str) -> str:
+        """
+        处理流式内容块，使用状态机模式过滤工具调用标签
+
+        Args:
+            content: 原始内容块
+
+        Returns:
+            过滤后的可显示内容
+        """
+        if not content:
+            return ""
+
+        output = ""
+
+        for char in content:
+            if self.state == "NORMAL":
+                output += self._process_normal_char(char)
+            elif self.state == "COLLECTING_START_TAG":
+                output += self._process_start_tag_char(char)
+            elif self.state == "IN_TOOL_CALL":
+                self._process_tool_call_char(char)
+            elif self.state == "COLLECTING_END_TAG":
+                self._process_end_tag_char(char)
+
+        return output
+
+    def _process_normal_char(self, char: str) -> str:
+        """处理正常状态下的字符"""
+        if char == '<':
+            # 开始收集开始标签
+            self.state = "COLLECTING_START_TAG"
+            self.tag_buffer = '<'
+            self.tag_target = self.start_tag
+            return ""  # 不输出，等待确认是否为工具调用标签
+        else:
+            return char
+
+    def _process_start_tag_char(self, char: str) -> str:
+        """处理开始标签收集状态下的字符"""
+        self.tag_buffer += char
+
+        if len(self.tag_buffer) <= len(self.tag_target):
+            # 检查是否匹配目标标签
+            if self.tag_buffer == self.tag_target[:len(self.tag_buffer)]:
+                if self.tag_buffer == self.tag_target:
+                    # 完整匹配开始标签
+                    self.state = "IN_TOOL_CALL"
+                    self.tool_call_content = ""
+                    self.tag_buffer = ""
+                    return ""  # 不输出标签
+                else:
+                    # 部分匹配，继续收集
+                    return ""
+            else:
+                # 不匹配，输出缓冲的内容并回到正常状态
+                output = self.tag_buffer
+                self.state = "NORMAL"
+                self.tag_buffer = ""
+                return output
+        else:
+            # 超出标签长度，不匹配，输出缓冲的内容并回到正常状态
+            output = self.tag_buffer
+            self.state = "NORMAL"
+            self.tag_buffer = ""
+            return output
+
+    def _process_tool_call_char(self, char: str):
+        """处理工具调用内容状态下的字符"""
+        if char == '<':
+            # 可能是结束标签的开始
+            self.state = "COLLECTING_END_TAG"
+            self.tag_buffer = '<'
+            self.tag_target = self.end_tag
+        else:
+            self.tool_call_content += char
+
+    def _process_end_tag_char(self, char: str):
+        """处理结束标签收集状态下的字符"""
+        self.tag_buffer += char
+
+        if len(self.tag_buffer) <= len(self.tag_target):
+            # 检查是否匹配目标标签
+            if self.tag_buffer == self.tag_target[:len(self.tag_buffer)]:
+                if self.tag_buffer == self.tag_target:
+                    # 完整匹配结束标签，完成工具调用提取
+                    self._parse_and_store_tool_call(self.tool_call_content)
+                    self.state = "NORMAL"
+                    self.tag_buffer = ""
+                    self.tool_call_content = ""
+                # 部分匹配，继续收集
+            else:
+                # 不匹配，将缓冲的内容加入工具调用内容，继续收集工具调用
+                self.tool_call_content += self.tag_buffer
+                self.state = "IN_TOOL_CALL"
+                self.tag_buffer = ""
+        else:
+            # 超出标签长度，不匹配，将缓冲的内容加入工具调用内容
+            self.tool_call_content += self.tag_buffer
+            self.state = "IN_TOOL_CALL"
+            self.tag_buffer = ""
+
+    def finalize(self) -> str:
+        """
+        完成处理，返回剩余的可显示内容
+
+        Returns:
+            剩余的可显示内容
+        """
+        output = ""
+
+        # 处理未完成的状态
+        if self.state == "COLLECTING_START_TAG":
+            # 未完成的开始标签收集，输出缓冲的内容
+            output += self.tag_buffer
+        elif self.state == "IN_TOOL_CALL":
+            # 未完成的工具调用，不输出（工具调用不完整）
+            pass
+        elif self.state == "COLLECTING_END_TAG":
+            # 未完成的结束标签收集，将缓冲内容作为工具调用内容的一部分
+            # 但由于工具调用未完成，不输出
+            pass
+
+        # 重置状态
+        self.state = "NORMAL"
+        self.tag_buffer = ""
+        self.tool_call_content = ""
+
+        return output
+
+    def _parse_and_store_tool_call(self, tool_call_content: str) -> None:
+        """
+        解析工具调用内容并存储为标准格式
+
+        Args:
+            tool_call_content: 工具调用的JSON内容
+        """
+        import json
+        import uuid
+
+        try:
+            # 解析JSON内容
+            tool_call_data = json.loads(tool_call_content)
+
+            # 验证必需字段
+            if "name" not in tool_call_data:
+                return
+
+            # 生成唯一的call_id
+            call_id = f"call_{uuid.uuid4().hex[:8]}"
+
+            # 确保arguments是字符串格式
+            arguments = tool_call_data.get("arguments", {})
+            if isinstance(arguments, dict):
+                arguments_str = json.dumps(arguments, ensure_ascii=False)
+            else:
+                arguments_str = str(arguments)
+
+            # 创建标准格式的工具调用
+            standard_tool_call = {
+                "id": call_id,
+                "type": "function",
+                "function": {
+                    "name": tool_call_data["name"],
+                    "arguments": arguments_str
+                }
+            }
+
+            self.extracted_tool_calls.append(standard_tool_call)
+
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            # 解析失败，忽略这个工具调用
+            pass
+
+    def get_extracted_tool_calls(self) -> list:
+        """
+        获取提取的工具调用列表
+
+        Returns:
+            标准格式的工具调用列表
+        """
+        return self.extracted_tool_calls.copy()
+
+
 
 
 class SimpleOpenAIConfig:
@@ -333,7 +550,10 @@ class OpenAIClient:
 
         # 合并配置参数
         params = self.config.to_chat_completion_kwargs()
-        params.update(kwargs)
+
+        # 过滤掉内部参数，避免传递给OpenAI API
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ['filter_tool_tags']}
+        params.update(filtered_kwargs)
         params["messages"] = prepared_messages
 
         if stream:
@@ -419,6 +639,7 @@ class OpenAIClient:
         messages: Optional[List[Message]] = None,
         system_prompt: Optional[str] = None,
         tools: Optional[List[Dict]] = None,
+        filter_tool_tags: bool = False,
         **kwargs
     ) -> AsyncIterator[ChatCompletionChunk]:
         """
@@ -428,16 +649,22 @@ class OpenAIClient:
             messages: 消息列表
             system_prompt: 系统提示词（可选）
             tools: Function Calling工具列表
+            filter_tool_tags: 是否过滤工具调用标签（默认False，保持向后兼容）
             **kwargs: 其他参数
 
         Yields:
-            聊天完成流式响应块
+            聊天完成流式响应块（如果启用filter_tool_tags，delta.content将被过滤）
         """
         start_time = time.time()
         self.stats["total_requests"] += 1
 
         try:
-            # 准备请求参数
+            # 提取filter_tool_tags参数，避免传递给OpenAI API
+            filter_tool_tags_param = filter_tool_tags
+
+        
+
+            # 准备请求参数（不包含filter_tool_tags）
             params = self._prepare_request_params(
                 messages=messages,
                 system_prompt=system_prompt,
@@ -456,6 +683,9 @@ class OpenAIClient:
             full_content = ""
             total_tokens = 0
 
+            # 初始化工具调用标签过滤器（如果启用）
+            tag_filter = ToolCallTagFilter() if filter_tool_tags_param else None
+
             async for chunk in stream:
                 chunk_count += 1
 
@@ -467,7 +697,66 @@ class OpenAIClient:
                 if hasattr(chunk, 'usage') and chunk.usage:
                     total_tokens = chunk.usage.total_tokens
 
-                yield chunk
+
+
+                # 如果启用了工具调用标签过滤，处理delta.content
+                if filter_tool_tags_param and tag_filter and chunk.choices and chunk.choices[0].delta.content:
+                    # 创建chunk的副本以避免修改原始对象
+                    filtered_chunk = copy.deepcopy(chunk)
+                    original_content = chunk.choices[0].delta.content
+                    filtered_content = tag_filter.process_chunk(original_content)
+
+                    # 更新副本的content
+                    filtered_chunk.choices[0].delta.content = filtered_content
+
+                    # 如果提取到了工具调用，添加到delta.tool_calls
+                    extracted_calls = tag_filter.get_extracted_tool_calls()
+                    if extracted_calls and not filtered_chunk.choices[0].delta.tool_calls:
+                        # 将提取的工具调用转换为delta格式
+                        tool_call_deltas = []
+                        for i, tool_call in enumerate(extracted_calls):
+                            from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall, ChoiceDeltaToolCallFunction
+
+                            tool_call_delta = ChoiceDeltaToolCall(
+                                index=i,
+                                id=tool_call["id"],
+                                function=ChoiceDeltaToolCallFunction(
+                                    name=tool_call["function"]["name"],
+                                    arguments=tool_call["function"]["arguments"]
+                                ),
+                                type="function"
+                            )
+                            tool_call_deltas.append(tool_call_delta)
+
+                        filtered_chunk.choices[0].delta.tool_calls = tool_call_deltas
+                        # 清空已处理的工具调用，避免重复
+                        tag_filter.extracted_tool_calls.clear()
+
+                    yield filtered_chunk
+                else:
+                    yield chunk
+
+            # 如果启用了过滤，处理剩余的内容
+            if filter_tool_tags_param and tag_filter:
+                remaining_content = tag_filter.finalize()
+                if remaining_content:
+                    # 创建一个包含剩余内容的chunk
+                    from openai.types.chat.chat_completion_chunk import ChatCompletionChunk, Choice, ChoiceDelta
+
+                    # 创建最后一个chunk来输出剩余内容
+                    final_choice = Choice(
+                        delta=ChoiceDelta(content=remaining_content),
+                        index=0,
+                        finish_reason=None
+                    )
+                    final_chunk = ChatCompletionChunk(
+                        id="filtered_final",
+                        choices=[final_choice],
+                        created=int(time.time()),
+                        model="filtered",
+                        object="chat.completion.chunk"
+                    )
+                    yield final_chunk
 
             # 更新统计信息
             self.stats["successful_requests"] += 1
