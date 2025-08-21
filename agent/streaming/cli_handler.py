@@ -15,9 +15,8 @@ from .stream_interface import StreamHandler
 class CLIStreamHandler(StreamHandler):
     """
     CLI流式事件处理器
-
     负责将流式事件转换为CLI友好的显示格式，包括：
-    - 实时显示LLM回复内容（显示层兜底过滤 <tool_call> 标签）
+    - 实时显示LLM回复内容
     - 显示工具调用状态和进度
     - 优雅处理错误和中断
     """

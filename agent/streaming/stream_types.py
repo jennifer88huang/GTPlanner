@@ -245,14 +245,19 @@ class StreamEventBuilder:
     
     @staticmethod
     def conversation_end(
-        session_id: str, 
-        final_result: Dict[str, Any]
+        session_id: str,
+        final_result: Dict[str, Any],
+        tool_execution_results_updates: Optional[Dict[str, Any]] = None
     ) -> StreamEvent:
         """创建对话结束事件"""
+        data = final_result.copy()
+        if tool_execution_results_updates:
+            data["tool_execution_results_updates"] = tool_execution_results_updates
+
         return StreamEvent(
             event_type=StreamEventType.CONVERSATION_END,
             session_id=session_id,
-            data=final_result
+            data=data
         )
 
 
