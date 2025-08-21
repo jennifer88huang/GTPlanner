@@ -106,7 +106,8 @@ class StatelessGTPlanner:
                         "success": result.success,
                         "execution_time": result.execution_time,
                         "new_messages_count": len(result.new_messages)
-                    }
+                    },
+                    tool_execution_results_updates=result.tool_execution_results_updates
                 )
             )
 
@@ -168,9 +169,17 @@ class StatelessGTPlanner:
         session: StreamingSession,
         complete_message: str,
         message_metadata: Optional[dict] = None,
+        tool_calls: Optional[list] = None,
         **kwargs
     ) -> None:
         """LLM响应结束回调"""
+        # 如果有 tool_calls，将其添加到 message_metadata 中
+        if message_metadata is None:
+            message_metadata = {}
+
+        if tool_calls:
+            message_metadata["tool_calls"] = tool_calls
+
         await session.emit_event(
             StreamEventBuilder.assistant_message_end(
                 session.session_id,

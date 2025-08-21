@@ -317,7 +317,14 @@ class ReActOrchestratorNode(AsyncNode):
                     recursion_depth + 1, max_recursion_depth
                 )
             else:
-                # 没有工具调用，返回最终结果
+                # 没有工具调用，发送 assistant_message_end 事件然后返回最终结果
+                if StreamCallbackType.ON_LLM_END in streaming_callbacks:
+                    await streaming_callbacks[StreamCallbackType.ON_LLM_END](
+                        streaming_session,
+                        complete_message=assistant_message_content,
+                        tool_calls=[]  # 没有工具调用，传递空列表
+                    )
+
                 return {
                     "user_message": assistant_message_content,
                     "tool_calls": [],
@@ -415,11 +422,12 @@ class ReActOrchestratorNode(AsyncNode):
             # 构建工具调用列表
             assistant_tool_calls = [tool_call for tool_call in current_tool_calls.values() if tool_call["id"]]
 
-            # 触发LLM结束回调（使用已过滤的内容）
+            # 触发LLM结束回调（使用已过滤的内容，并传递 tool_calls 信息）
             if StreamCallbackType.ON_LLM_END in streaming_callbacks:
                 await streaming_callbacks[StreamCallbackType.ON_LLM_END](
                     streaming_session,
-                    complete_message=assistant_message_content
+                    complete_message=assistant_message_content,
+                    tool_calls=assistant_tool_calls  # 传递工具调用信息
                 )
 
             return assistant_message_content, assistant_tool_calls
