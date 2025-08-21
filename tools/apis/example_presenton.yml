@@ -16,8 +16,9 @@ examples:
       import requests
 
       # 步骤1：生成演示文稿
-      generate_url = os.environ["PPT_GENERATE_URL"]
-      export_url = os.environ["PPT_EXPORT_URL"]
+      base_url = os.environ["PPT_API_BASE"]
+      generate_url = f"{base_url}/api/v1/ppt/presentation/generate"
+      export_url = f"{base_url}/api/v1/ppt/presentation/export/pptx"
       generate_data = {
           "prompt": "Introduction to Machine Learning",
           "n_slides": 5,  # 改为整数类型
@@ -69,8 +70,8 @@ examples:
       print(f"PPTX文件已保存为: {output_filename}")
       
           
-mcp_url:  "http://192.168.1.218:4995/mcp"
-base_url: "http://192.168.1.218:4999"
+mcp_url:  "${MCP_URL}"
+base_url: "${PPT_API_BASE}"
 endpoints:
   - summary: "上传文件"
     method: "POST"
