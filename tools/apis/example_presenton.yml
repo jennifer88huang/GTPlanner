@@ -12,10 +12,12 @@ description: |
 examples:      
   - title: "fastapi - 生成PPT并导出"
     content: |
+      import os
       import requests
 
       # 步骤1：生成演示文稿
-      generate_url = "http://192.168.1.218:4999/api/v1/ppt/presentation/generate"
+      generate_url = os.environ["PPT_GENERATE_URL"]
+      export_url = os.environ["PPT_EXPORT_URL"]
       generate_data = {
           "prompt": "Introduction to Machine Learning",
           "n_slides": 5,  # 改为整数类型
@@ -39,7 +41,6 @@ examples:
       presentation_id = generate_result['presentation_id']
 
       # 步骤2：导出PPTX文件
-      export_url = "http://192.168.1.218:4999/api/v1/ppt/presentation/export/pptx"
       export_headers = {'Content-Type': 'application/json'}
 
       # 构建导出请求体
@@ -80,6 +81,9 @@ examples:
       from fastmcp import Client
       from datetime import datetime
 
+      mcp_url = os.environ["MCP_URL"]
+      export_base_url = os.environ["MCP_EXPORT_BASE_URL"]
+
       async def test_mcp_fixed_workflow():
           """测试修复后的MCP完整工作流程"""
           print("🔧 测试MCP修复后的工作流程")
@@ -88,7 +92,7 @@ examples:
           session_id = f"mcp_fix_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
           
           try:
-              async with Client("http://192.168.1.218:4999/mcp") as client:
+              async with Client(mcp_url) as client:
                   print("✅ 连接到MCP服务器成功")
                   
                   # 步骤1: 开始演示文稿
@@ -165,7 +169,7 @@ examples:
 
                           # 构建下载URL
                           filename = os.path.basename(server_file_path)
-                          download_url = f"http://192.168.1.218:4999/app_data/exports/{filename}"
+                          download_url = f"{export_base_url}/{filename}"
 
                           print(f"📥 下载URL: {download_url}")
 
@@ -254,6 +258,7 @@ examples:
 
       if __name__ == "__main__":
           asyncio.run(main())
+          
 mcp_url:  "http://192.168.1.218:4995/mcp"
 base_url: "http://192.168.1.218:4999"
 endpoints:
