@@ -15,10 +15,11 @@ description: |
 examples:
   - title: "Python 示例 - 基本TTS"
     content: |
+      import os
       import msgpack
       import requests
 
-      url = "http://192.168.1.218:4997/v1/tts"
+      url = os.environ["TTS_URL"] 
       headers = {"Content-Type": "application/msgpack"}
 
       data = {
