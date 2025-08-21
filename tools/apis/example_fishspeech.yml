@@ -48,7 +48,7 @@ examples:
       else:
           print("错误:", response.content.decode('utf-8'))
 
-base_url: os.environ["TTS_URL"] 
+base_url: "${TTS_URL}"
 endpoints:
   - summary: "根据文本生成语音音频"
     method: "POST"
