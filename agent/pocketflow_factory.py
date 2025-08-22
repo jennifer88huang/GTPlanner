@@ -146,6 +146,43 @@ class PocketFlowSharedFactory:
             if "short_planning" in shared:
                 tool_execution_results_updates["short_planning"] = shared["short_planning"]
 
+            # 检查设计文档相关字段 - 组织在 designs 命名空间下
+            designs = {}
+
+            # 深度设计文档字段
+            if "analysis_markdown" in shared:
+                designs["analysis_markdown"] = shared["analysis_markdown"]
+
+            if "nodes_markdown" in shared:
+                designs["nodes_markdown"] = shared["nodes_markdown"]
+
+            if "flow_markdown" in shared:
+                designs["flow_markdown"] = shared["flow_markdown"]
+
+            if "data_structure_json" in shared:
+                designs["data_structure_json"] = shared["data_structure_json"]
+
+            if "node_design_markdown" in shared:
+                designs["node_design_markdown"] = shared["node_design_markdown"]
+
+            if "agent_design_document" in shared:
+                designs["agent_design_document"] = shared["agent_design_document"]
+
+            # 快速设计文档字段
+            if "requirements" in shared:
+                designs["requirements"] = shared["requirements"]
+
+            if "documentation" in shared:
+                designs["documentation"] = shared["documentation"]
+
+            # 检查生成的文档文件信息
+            if "generated_documents" in shared:
+                designs["generated_documents"] = shared["generated_documents"]
+
+            # 如果有设计文档，添加到工具执行结果中
+            if designs:
+                tool_execution_results_updates["designs"] = designs
+
             result = AgentResult.create_success(
                 new_messages=new_messages,
                 tool_execution_results_updates=tool_execution_results_updates,

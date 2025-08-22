@@ -5,7 +5,7 @@
 """
 
 from typing import Dict, Any, Optional
-from .stream_types import StreamEventBuilder, ToolCallStatus
+from .stream_types import StreamEventBuilder, ToolCallStatus, DesignDocument
 
 
 async def emit_processing_status(shared: Dict[str, Any], message: str) -> None:
@@ -209,3 +209,30 @@ async def emit_event_auto(context: Dict[str, Any], event_type: str, message: str
         return  # 未知事件类型
     
     await streaming_session.emit_event(event)
+
+
+async def emit_design_document(
+    shared: Dict[str, Any],
+    filename: str,
+    content: str
+) -> None:
+    """
+    发送设计文档生成事件
+
+    Args:
+        shared: 共享状态字典（包含 streaming_session）
+        filename: 文件名（如 "01_agent_analysis.md"）
+        content: 文档内容
+    """
+    streaming_session = shared.get("streaming_session")
+    if streaming_session:
+        document = DesignDocument(
+            filename=filename,
+            content=content
+        )
+
+        event = StreamEventBuilder.design_document_generated(
+            streaming_session.session_id,
+            document
+        )
+        await streaming_session.emit_event(event)

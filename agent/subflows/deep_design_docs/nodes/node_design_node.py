@@ -123,9 +123,9 @@ class NodeDesignNode(AsyncNode):
                 "message": "Node设计完成"
             })
 
-            # 使用简化文件工具直接写入markdown
-            from ....utils.simple_file_util import write_file_directly
-            await write_file_directly("05_node_design.md", node_design_markdown, shared)
+            # 使用流式事件发送设计文档
+            from agent.streaming import emit_design_document
+            await emit_design_document(shared, "05_node_design.md", node_design_markdown)
 
             await emit_processing_status(shared, "✅ Node设计完成")
 

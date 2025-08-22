@@ -15,7 +15,7 @@ from api.v1.chat import chat_router
 from api.v1.canvas import canvas_router
 
 # 导入 SSE GTPlanner API
-from agent.api.agent_api import SSEGTPlannerAPI
+from agent.api.agent_api import SSEGTPlanner
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +45,7 @@ app.include_router(chat_router)
 app.include_router(canvas_router)
 
 # 创建全局 SSE API 实例
-sse_api = SSEGTPlannerAPI(verbose=True)
+sse_api = SSEGTPlanner(verbose=True)
 
 # 请求模型
 class ChatRequest(BaseModel):

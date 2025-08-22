@@ -78,9 +78,9 @@ class QuickDesignOptimizationNode(AsyncNode):
             # 保存设计文档到与深度设计相同的字段名以保持兼容性
             shared["agent_design_document"] = design_document
 
-            # 使用简化文件工具生成设计文档文件
-            from ....utils.simple_file_util import write_file_directly
-            await write_file_directly("quick_design_document.md", design_document, shared)
+            # 使用流式事件发送设计文档
+            from agent.streaming import emit_design_document
+            await emit_design_document(shared, "quick_design_document.md", design_document)
 
             # 更新系统消息
             if "system_messages" not in shared:

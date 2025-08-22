@@ -123,6 +123,9 @@ class SSEStreamHandler(StreamHandler):
             elif event.event_type == StreamEventType.ERROR:
                 await self._handle_error_event(event)
 
+            elif event.event_type == StreamEventType.DESIGN_DOCUMENT_GENERATED:
+                await self._handle_design_document(event)
+
             elif event.event_type == StreamEventType.CONVERSATION_END:
                 await self._handle_conversation_end(event)
 
@@ -218,9 +221,31 @@ class SSEStreamHandler(StreamHandler):
         """处理错误事件"""
         # 刷新缓冲区
         await self._flush_buffer()
-        
+
         # 立即发送错误事件
         await self._write_sse_event(event)
+
+    async def _handle_design_document(self, event: StreamEvent) -> None:
+        """处理设计文档生成事件"""
+        # 刷新缓冲区以确保之前的消息都已发送
+        await self._flush_buffer()
+
+        # 直接发送设计文档事件
+        await self._write_sse_event(event)
+
+        # 如果启用了元数据，发送额外的状态信息
+        if self.include_metadata:
+            filename = event.data.get("filename", "unknown.md")
+            content_length = len(event.data.get("content", ""))
+
+            await self._send_status_update(
+                "design_document_generated",
+                {
+                    "filename": filename,
+                    "content_length": content_length,
+                    "timestamp": event.timestamp
+                }
+            )
 
     async def _handle_conversation_end(self, event: StreamEvent) -> None:
         """处理对话结束事件"""

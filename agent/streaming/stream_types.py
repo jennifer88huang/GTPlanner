@@ -24,6 +24,9 @@ class StreamEventType(Enum):
     TOOL_CALL_PROGRESS = "tool_call_progress"
     TOOL_CALL_END = "tool_call_end"
 
+    # 设计文档相关事件
+    DESIGN_DOCUMENT_GENERATED = "design_document_generated"
+
     # 状态相关事件
     PROCESSING_STATUS = "processing_status"
     ERROR = "error"
@@ -113,7 +116,7 @@ class ToolCallStatus:
     result: Optional[Dict[str, Any]] = None
     execution_time: Optional[float] = None
     error_message: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "tool_name": self.tool_name,
@@ -123,6 +126,19 @@ class ToolCallStatus:
             "result": self.result,
             "execution_time": self.execution_time,
             "error_message": self.error_message
+        }
+
+
+@dataclass
+class DesignDocument:
+    """设计文档数据结构"""
+    filename: str
+    content: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "filename": self.filename,
+            "content": self.content
         }
 
 
@@ -258,6 +274,18 @@ class StreamEventBuilder:
             event_type=StreamEventType.CONVERSATION_END,
             session_id=session_id,
             data=data
+        )
+
+    @staticmethod
+    def design_document_generated(
+        session_id: str,
+        document: DesignDocument
+    ) -> StreamEvent:
+        """创建设计文档生成事件"""
+        return StreamEvent(
+            event_type=StreamEventType.DESIGN_DOCUMENT_GENERATED,
+            session_id=session_id,
+            data=document.to_dict()
         )
 
 

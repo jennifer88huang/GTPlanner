@@ -11,9 +11,9 @@ GTPlanner SSE API
 
 使用方式:
     ```python
-    from agent.api.agent_api import SSEGTPlannerAPI
+    from agent.api.agent_api import SSEGTPlanner
     
-    api = SSEGTPlannerAPI(verbose=True)
+    api = SSEGTPlanner(verbose=True)
     
     async def write_sse_data(data: str):
         await response.write(data)
@@ -48,7 +48,7 @@ from agent.streaming.sse_handler import SSEStreamHandler
 logger = logging.getLogger(__name__)
 
 
-class SSEGTPlannerAPI:
+class SSEGTPlanner:
     """基于新流式响应架构的GTPlanner SSE API"""
 
     def __init__(self, 
@@ -420,7 +420,7 @@ async def create_sse_response(
     Returns:
         处理结果
     """
-    api = SSEGTPlannerAPI(**config_options)
+    api = SSEGTPlanner(**config_options)
     return await api.process_simple_request(user_input, response_writer, session_id)
 
 
@@ -440,5 +440,5 @@ async def create_sse_response_with_context(
     Returns:
         处理结果
     """
-    api = SSEGTPlannerAPI(**config_options)
+    api = SSEGTPlanner(**config_options)
     return await api.process_request_stream(agent_context, response_writer)

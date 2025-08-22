@@ -73,9 +73,9 @@ class QuickRequirementsAnalysisNode(AsyncNode):
             # 存储语言为中文（默认）
             shared["language"] = "zh"
 
-            # 使用简化文件工具生成需求分析文件
-            from ....utils.simple_file_util import write_file_directly
-            await write_file_directly("quick_requirements_analysis.md", requirements, shared)
+            # 使用流式事件发送设计文档
+            from agent.streaming import emit_design_document
+            await emit_design_document(shared, "quick_requirements_analysis.md", requirements)
 
             # 更新系统消息
             if "system_messages" not in shared:

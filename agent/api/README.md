@@ -31,11 +31,11 @@ pip install aiohttp
 
 ```python
 import asyncio
-from agent.api import SSEGTPlannerAPI
+from agent.api import SSEGTPlanner
 
 async def main():
     # 创建API实例
-    api = SSEGTPlannerAPI(
+    api = SSEGTPlanner(
         include_metadata=True,
         buffer_events=False,
         verbose=True
@@ -80,14 +80,14 @@ asyncio.run(main())
 
 ## 🔧 API 参考
 
-### SSEGTPlannerAPI
+### SSEGTPlanner
 
 主要的API类，提供流式响应处理功能。
 
 #### 构造函数
 
 ```python
-SSEGTPlannerAPI(
+SSEGTPlanner(
     include_metadata: bool = False,
     buffer_events: bool = False,
     heartbeat_interval: float = 30.0,

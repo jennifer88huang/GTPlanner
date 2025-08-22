@@ -11,6 +11,7 @@ from .stream_types import (
     StreamEventBuilder,
     AssistantMessageChunk,
     ToolCallStatus,
+    DesignDocument,
     StreamEventIterator,
     StreamEventHandler
 )
@@ -36,7 +37,8 @@ from .event_helpers import (
     emit_tool_end,
     emit_processing_status_from_prep,
     emit_error_from_prep,
-    emit_event_auto
+    emit_event_auto,
+    emit_design_document
 )
 
 __all__ = [
@@ -47,6 +49,7 @@ __all__ = [
     "StreamEventBuilder",
     "AssistantMessageChunk",
     "ToolCallStatus",
+    "DesignDocument",
     "StreamEventIterator",
     "StreamEventHandler",
 
@@ -71,5 +74,6 @@ __all__ = [
     "emit_tool_end",
     "emit_processing_status_from_prep",
     "emit_error_from_prep",
-    "emit_event_auto"
+    "emit_event_auto",
+    "emit_design_document"
 ]

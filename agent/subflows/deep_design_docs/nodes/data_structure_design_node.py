@@ -104,9 +104,9 @@ class DataStructureDesignNode(AsyncNode):
                 "message": "数据结构设计完成"
             })
 
-            # 使用简化文件工具保存JSON文件
-            from ....utils.simple_file_util import write_file_directly
-            await write_file_directly("04_data_structure.json", data_structure_json, shared)
+            # 使用流式事件发送设计文档
+            from agent.streaming import emit_design_document
+            await emit_design_document(shared, "04_data_structure.json", data_structure_json)
 
             await emit_processing_status(shared, "✅ 数据结构设计完成")
 

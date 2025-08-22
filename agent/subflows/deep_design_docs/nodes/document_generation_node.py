@@ -101,9 +101,9 @@ class DocumentGenerationNode(AsyncNode):
             agent_design_document = exec_res["agent_design_document"]
             shared["agent_design_document"] = agent_design_document
 
-            # 使用简化文件工具直接写入markdown
-            from ....utils.simple_file_util import write_file_directly
-            await write_file_directly("06_agent_design_complete.md", agent_design_document, shared)
+            # 使用流式事件发送设计文档
+            from agent.streaming import emit_design_document
+            await emit_design_document(shared, "06_agent_design_complete.md", agent_design_document)
             
             # 更新系统消息
             if "system_messages" not in shared:

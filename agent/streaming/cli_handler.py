@@ -62,6 +62,9 @@ class CLIStreamHandler(StreamHandler):
             elif event.event_type == StreamEventType.ERROR:
                 await self._handle_error_event(event)
 
+            elif event.event_type == StreamEventType.DESIGN_DOCUMENT_GENERATED:
+                await self._handle_design_document(event)
+
             elif event.event_type == StreamEventType.CONVERSATION_END:
                 await self._handle_conversation_end(event)
 
@@ -173,6 +176,74 @@ class CLIStreamHandler(StreamHandler):
 
         if self.show_metadata and error_details:
             print(f"   详细信息: {error_details}")
+
+    async def _handle_design_document(self, event: StreamEvent) -> None:
+        """处理设计文档生成事件"""
+        filename = event.data.get("filename", "unknown.md")
+        content = event.data.get("content", "")
+
+        # 如果正在显示消息，先换行
+        if self.is_message_active:
+            print()
+
+        print(f"\n📄 设计文档已生成: {filename}")
+
+        # 使用文件生成器保存文档
+        try:
+            from utils.file_generator import write_file
+            file_info = write_file(filename, content)
+
+            print(f"   📁 保存路径: {file_info['path']}")
+            print(f"   📏 文件大小: {file_info['size']} 字节")
+
+            if self.show_metadata:
+                print(f"   🕒 创建时间: {datetime.fromtimestamp(file_info['created_at']).strftime('%H:%M:%S')}")
+                print(f"   📝 编码格式: {file_info['encoding']}")
+
+        except Exception as e:
+            print(f"   ❌ 保存失败: {str(e)}")
+            # 如果保存失败，至少显示文档内容的前几行
+            lines = content.split('\n')[:3]
+            print(f"   📝 文档预览:")
+            for line in lines:
+                print(f"      {line}")
+            total_lines = len(content.split('\n'))
+            if total_lines > 3:
+                print(f"      ... (共 {total_lines} 行)")
+
+    async def _handle_design_document(self, event: StreamEvent) -> None:
+        """处理设计文档生成事件"""
+        filename = event.data.get("filename", "unknown.md")
+        content = event.data.get("content", "")
+
+        # 如果正在显示消息，先换行
+        if self.is_message_active:
+            print()
+
+        print(f"\n📄 设计文档已生成: {filename}")
+
+        # 使用文件生成器保存文档
+        try:
+            from utils.file_generator import write_file
+            file_info = write_file(filename, content)
+
+            print(f"   📁 保存路径: {file_info['path']}")
+            print(f"   📏 文件大小: {file_info['size']} 字节")
+
+            if self.show_metadata:
+                print(f"   🕒 创建时间: {datetime.fromtimestamp(file_info['created_at']).strftime('%H:%M:%S')}")
+                print(f"   📝 编码格式: {file_info['encoding']}")
+
+        except Exception as e:
+            print(f"   ❌ 保存失败: {str(e)}")
+            # 如果保存失败，至少显示文档内容的前几行
+            lines = content.split('\n')[:3]
+            print(f"   📝 文档预览:")
+            for line in lines:
+                print(f"      {line}")
+            total_lines = len(content.split('\n'))
+            if total_lines > 3:
+                print(f"      ... (共 {total_lines} 行)")
 
     async def _handle_conversation_end(self, event: StreamEvent) -> None:
         """处理对话结束事件"""

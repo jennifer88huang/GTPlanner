@@ -248,9 +248,9 @@ class NodeDesignAggregatorNode(AsyncNode):
             node_design_markdown = exec_res["node_design_markdown"]
             shared["node_design_markdown"] = node_design_markdown
 
-            # 使用简化文件工具直接写入markdown
-            from ....utils.simple_file_util import write_file_directly
-            await write_file_directly("05_node_design.md", node_design_markdown, shared)
+            # 使用流式事件发送设计文档
+            from agent.streaming import emit_design_document
+            await emit_design_document(shared, "05_node_design.md", node_design_markdown)
 
             # 更新系统消息
             if "system_messages" not in shared:
