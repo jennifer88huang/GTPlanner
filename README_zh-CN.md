@@ -81,13 +81,13 @@ GTPlanner 生成的计划可以直接在您最喜欢的 AI 编程工具中使用
 - **🤖 智能推理**: 智能分析用户需求，提供专业的规划建议
 - **🔧 Function Calling**: 集成OpenAI Function Calling，支持智能工具调用
 - **📊 智能规划**: 短期规划、长期设计、架构设计等专业化规划能力
-- **� 技术调研**: 基于Jina搜索的智能技术调研和信息收集
+- **🔍 技术调研**: 基于Jina搜索的智能技术调研和信息收集
 - **🛠️ 工具推荐**: 向量化工具推荐系统，智能匹配最适合的开发工具
 
 ### 🚀 现代化架构
 - **⚡ 无状态设计**: 支持高并发和水平扩展的无状态架构
 - **🔄 流式响应**: 原生支持Server-Sent Events (SSE)，提供实时用户体验
-- **� 智能存储**: 基于SQLite的会话管理，支持智能压缩和数据持久化
+- **💾 智能存储**: 基于SQLite的会话管理，支持智能压缩和数据持久化
 - **📈 执行追踪**: 集成pocketflow-tracing和Langfuse进行详细的执行追踪
 
 ### 🌐 多接口支持
@@ -97,7 +97,7 @@ GTPlanner 生成的计划可以直接在您最喜欢的 AI 编程工具中使用
 - **� Web UI**: 配合前端提供完整的Web用户界面
 
 ### 🌍 全球化支持
-- **�️ 多语言支持**: 全面支持中文、英文、日文、西班牙文、法文，并具备自动语言检测
+- **🌐 多语言支持**: 全面支持中文、英文、日文、西班牙文、法文，并具备自动语言检测
 - **🎯 智能语言检测**: 自动识别用户语言并提供相应的本地化响应
 - **🔧 LLM兼容性**: 支持各类大语言模型（OpenAI、Anthropic等）
 
@@ -454,120 +454,23 @@ supported_languages = ["en", "zh", "es", "fr", "ja"]
 
 ## 🤝 参与贡献
 
-我们欢迎并高度赞赏贡献和协作。请查看[贡献指南](CONTRIBUTING.md)并参与其中。
+我们深信，一个卓越的工具，离不开社区的智慧与共建。GTPlanner 期待您的参与，共同塑造更强大的规划生态：
 
-### 🔧 贡献工具
+### 🔧 贡献工具 - 扩充规划器的知识库
+帮助 GTPlanner 了解更多可用的解决方案，让它能在规划中进行精准推荐：
+- **🌐 API工具** - Web API、REST服务、平台集成
+- **📦 Python包** - PyPI库、数据分析包、实用工具
+- **🔌 MCP服务** - 遵循MCP规范的私有服务
 
-GTPlanner包含一个智能工具推荐系统，支持社区贡献的工具。我们欢迎在两个类别中贡献高质量的工具：
+### 💻 贡献核心代码 - 用数据证明优化
+通过评测驱动的开发方式，提升规划质量和系统性能。
 
-#### 支持的工具类型
+### 📚 分享实践案例 - 启发社区经验
+分享您的使用案例、教程和最佳实践，帮助社区发掘 GTPlanner 的全部潜力。
 
-**🌐 API工具 (APIS)**
-- Web API和REST服务
-- 基于云的处理工具
-- 外部服务集成
-- 实时数据处理API
-
-**📦 Python包工具 (PYTHON_PACKAGE)**
-- PyPI包和库
-- 本地处理工具
-- 数据分析包
-- 实用程序库
-
-#### 如何贡献工具
-
-1. **选择正确的模板**：使用我们的专门PR模板以获得更好的组织：
-   - [API工具模板](.github/PULL_REQUEST_TEMPLATE/api_tool.md) - 用于Web API和服务
-   - [Python包模板](.github/PULL_REQUEST_TEMPLATE/python_package_tool.md) - 用于PyPI包
-
-2. **质量标准**：所有贡献的工具必须满足我们的质量标准：
-   - ✅ 公开可访问且文档完善
-   - ✅ 稳定且积极维护
-   - ✅ 清晰的使用示例和集成指南
-   - ✅ 适当的错误处理和安全实践
-   - ✅ 与现有工具无重复功能
-
-3. **工具信息格式**：每个工具需要：
-   - 唯一标识符（例如，`org.tool-name`）
-   - 全面的描述和用例
-   - 完整的API规范或包详细信息
-   - 工作示例和集成代码
-   - 测试和验证结果
-
-4. **审查流程**：所有工具贡献都经过：
-   - 技术准确性审查
-   - 质量和安全评估
-   - 文档完整性检查
-   - 社区反馈整合
-
-#### 🛠️ 工具定义格式
-
-所有工具都使用YAML格式定义，包含以下核心字段：
-
-**通用字段：**
-- **id**: 工具的唯一标识符
-- **type**: 工具类型（"APIS" 或 "PYTHON_PACKAGE"）
-- **summary**: 一句话功能概述
-- **description**: 详细功能描述
-- **examples**: 使用示例
-
-**APIS类型额外字段：**
-- **base_url**: API的基础URL地址
-- **endpoints**: API端点定义数组
-  - **summary**: 端点功能描述
-  - **method**: HTTP方法（GET、POST、PUT、DELETE等）
-  - **path**: 端点路径
-  - **inputs**: 输入参数定义（JSON Schema格式）
-  - **outputs**: 输出结果定义（JSON Schema格式）
-
-**PYTHON_PACKAGE类型额外字段：**
-- **requirement**: PyPI包安装要求（如："package-name==1.0.0"）
-
-#### 示例工具
-
-**API工具示例**
-查看 `tools/apis/example_openweather.yml` 了解如何定义一个API工具。
-
-**Python包示例**
-查看 `tools/python_packages/example_yt_dlp.yml` 了解如何定义一个Python包工具。
-
-#### 工具格式示例
-
-**API工具示例：**
-```yaml
-id: "public.weather-api"
-type: "APIS"
-summary: "获取全球城市的实时天气信息。"
-description: |
-  通过公开天气API，可以查询指定城市的当前天气、温度、湿度、
-  风速等详细气象数据。完全免费使用，无需注册或API密钥。
-base_url: "https://api.open-meteo.com/v1"
-endpoints:
-  - method: "GET"
-    path: "/forecast"
-    summary: "根据经纬度坐标获取当前天气数据"
-```
-
-**Python包示例：**
-```yaml
-id: "pypi.yt-dlp"
-type: "PYTHON_PACKAGE"
-summary: "功能强大的视频下载工具，支持数千个视频网站。"
-description: |
-  yt-dlp是youtube-dl的功能增强分支，支持从YouTube、Bilibili、抖音等
-  数千个视频网站下载视频和音频。
-requirement: "yt-dlp"
-```
-
-有关详细的贡献指南，请参阅我们的[工具贡献模板](.github/PULL_REQUEST_TEMPLATE/)。
-
-### 一般贡献流程
-
-1. Fork仓库
-2. 创建功能分支（`git checkout -b feature/amazing-feature`）
-3. 提交您的更改（`git commit -m 'Add amazing feature'`）
-4. 推送到分支（`git push origin feature/amazing-feature`）
-5. 打开Pull Request
+### 📖 详细指南
+完整的贡献方式、技术规范和提交流程，请查看：
+**[贡献指南](contribute_zh.md)** - 包含详细的贡献流程、模板和示例
 
 ## 📄 许可证
 
