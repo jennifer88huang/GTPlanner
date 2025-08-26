@@ -13,6 +13,9 @@ from agent.streaming import (
     emit_error
 )
 
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
+
 
 class LLMAnalysisNode(AsyncNode):
     """LLM分析节点 - 2c步骤"""
@@ -27,14 +30,16 @@ class LLMAnalysisNode(AsyncNode):
         url_content = shared.get("url_content", "")
         current_keyword = shared.get("current_keyword", "")
         analysis_requirements = shared.get("analysis_requirements", "")
-        
+        language = shared.get("language")  # 获取语言设置
+
         if not url_content:
             return {"error": "No URL content available for analysis"}
-        
+
         return {
             "url_content": url_content,
             "current_keyword": current_keyword,
-            "analysis_requirements": analysis_requirements
+            "analysis_requirements": analysis_requirements,
+            "language": language  # 添加语言设置
         }
     
     async def exec_async(self, prep_res):
@@ -45,11 +50,12 @@ class LLMAnalysisNode(AsyncNode):
         url_content = prep_res["url_content"]
         keyword = prep_res["current_keyword"]
         analysis_requirements = prep_res["analysis_requirements"]
+        language = prep_res["language"]
 
         # 使用LLM进行内容分析 - 异步调用
         try:
             analysis_result = await self._analyze_content_with_llm_async(
-                url_content, keyword, analysis_requirements
+                url_content, keyword, analysis_requirements, language
             )
 
             return {
@@ -124,44 +130,21 @@ class LLMAnalysisNode(AsyncNode):
             print(f"❌ LLM分析后处理失败: {e}")
             return "error"
     
-    async def _analyze_content_with_llm_async(self, content, keyword, requirements):
-        """异步使用LLM分析内容"""
-        # 系统提示词：定义角色和输出格式
-        system_prompt = """你是一个专业的内容分析专家，擅长从大量文本中提取关键信息和洞察。
-
-你的任务是：
-1. 分析给定的内容，重点关注与指定关键词相关的信息
-2. 提取核心要点和技术细节
-3. 提供实用的建议和洞察
-4. 严格按照指定的JSON格式输出结果
-
-输出格式要求：
-- 必须返回有效的JSON格式
-- 包含summary、key_points、relevance、recommendations四个字段
-- key_points和recommendations必须是数组格式
-- 内容要简洁明了，避免冗余信息"""
-
-        # 用户提示词：具体的分析任务
-        user_prompt = f"""请分析以下内容，重点关注与"{keyword}"相关的信息。
-
-分析要求：{requirements}
-
-内容：
-{content[:2000]}
-
-请严格按照以下JSON格式返回分析结果：
-{{
-    "summary": "核心内容总结",
-    "key_points": ["要点1", "要点2", "要点3"],
-    "relevance": "与{keyword}的相关性说明",
-    "recommendations": ["建议1", "建议2"]
-}}"""
+    async def _analyze_content_with_llm_async(self, content, keyword, requirements, language=None):
+        """异步使用LLM分析内容，使用多语言模板系统"""
+        # 使用新的多语言模板系统获取提示词
+        prompt = get_prompt(
+            PromptTypes.Agent.RESEARCH_ANALYSIS,
+            language=language,
+            keyword=keyword,
+            requirements=requirements,
+            content=content[:2000]
+        )
 
         try:
             client = get_openai_client()
             response = await client.chat_completion(
-                messages=[{"role": "user", "content": user_prompt}],
-                system_prompt=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
                 ##todo 公司网关 kimi 会报错不支持json_object response_format={"type": "json_object"}
             )
             result = response.choices[0].message.content if response.choices else ""

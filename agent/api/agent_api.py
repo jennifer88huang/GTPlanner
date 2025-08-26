@@ -163,6 +163,7 @@ class SSEGTPlanner:
         self,
         agent_context: Dict[str, Any],
         response_writer: Callable[[str], Awaitable[None]],
+        language: Optional[str] = None,
         **config_options
     ) -> Dict[str, Any]:
         """
@@ -177,6 +178,7 @@ class SSEGTPlanner:
                 - last_updated: 最后更新时间（可选）
                 - is_compressed: 是否压缩（可选）
             response_writer: SSE数据写入函数
+            language: 语言选择，支持 'zh', 'en', 'ja', 'es', 'fr'（可选）
             **config_options: 额外的配置选项
 
         Returns:
@@ -206,7 +208,7 @@ class SSEGTPlanner:
 
             # 使用StatelessGTPlanner处理
             logger.debug("调用StatelessGTPlanner处理请求")
-            result = await self.planner.process(latest_user_input, context, streaming_session)
+            result = await self.planner.process(latest_user_input, context, streaming_session, language=language)
 
             # 构建结果摘要
             result_summary = {
@@ -311,7 +313,8 @@ class SSEGTPlanner:
         self,
         user_input: str,
         response_writer: Callable[[str], Awaitable[None]],
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        language: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         简化的请求处理方法（向后兼容）
@@ -320,6 +323,7 @@ class SSEGTPlanner:
             user_input: 用户输入
             response_writer: SSE数据写入函数
             session_id: 可选的会话ID，如果不提供将生成新的
+            language: 语言选择，支持 'zh', 'en', 'ja', 'es', 'fr'（可选）
 
         Returns:
             处理结果
@@ -354,7 +358,8 @@ class SSEGTPlanner:
 
         return await self.process_request_stream(
             agent_context=agent_context,
-            response_writer=response_writer
+            response_writer=response_writer,
+            language=language
         )
     
     def get_api_status(self) -> Dict[str, Any]:

@@ -20,9 +20,11 @@ from agent.streaming.stream_interface import StreamingSession
 # 导入重构后的组件
 from .constants import (
     ErrorMessages,
-    DefaultValues, 
-    SystemPrompts
+    DefaultValues
 )
+
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
 
 from .tool_executor import ToolExecutor
 
@@ -281,7 +283,7 @@ class ReActOrchestratorNode(AsyncNode):
         try:
             # 步骤1: 调用LLM并处理流式响应
             assistant_message_content, assistant_tool_calls = await self._call_llm_with_streaming(
-                messages, streaming_session, streaming_callbacks
+                messages, shared, streaming_session, streaming_callbacks
             )
 
             # 步骤2: 现在工具调用转换在源头进行，直接使用结果
@@ -355,6 +357,7 @@ class ReActOrchestratorNode(AsyncNode):
     async def _call_llm_with_streaming(
         self,
         messages: List[Dict[str, Any]],
+        shared: Dict[str, Any],
         streaming_session: StreamingSession,
         streaming_callbacks: Dict[str, Any]
     ) -> tuple[str, List[Dict[str, Any]]]:
@@ -369,9 +372,16 @@ class ReActOrchestratorNode(AsyncNode):
             if StreamCallbackType.ON_LLM_START in streaming_callbacks:
                 await streaming_callbacks[StreamCallbackType.ON_LLM_START](streaming_session)
 
+            # 获取语言设置和系统提示词
+            language = shared.get("language")  # 从shared字典获取语言选择
+            system_prompt = get_prompt(
+                PromptTypes.System.ORCHESTRATOR_FUNCTION_CALLING,
+                language=language
+            )
+
             # 使用流式API（启用工具调用标签过滤）
             stream = self.openai_client.chat_completion_stream(
-                system_prompt=SystemPrompts.FUNCTION_CALLING_SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 messages=messages,
                 tools=self.available_tools,
                 parallel_tool_calls=True,
@@ -459,7 +469,8 @@ class ReActOrchestratorNode(AsyncNode):
                 await streaming_callbacks[StreamCallbackType.ON_TOOL_START](
                     streaming_session,
                     tool_name=tool_call["function"]["name"],
-                    arguments=arguments
+                    arguments=arguments,
+                    call_id=tool_call["id"]  # 传递LLM生成的工具调用ID
                 )
 
         # 执行工具调用

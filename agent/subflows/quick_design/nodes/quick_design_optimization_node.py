@@ -9,6 +9,11 @@ from typing import Dict, Any
 from pocketflow import AsyncNode
 from utils.openai_client import get_openai_client
 
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
+from agent.prompts.text_manager import get_text_manager
+from agent.prompts.prompt_types import CommonPromptType
+
 
 class QuickDesignOptimizationNode(AsyncNode):
     """快速设计优化节点 - 复制 AsyncDesignOptimizationNode 的逻辑"""
@@ -22,15 +27,25 @@ class QuickDesignOptimizationNode(AsyncNode):
         """准备数据进行设计优化"""
         # 提取用户需求（与上游字段名保持一致）
         user_requirements = shared.get("user_requirements", "")
-        
+
         # 提取项目规划
         short_planning = shared.get("short_planning", "")
 
-        # 格式化推荐工具信息
-        tools_info = self._format_tools_info(shared.get("recommended_tools", []))
+        # 获取语言设置
+        language = shared.get("language")
 
-        # 格式化技术调研结果
-        research_summary = self._format_research_summary(shared.get("research_findings", {}))
+        # 使用文本管理器格式化推荐工具信息
+        text_manager = get_text_manager()
+        tools_info = text_manager.build_tools_content(
+            recommended_tools=shared.get("recommended_tools", []),
+            language=language
+        )
+
+        # 使用文本管理器格式化技术调研结果
+        research_summary = text_manager.build_research_content(
+            research_findings=shared.get("research_findings", {}),
+            language=language
+        )
 
         # 获取需求分析结果
         requirements = shared["requirements"]
@@ -41,12 +56,15 @@ class QuickDesignOptimizationNode(AsyncNode):
             "tools_info": tools_info,
             "research_summary": research_summary,
             "requirements": requirements,
+            "language": language,
         }
 
     async def exec_async(self, input_data):
         """使用LLM生成优化建议"""
-        # 构建设计优化提示词，使用新的数据结构
-        prompt = self._build_design_optimization_prompt(
+        # 使用多语言模板系统构建设计优化提示词
+        prompt = get_prompt(
+            PromptTypes.Agent.QUICK_DESIGN_OPTIMIZATION,
+            language=input_data.get("language"),
             user_requirements=input_data["user_requirements"],
             short_planning=input_data["short_planning"],
             tools_info=input_data["tools_info"],
@@ -101,50 +119,4 @@ class QuickDesignOptimizationNode(AsyncNode):
             print(f"❌ 快速设计优化后处理失败: {str(e)}")
             return "error"
 
-    def _build_design_optimization_prompt(self, user_requirements: str,
-                                        short_planning: str,
-                                        tools_info: str,
-                                        research_summary: str,
-                                        requirements: str) -> str:
-        """构建设计优化提示词，使用新的数据结构"""
-        # 导入模板
-        from ..utils.quick_design_templates import QuickDesignTemplates
 
-        # 使用模板并填充数据
-        template = QuickDesignTemplates.get_design_optimization_zh()
-        prompt = template.format(
-            user_requirements=user_requirements,
-            short_planning=short_planning if short_planning else "无项目规划",
-            tools_info=tools_info if tools_info else "无推荐工具",
-            research_summary=research_summary if research_summary else "无技术调研结果",
-            requirements=requirements
-        )
-
-        return prompt
-
-    def _format_tools_info(self, recommended_tools: list) -> str:
-        """格式化推荐工具信息"""
-        if not recommended_tools:
-            return "无推荐工具"
-
-        tools_list = []
-        for tool in recommended_tools[:5]:  # 只取前5个
-            name = tool.get('name', 'Unknown')
-            description = tool.get('description', 'No description')
-            tools_list.append(f"- {name}: {description}")
-
-        return "\n".join(tools_list)
-
-    def _format_research_summary(self, research_findings: dict) -> str:
-        """格式化技术调研结果"""
-        if not research_findings:
-            return "无技术调研结果"
-
-        if "research_summary" in research_findings:
-            return research_findings["research_summary"]
-        elif "key_findings" in research_findings:
-            findings = research_findings["key_findings"]
-            if isinstance(findings, list):
-                return "关键技术发现：\n" + "\n".join(f"- {finding}" for finding in findings[:3])
-
-        return "无技术调研结果"

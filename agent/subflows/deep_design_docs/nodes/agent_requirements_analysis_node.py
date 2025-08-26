@@ -16,6 +16,11 @@ from agent.streaming import (
     emit_error
 )
 
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
+from agent.prompts.text_manager import get_text_manager
+from agent.prompts.prompt_types import CommonPromptType
+
 
 class AgentRequirementsAnalysisNode(AsyncNode):
     """Agent需求分析节点 - 理解和分析Agent设计需求"""
@@ -28,6 +33,9 @@ class AgentRequirementsAnalysisNode(AsyncNode):
     async def prep_async(self, shared: Dict[str, Any]) -> Dict[str, Any]:
         """准备阶段：收集需求信息"""
         try:
+            # 获取用户需求（必需）
+            user_requirements = shared.get("user_requirements", "")
+
             # 获取短期规划结果（必需）
             short_planning = shared.get("short_planning", "")
 
@@ -37,14 +45,21 @@ class AgentRequirementsAnalysisNode(AsyncNode):
             # 获取推荐工具（可选）
             recommended_tools = shared.get("recommended_tools", [])
 
+            # 获取语言设置
+            language = shared.get("language")
+
             # 检查必需的输入
+            if not user_requirements:
+                return {"error": "缺少用户需求，无法进行架构分析"}
             if not short_planning:
                 return {"error": "缺少短期规划结果，无法进行架构分析"}
 
             return {
+                "user_requirements": user_requirements,  # 添加用户需求
                 "short_planning": short_planning,
                 "research_findings": research_findings,
                 "recommended_tools": recommended_tools,
+                "language": language,  # 添加语言设置
                 "timestamp": time.time()
             }
             
@@ -61,7 +76,7 @@ class AgentRequirementsAnalysisNode(AsyncNode):
             prompt = self._build_analysis_prompt(prep_result)
 
             # 异步调用LLM分析需求，直接输出markdown
-            analysis_markdown = await self._analyze_agent_requirements_async(prompt)
+            analysis_markdown = await self._analyze_agent_requirements_async(prompt, prep_result.get("language"))
 
             return {
                 "analysis_markdown": analysis_markdown,
@@ -108,93 +123,45 @@ class AgentRequirementsAnalysisNode(AsyncNode):
             return "error"
     
     def _build_analysis_prompt(self, prep_result: Dict[str, Any]) -> str:
-        """构建需求分析提示词"""
+        """构建需求分析提示词，使用多语言模板系统"""
+        user_requirements = prep_result.get("user_requirements", "")
         short_planning = prep_result["short_planning"]
         research_findings = prep_result.get("research_findings", {})
         recommended_tools = prep_result.get("recommended_tools", [])
-        
+        language = prep_result.get("language")
 
-        # 构建推荐工具信息
-        tools_info = ""
-        if recommended_tools:
-            tools_list = []
-            for tool in recommended_tools:
-                # 添加 None 检查，防止 tool 为 None
-                if tool and isinstance(tool, dict):
-                    # 安全获取工具名称
-                    tool_name = tool.get("name") or tool.get("id", "未知工具")
-                    tool_type = tool.get("type", "")
-                    # 安全获取工具摘要
-                    tool_summary = tool.get("summary") or tool.get("description", "")
-                    tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
-            tools_info = "\n".join(tools_list)
+        # 使用文本管理器构建工具和研究内容
+        text_manager = get_text_manager()
 
-        # 安全获取技术调研摘要
-        research_summary = research_findings.get('summary', '无技术调研结果') if research_findings else '无技术调研结果'
+        tools_info = text_manager.build_tools_content(
+            recommended_tools=recommended_tools,
+            language=language
+        )
 
-        prompt = f"""基于以下信息，分析并明确要设计的Agent类型和核心功能。
+        research_summary = text_manager.build_research_content(
+            research_findings=research_findings,
+            language=language
+        )
 
-**项目规划：**
-{short_planning}
+        # 使用新的多语言模板系统获取提示词
+        prompt = get_prompt(
+            PromptTypes.Agent.DEEP_REQUIREMENTS_ANALYSIS,
+            language=language,
+            user_requirements=user_requirements,
+            short_planning=short_planning,
+            tools_info=tools_info,
+            research_summary=research_summary
+        )
 
-**推荐工具：**
-{tools_info if tools_info else "无推荐工具"}
-
-**技术调研结果：**
-{research_summary}
-
-请分析上述信息，生成完整的Agent需求分析报告。"""
-        
         return prompt
     
-    async def _analyze_agent_requirements_async(self, prompt: str) -> str:
-        """异步调用LLM分析Agent需求"""
+    async def _analyze_agent_requirements_async(self, prompt: str, language: str = None) -> str:
+        """异步调用LLM分析Agent需求，使用多语言模板系统"""
         try:
-            # 构建系统提示词
-            system_prompt = """你是一个专业的AI Agent设计专家，专门分析和设计基于pocketflow框架的Agent。
-
-请严格按照以下Markdown格式输出Agent需求分析结果：
-
-# Agent需求分析结果
-
-## Agent基本信息
-- **Agent类型**: [Agent类型，如：对话Agent、分析Agent、推荐Agent等]
-- **Agent目的**: [Agent的主要目的和价值]
-- **处理模式**: [处理模式，如：流水线、批处理、实时响应等]
-
-## 核心功能
-
-### 1. [功能名称1]
-- **描述**: [功能详细描述]
-- **复杂度**: [简单/中等/复杂]
-- **优先级**: [高/中/低]
-
-### 2. [功能名称2]
-- **描述**: [功能详细描述]
-- **复杂度**: [简单/中等/复杂]
-- **优先级**: [高/中/低]
-
-## 输入输出类型
-- **输入类型**: [输入数据类型，用逗号分隔]
-- **输出类型**: [输出数据类型，用逗号分隔]
-
-## 技术挑战
-- [主要技术挑战1]
-- [主要技术挑战2]
-- [其他挑战...]
-
-## 成功标准
-- [成功标准1]
-- [成功标准2]
-- [其他标准...]
-
-重要：请严格按照上述Markdown格式输出，不要输出JSON格式！直接输出完整的Markdown文档。"""
-
-            # 使用系统提示词调用LLM
+            # 直接使用已经包含完整提示词的prompt
             client = get_openai_client()
             response = await client.chat_completion(
-                messages=[{"role": "user", "content": prompt}],
-                system_prompt=system_prompt
+                messages=[{"role": "user", "content": prompt}]
             )
             result = response.choices[0].message.content if response.choices else ""
             return result

@@ -17,6 +17,11 @@ from agent.streaming import (
     emit_error
 )
 
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
+from agent.prompts.text_manager import get_text_manager
+from agent.prompts.prompt_types import CommonPromptType
+
 
 class DocumentGenerationNode(AsyncNode):
     """文档生成节点 - 生成完整的Agent设计文档"""
@@ -42,6 +47,9 @@ class DocumentGenerationNode(AsyncNode):
             research_findings = shared.get("research_findings", {})
             recommended_tools = shared.get("recommended_tools", [])
 
+            # 获取语言设置
+            language = shared.get("language")
+
             # 检查必需的输入
             required_data = {
                 "analysis_markdown": analysis_markdown,
@@ -62,6 +70,7 @@ class DocumentGenerationNode(AsyncNode):
                 "user_requirements": user_requirements,
                 "research_findings": research_findings,
                 "recommended_tools": recommended_tools,
+                "language": language,  # 添加语言设置
                 "timestamp": time.time()
             }
             
@@ -78,7 +87,7 @@ class DocumentGenerationNode(AsyncNode):
             prompt = self._build_document_generation_prompt(prep_result)
             
             # 异步调用LLM生成文档
-            agent_design_document = await self._generate_complete_document(prompt)
+            agent_design_document = await self._generate_complete_document(prompt, prep_result.get("language"))
             
             return {
                 "agent_design_document": agent_design_document,
@@ -125,16 +134,19 @@ class DocumentGenerationNode(AsyncNode):
             return "error"
     
     def _build_document_generation_prompt(self, prep_result: Dict[str, Any]) -> str:
-        """构建文档生成提示词"""
+        """构建文档生成提示词，使用多语言模板系统"""
         analysis_markdown = prep_result.get("analysis_markdown", "")
         nodes_markdown = prep_result.get("nodes_markdown", "")
         flow_markdown = prep_result.get("flow_markdown", "")
         data_structure_markdown = prep_result.get("data_structure_markdown", "")
         node_design_markdown = prep_result.get("node_design_markdown", "")
         user_requirements = prep_result.get("user_requirements", "")
+        language = prep_result.get("language")
 
         # 从用户需求中提取项目标题，如果没有则使用默认值
-        project_title = "AI Agent项目"
+        text_manager = get_text_manager()
+        default_project_title = text_manager.get_text(CommonPromptType.DEFAULT_PROJECT_TITLE, language)
+        project_title = default_project_title
         if user_requirements and isinstance(user_requirements, str):
             # 简单提取：取第一行或前50个字符作为标题
             first_line = user_requirements.split('\n')[0].strip()
@@ -146,99 +158,45 @@ class DocumentGenerationNode(AsyncNode):
         research_findings = prep_result.get("research_findings", {})
         recommended_tools = prep_result.get("recommended_tools", [])
 
-        # 构建推荐工具信息
-        tools_info = ""
-        if recommended_tools:
-            tools_list = []
-            for i, tool in enumerate(recommended_tools):
-                # 添加 None 检查，防止 tool 为 None
-                if tool and isinstance(tool, dict):
-                    tool_name = tool.get("name", tool.get("id", "未知工具"))
-                    tool_type = tool.get("type", "")
-                    tool_summary = tool.get("summary", tool.get("description", ""))
-                    tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
-                else:
-                    print(f"🔍 DEBUG - DocumentGenerationNode - 跳过无效工具: {tool}")
-            tools_info = "\n".join(tools_list)
+        # 使用文本管理器构建推荐工具信息
+        tools_info = text_manager.build_tools_content(
+            recommended_tools=recommended_tools,
+            language=language
+        )
 
-        prompt = f"""你是一个专业的AI助手，擅长编写基于pocketflow的Agent设计文档。请根据以下完整的设计结果，生成一份高质量的Agent设计文档。
+        # 使用文本管理器构建研究信息
+        research_info = text_manager.build_research_content(
+            research_findings=research_findings,
+            language=language
+        )
 
-**项目标题：** {project_title}
+        # 使用文本管理器获取占位符文本
+        no_requirements_text = text_manager.get_text(CommonPromptType.NO_REQUIREMENTS_PLACEHOLDER, language)
+        no_planning_text = text_manager.get_text(CommonPromptType.NO_PLANNING_PLACEHOLDER, language)
+        no_tools_text = text_manager.get_text(CommonPromptType.NO_TOOLS_PLACEHOLDER, language)
 
-**用户需求：**
-{user_requirements if user_requirements else "未提供用户需求"}
-
-**项目规划：**
-{short_planning if short_planning else "未提供项目规划"}
-
-**推荐工具：**
-{tools_info if tools_info else "无推荐工具"}
-
-**技术调研结果：**
-{research_findings.get('summary', '无技术调研结果') if research_findings else '无技术调研结果'}
-
-**Agent分析结果：**
-{analysis_markdown}
-
-**识别的Node列表：**
-{nodes_markdown}
-
-**Flow设计：**
-{flow_markdown}
-
-**数据结构设计：**
-{data_structure_markdown}
-
-**详细Node设计：**
-{node_design_markdown}
-
-请生成一份完整的Markdown格式的Agent设计文档，必须包含以下部分：
-
-# {project_title}
-
-## 项目需求
-基于Agent分析结果，清晰描述项目目标和功能需求。
-
-## 工具函数
-如果需要的话，列出所需的工具函数（如LLM调用、数据处理等）。
-
-## Flow设计
-详细描述pocketflow的Flow编排，包含：
-- Flow的整体设计思路
-- 节点连接和Action驱动的转换逻辑
-- 完整的执行流程描述
-
-### Flow图表
-使用Mermaid flowchart TD语法，生成完整的Flow图表。
-
-## 数据结构
-详细描述shared存储的数据结构，包含：
-- shared存储的整体设计
-- 各个字段的定义和用途
-- 数据流转模式
-
-## Node设计
-为每个Node提供详细设计，包含：
-- Purpose（目的）
-- Design（设计类型，如Node、AsyncNode等）
-- Data Access（数据访问模式）
-- 详细的prep/exec/post三阶段设计
-
-请确保文档：
-1. 遵循pocketflow的最佳实践
-2. 体现关注点分离原则
-3. 包含完整的Action驱动逻辑
-4. 提供清晰的数据流设计
-5. 使用专业的技术文档格式
-
-输出完整的Markdown格式文档："""
+        # 使用多语言模板系统获取提示词
+        prompt = get_prompt(
+            PromptTypes.Agent.DOCUMENT_GENERATION,
+            language=language,
+            project_title=project_title,
+            user_requirements=user_requirements if user_requirements else no_requirements_text,
+            short_planning=short_planning if short_planning else no_planning_text,
+            tools_info=tools_info if tools_info else no_tools_text,
+            research_info=research_info,
+            analysis_markdown=analysis_markdown,
+            nodes_markdown=nodes_markdown,
+            flow_markdown=flow_markdown,
+            data_structure_markdown=data_structure_markdown,
+            node_design_markdown=node_design_markdown
+        )
         
         return prompt
     
-    async def _generate_complete_document(self, prompt: str) -> str:
-        """调用LLM生成完整文档"""
+    async def _generate_complete_document(self, prompt: str, language: str = None) -> str:
+        """调用LLM生成完整文档，使用多语言模板系统"""
         try:
-            # 使用重试机制调用LLM
+            # 直接使用已经包含完整提示词的prompt
             client = get_openai_client()
             response = await client.chat_completion(
                 messages=[{"role": "user", "content": prompt}]

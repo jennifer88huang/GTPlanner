@@ -24,7 +24,8 @@ class PocketFlowSharedFactory:
     @staticmethod
     def create_shared_dict(
         user_input: str,
-        context: AgentContext
+        context: AgentContext,
+        language: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         从用户输入和AgentContext创建pocketflow shared字典
@@ -32,6 +33,7 @@ class PocketFlowSharedFactory:
         Args:
             user_input: 当前用户输入
             context: Agent上下文（只读，可能已压缩）
+            language: 语言选择，支持 'zh', 'en', 'ja', 'es', 'fr'（可选）
 
         Returns:
             pocketflow shared字典
@@ -71,6 +73,9 @@ class PocketFlowSharedFactory:
             # 核心对话数据
             "dialogue_history": {"messages": current_messages},
             "session_id": context.session_id,
+
+            # 语言选择 - 添加到shared字典中供各个节点使用
+            "language": language,
 
             # 工具执行结果数据（统一字段名）- 只设置非空值，避免覆盖工具执行结果
             # 注意：工具节点会在执行后设置这些字段，这里只设置已有的非空值
@@ -262,7 +267,8 @@ class PocketFlowSharedFactory:
 
 def create_pocketflow_shared(
     user_input: str,
-    context: AgentContext
+    context: AgentContext,
+    language: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     创建pocketflow shared字典的便捷函数
@@ -270,11 +276,12 @@ def create_pocketflow_shared(
     Args:
         user_input: 用户输入
         context: Agent上下文
+        language: 语言选择，支持 'zh', 'en', 'ja', 'es', 'fr'（可选）
 
     Returns:
         pocketflow shared字典
     """
-    return PocketFlowSharedFactory.create_shared_dict(user_input, context)
+    return PocketFlowSharedFactory.create_shared_dict(user_input, context, language)
 
 
 def create_agent_result(

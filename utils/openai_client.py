@@ -487,8 +487,6 @@ class OpenAIClient:
             "total_time": 0.0
         }
 
-        # 全局系统提示词
-        self.global_system_prompt = "如果是JSON输出，最终输出只包含JSON文本，不要使用代码块包裹"
 
         # 记录初始化日志
         self.logger.info(f"OpenAI客户端初始化完成 - 模型: {self.config.model}, 基础URL: {self.config.base_url}")
@@ -509,10 +507,6 @@ class OpenAIClient:
             准备好的消息列表
         """
         prepared_messages = []
-
-        # 添加全局系统提示词
-        if self.global_system_prompt:
-            prepared_messages.append({"role": "system", "content": self.global_system_prompt})
 
         # 添加自定义系统提示词
         if system_prompt:

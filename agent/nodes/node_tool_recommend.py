@@ -25,6 +25,9 @@ from agent.streaming import (
     emit_error
 )
 
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
+
 
 class NodeToolRecommend(AsyncNode):
     """工具推荐节点"""
@@ -83,6 +86,7 @@ class NodeToolRecommend(AsyncNode):
             tool_types = shared.get("tool_types", [])  # 可选的工具类型过滤
             min_score = shared.get("min_score", self.min_score_threshold)
             use_llm_filter = shared.get("use_llm_filter", self.use_llm_filter)  # 是否使用大模型筛选
+            language = shared.get("language")  # 获取语言设置
 
             # 如果没有提供查询，尝试从其他字段提取
             if not query:
@@ -108,6 +112,7 @@ class NodeToolRecommend(AsyncNode):
                 "tool_types": tool_types,
                 "min_score": min_score,
                 "use_llm_filter": use_llm_filter,
+                "language": language,  # 添加语言设置
                 "streaming_session": shared.get("streaming_session")
             }
 
@@ -138,6 +143,7 @@ class NodeToolRecommend(AsyncNode):
         tool_types = prep_res["tool_types"]
         min_score = prep_res["min_score"]
         use_llm_filter = prep_res["use_llm_filter"]
+        language = prep_res["language"]
 
         if not query:
             raise ValueError("Empty query for tool recommendation")
@@ -167,7 +173,7 @@ class NodeToolRecommend(AsyncNode):
             # 使用大模型筛选（如果启用）
             if use_llm_filter and len(processed_results) > 1:
                 try:
-                    llm_selected_results = await self._llm_filter_tools(query, processed_results, top_k, shared_for_events)
+                    llm_selected_results = await self._llm_filter_tools(query, processed_results, top_k, language, shared_for_events)
                     processed_results = llm_selected_results
                     await emit_processing_status(shared_for_events, f"✅ 大模型筛选完成，返回 {len(processed_results)} 个工具")
                 except Exception as e:
@@ -427,13 +433,13 @@ class NodeToolRecommend(AsyncNode):
 
 
 
-    async def _llm_filter_tools(self, query: str, tools: List[Dict[str, Any]], top_k: int, shared: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def _llm_filter_tools(self, query: str, tools: List[Dict[str, Any]], top_k: int, language: str, shared: Dict[str, Any]) -> List[Dict[str, Any]]:
         """使用大模型筛选最合适的工具"""
         if not tools:
             return []
 
         # 构建提示词
-        prompt = self._build_filter_prompt(query, tools, top_k)
+        prompt = self._build_filter_prompt(query, tools, top_k, language)
 
         try:
             # 调用大模型
@@ -450,7 +456,7 @@ class NodeToolRecommend(AsyncNode):
                 response_json = json.loads(response_content)
             except json.JSONDecodeError:
                 await emit_error(shared, f"❌ 大模型返回的不是有效JSON: {response_content}")
-                return tools[:top_k]
+                return []  # JSON解析失败时返回空列表
 
             # 解析大模型响应
             selected_tools = await self._parse_llm_filter_response(response_json, tools, shared)
@@ -459,10 +465,11 @@ class NodeToolRecommend(AsyncNode):
 
         except Exception as e:
             await emit_error(shared, f"❌ 大模型调用失败: {str(e)}")
-            return tools[:top_k]
+            return []  # 大模型调用失败时返回空列表
 
-    def _build_filter_prompt(self, query: str, tools: List[Dict[str, Any]], top_k: int) -> str:
-        """构建大模型筛选的提示词"""
+    def _build_filter_prompt(self, query: str, tools: List[Dict[str, Any]], top_k: int, language: str) -> str:
+        """构建大模型筛选的提示词，使用多语言模板系统"""
+        # 构建工具信息列表
         tools_info = []
         for i, tool in enumerate(tools):
             tool_info = {
@@ -474,44 +481,15 @@ class NodeToolRecommend(AsyncNode):
             }
             tools_info.append(tool_info)
 
-        prompt = f"""你是一个专业的工具推荐专家。用户提出了一个查询，我已经通过向量检索找到了一些候选工具。请你根据用户查询的意图，从这些候选工具中**筛选出**最合适的前{top_k}个工具。
-
-**重要说明：你的任务是筛选决策，不是排序。只返回你认为真正适合用户需求的工具，如果候选工具都不合适，可以返回空列表。**
-
-用户查询: {query}
-
-候选工具列表:
-{json.dumps(tools_info, ensure_ascii=False, indent=2)}
-
-请仔细分析用户查询的意图，考虑以下因素：
-1. 工具功能与查询需求的**直接匹配度**
-2. 工具类型是否**真正适合**解决用户问题
-3. 工具的实用性和可操作性
-4. 工具描述中是否包含用户需要的**核心功能**
-
-筛选标准：
-- 只选择与用户查询**高度相关**的工具
-- 优先选择功能**直接匹配**的工具
-- 如果某个工具与查询需求不匹配，**不要选择它**
-- 最多返回{top_k}个工具，但如果合适的工具少于{top_k}个，只返回合适的
-
-请返回JSON格式的结果：
-
-{{
-    "selected_tools": [
-        {{
-            "index": 工具在原列表中的索引,
-            "reason": "选择这个工具的具体理由，说明它如何满足用户需求"
-        }}
-    ],
-    "analysis": "整体分析说明，解释筛选逻辑"
-}}
-
-注意：
-- 只返回真正合适的工具，不要为了凑数而选择不相关的工具
-- 索引必须是有效的（0到{len(tools)-1}）
-- 按相关性从高到低排序
-- 如果没有合适的工具，selected_tools可以为空数组"""
+        # 使用新的多语言模板系统获取提示词
+        prompt = get_prompt(
+            PromptTypes.Agent.TOOL_RECOMMENDATION,
+            language=language,
+            query=query,
+            tools_info=json.dumps(tools_info, ensure_ascii=False, indent=2),
+            top_k=top_k,
+            tools_count=len(tools)-1
+        )
 
         return prompt
 
@@ -520,17 +498,17 @@ class NodeToolRecommend(AsyncNode):
         try:
             if "selected_tools" not in response:
                 await emit_error(shared, "⚠️ 大模型响应格式错误：缺少selected_tools字段")
-                return original_tools[:3]  # 返回前3个作为默认
+                return []  # 格式错误时也返回空列表，避免推荐不相关工具
 
             selected_tools = response["selected_tools"]
             if not isinstance(selected_tools, list):
                 await emit_error(shared, "⚠️ 大模型响应格式错误：selected_tools不是列表")
-                return original_tools[:3]
+                return []  # 格式错误时也返回空列表，避免推荐不相关工具
 
-            # 如果大模型没有选择任何工具，返回空列表或前几个
+            # 如果大模型没有选择任何工具，尊重LLM的判断，返回空列表
             if not selected_tools:
-                await emit_processing_status(shared, "⚠️ 大模型没有选择任何工具")
-                return original_tools[:1]  # 至少返回最相关的一个
+                await emit_processing_status(shared, "✅ 大模型分析后认为没有合适的工具")
+                return []  # 返回空列表，尊重LLM的专业判断
 
             filtered_tools = []
             used_indices = set()
@@ -561,7 +539,7 @@ class NodeToolRecommend(AsyncNode):
 
         except Exception as e:
             await emit_error(shared, f"❌ 解析大模型响应失败: {str(e)}")
-            return original_tools[:3]  # 返回前3个作为默认
+            return []  # 解析失败时返回空列表，避免推荐不相关工具
         
 if __name__ == '__main__':
     from node_tool_index import NodeToolIndex

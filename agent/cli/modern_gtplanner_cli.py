@@ -44,25 +44,28 @@ from agent.persistence.sqlite_session_manager import SQLiteSessionManager
 class ModernGTPlannerCLI:
     """基于新流式响应架构的现代化GTPlanner CLI"""
 
-    def __init__(self, 
+    def __init__(self,
                  enable_streaming: bool = True,
                  show_timestamps: bool = False,
                  show_metadata: bool = False,
-                 verbose: bool = False):
+                 verbose: bool = False,
+                 language: str = "zh"):
         """
         初始化现代化CLI
-        
+
         Args:
             enable_streaming: 是否启用流式响应
             show_timestamps: 是否显示时间戳
             show_metadata: 是否显示元数据
             verbose: 是否显示详细信息
+            language: 界面语言 (zh/en/ja/es/fr)，默认为中文
         """
         self.console = Console()
         self.enable_streaming = enable_streaming
         self.show_timestamps = show_timestamps
         self.show_metadata = show_metadata
         self.verbose = verbose
+        self.language = language
         self.running = True
         
         # 使用新的StatelessGTPlanner
@@ -231,8 +234,8 @@ class ModernGTPlannerCLI:
             if self.enable_streaming:
                 await streaming_session.start()
 
-            # 使用StatelessGTPlanner处理
-            result = await self.planner.process(user_input, context, streaming_session)
+            # 使用StatelessGTPlanner处理，传递语言参数
+            result = await self.planner.process(user_input, context, streaming_session, language=self.language)
 
             # 处理结果
             if result.success:
@@ -556,6 +559,10 @@ async def main():
     parser.add_argument("--metadata", action="store_true", help="显示元数据")
     parser.add_argument("--verbose", "-v", action="store_true", help="显示详细信息")
     parser.add_argument("--load", help="加载指定会话ID")
+    parser.add_argument("--language", "-l",
+                       choices=["zh", "en", "ja", "es", "fr"],
+                       default="zh",
+                       help="界面语言 (zh=中文, en=英文, ja=日文, es=西班牙文, fr=法文)，默认为中文")
 
     args = parser.parse_args()
 
@@ -564,7 +571,8 @@ async def main():
         enable_streaming=not args.no_streaming,
         show_timestamps=args.timestamps,
         show_metadata=args.metadata,
-        verbose=args.verbose
+        verbose=args.verbose,
+        language=args.language
     )
 
     # 如果指定了加载会话

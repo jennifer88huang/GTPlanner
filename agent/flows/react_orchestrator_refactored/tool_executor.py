@@ -102,6 +102,7 @@ class ToolExecutor:
             tool_status = ToolCallStatus(
                 tool_name=tool_name,
                 status="starting",
+                call_id=call_id,  # 使用LLM生成的工具调用ID
                 progress_message=f"正在调用{tool_name}工具...",
                 arguments=arguments
             )
@@ -117,6 +118,7 @@ class ToolExecutor:
             tool_status = ToolCallStatus(
                 tool_name=tool_name,
                 status="completed" if tool_result.get("success", False) else "failed",
+                call_id=call_id,  # 使用LLM生成的工具调用ID
                 progress_message=f"{tool_name}工具执行完成" if tool_result.get("success", False) else f"{tool_name}工具执行失败",
                 result=tool_result,
                 execution_time=execution_time,
@@ -144,6 +146,7 @@ class ToolExecutor:
             tool_status = ToolCallStatus(
                 tool_name=tool_name,
                 status="failed",
+                call_id=call_id,  # 使用LLM生成的工具调用ID
                 progress_message=f"{tool_name}工具执行异常",
                 result={"success": False, "error": str(e)},
                 execution_time=0.0,

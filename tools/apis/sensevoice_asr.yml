@@ -22,12 +22,12 @@ description: |
 examples:
   - title: "使用 cURL 上传音频文件进行语音识别"
     content: |
-      curl -X POST "http://192.168.1.218:50000/api/v1/asr" \
+      curl -X POST "http://192.168.1.218:50000/api/v1/asr" \ 
         -H "Content-Type: multipart/form-data" \
         -F "files=@test.wav" \
         -F "keys=test_audio" \
         -F "lang=auto"
-
+## todo 改为env
   - title: "Python 示例 - 语音识别"
     content: |
       import requests

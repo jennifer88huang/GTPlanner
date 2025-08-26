@@ -9,6 +9,8 @@ GTPlanner 启动脚本
     python gtplanner.py "设计用户管理系统"   # 直接处理需求
     python gtplanner.py --verbose "需求"    # 详细模式
     python gtplanner.py --load <session_id> # 加载指定会话
+    python gtplanner.py --language en "需求" # 使用英文界面
+    python gtplanner.py -l ja "需求"        # 使用日文界面
 """
 
 import sys
@@ -19,7 +21,7 @@ def main():
     """主函数"""
     # 获取脚本所在目录
     script_dir = Path(__file__).parent
-    cli_path = script_dir / "cli" / "gtplanner_cli.py"
+    cli_path = script_dir / "agent" / "cli" / "modern_gtplanner_cli.py"
     
     # 构建命令
     cmd = [sys.executable, str(cli_path)] + sys.argv[1:]

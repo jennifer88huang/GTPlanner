@@ -111,6 +111,7 @@ class ToolCallStatus:
     """工具调用状态"""
     tool_name: str
     status: str  # "starting", "running", "completed", "failed"
+    call_id: Optional[str] = None  # 唯一的工具调用ID
     progress_message: Optional[str] = None
     arguments: Optional[Dict[str, Any]] = None
     result: Optional[Dict[str, Any]] = None
@@ -121,6 +122,7 @@ class ToolCallStatus:
         return {
             "tool_name": self.tool_name,
             "status": self.status,
+            "call_id": self.call_id,
             "progress_message": self.progress_message,
             "arguments": self.arguments,
             "result": self.result,

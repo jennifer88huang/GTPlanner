@@ -15,6 +15,11 @@ from agent.streaming import (
     emit_processing_status,
     emit_error
 )
+
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
+from agent.prompts.text_manager import get_text_manager
+from agent.prompts.prompt_types import CommonPromptType
 import asyncio
 
 
@@ -39,6 +44,9 @@ class FlowDesignNode(AsyncNode):
             research_findings = shared.get("research_findings", {})
             recommended_tools = shared.get("recommended_tools", [])
 
+            # 获取语言设置
+            language = shared.get("language")
+
             # 检查必需的输入
             if not analysis_markdown:
                 return {"error": "缺少Agent分析结果"}
@@ -53,6 +61,7 @@ class FlowDesignNode(AsyncNode):
                 "user_requirements": user_requirements,
                 "research_findings": research_findings,
                 "recommended_tools": recommended_tools,
+                "language": language,  # 添加语言设置
                 "timestamp": time.time()
             }
 
@@ -69,7 +78,7 @@ class FlowDesignNode(AsyncNode):
             prompt = self._build_flow_design_prompt(prep_result)
 
             # 异步调用LLM设计Flow，直接输出markdown
-            flow_markdown = await self._design_flow_architecture(prompt)
+            flow_markdown = await self._design_flow_architecture(prompt, prep_result.get("language"))
 
             return {
                 "flow_markdown": flow_markdown,
@@ -116,13 +125,14 @@ class FlowDesignNode(AsyncNode):
             return "error"
     
     def _build_flow_design_prompt(self, prep_result: Dict[str, Any]) -> str:
-        """构建Flow设计提示词"""
+        """构建Flow设计提示词，使用多语言模板系统"""
         analysis_markdown = prep_result.get("analysis_markdown", "")
         nodes_markdown = prep_result.get("nodes_markdown", "")
         short_planning = prep_result.get("short_planning", "")
         user_requirements = prep_result.get("user_requirements", "")
         research_findings = prep_result.get("research_findings", {})
         recommended_tools = prep_result.get("recommended_tools", [])
+        language = prep_result.get("language")
 
         # 构建推荐工具信息
         tools_info = ""
@@ -157,87 +167,34 @@ class FlowDesignNode(AsyncNode):
                             research_info += f"- {keyword}: {result_data['summary'][:100]}...\n"
                     research_info += "\n"
 
-        prompt = f"""基于以下已识别的Node列表，设计完整的Flow编排。
+        # 使用文本管理器获取占位符文本
+        text_manager = get_text_manager()
+        no_requirements_text = text_manager.get_text(CommonPromptType.NO_REQUIREMENTS_PLACEHOLDER, language)
+        no_planning_text = text_manager.get_text(CommonPromptType.NO_PLANNING_PLACEHOLDER, language)
+        no_research_text = text_manager.get_text(CommonPromptType.NO_RESEARCH_PLACEHOLDER, language)
+        no_tools_text = text_manager.get_text(CommonPromptType.NO_TOOLS_PLACEHOLDER, language)
 
-**Agent分析结果：**
-{analysis_markdown}
+        # 使用新的多语言模板系统获取提示词
+        prompt = get_prompt(
+            PromptTypes.Agent.FLOW_DESIGN,
+            language=language,
+            analysis_markdown=analysis_markdown,
+            nodes_markdown=nodes_markdown,
+            user_requirements=user_requirements if user_requirements else no_requirements_text,
+            short_planning=short_planning if short_planning else no_planning_text,
+            research_info=research_info if research_info else no_research_text,
+            tools_info=tools_info if tools_info else no_tools_text
+        )
 
-**已识别的Node列表：**
-{nodes_markdown}
-
-**用户需求：**
-{user_requirements if user_requirements else "未提供用户需求"}
-
-**项目规划：**
-{short_planning if short_planning else "未提供项目规划"}
-
-**技术调研结果：**
-{research_info if research_info else "未提供技术调研结果"}
-
-**推荐工具：**
-{tools_info if tools_info else "无推荐工具"}
-
-请分析上述信息，设计出完整的Flow编排方案。"""
-        
         return prompt
     
-    async def _design_flow_architecture(self, prompt: str) -> str:
-        """调用LLM设计Flow架构"""
+    async def _design_flow_architecture(self, prompt: str, language: str = None) -> str:
+        """调用LLM设计Flow架构，使用多语言模板系统"""
         try:
-            # 构建系统提示词
-            system_prompt = """你是一个专业的pocketflow架构设计师，专门设计基于pocketflow框架的Flow编排。
-
-请严格按照以下Markdown格式输出Flow设计结果：
-
-# Flow设计结果
-
-## Flow概述
-- **Flow名称**: [Flow名称]
-- **Flow描述**: [Flow的整体描述]
-- **起始节点**: [起始节点名称，必须来自已识别的Node列表]
-
-## Flow图表
-
-```mermaid
-flowchart TD
-    [在这里生成完整的Mermaid flowchart TD代码]
-```
-
-## 节点连接关系
-
-### 连接 1
-- **源节点**: [源节点名称]
-- **目标节点**: [目标节点名称]
-- **触发Action**: [default或具体action名]
-- **转换条件**: [转换条件描述]
-- **传递数据**: [传递的数据描述]
-
-## 执行流程
-
-### 步骤 1
-- **节点**: [节点名称]
-- **描述**: [此步骤的作用]
-- **输入数据**: [输入数据来源]
-- **输出数据**: [输出数据去向]
-
-## 设计理由
-[Flow编排的设计理由]
-
-编排要求：
-1. 只能使用已识别的Node列表中的Node
-2. 确保数据流的完整性和逻辑性
-3. 使用Action驱动的转换逻辑
-4. 考虑错误处理和分支逻辑
-5. Mermaid图要清晰展示所有连接和数据流
-6. 确保每个Node都有明确的前置和后置关系
-
-重要：请严格按照上述Markdown格式输出，不要输出JSON格式！直接输出完整的Markdown文档。"""
-
-            # 使用系统提示词调用LLM
+            # 直接使用已经包含完整提示词的prompt
             client = get_openai_client()
             response = await client.chat_completion(
-                messages=[{"role": "user", "content": prompt}],
-                system_prompt=system_prompt
+                messages=[{"role": "user", "content": prompt}]
             )
             result = response.choices[0].message.content if response.choices else ""
             return result

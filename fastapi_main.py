@@ -5,14 +5,12 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, Query, HTTPException, Request
-from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from api.v1.planning import planning_router
-from api.v1.chat import chat_router
-from api.v1.canvas import canvas_router
+
 
 # 导入 SSE GTPlanner API
 from agent.api.agent_api import SSEGTPlanner
@@ -39,21 +37,12 @@ app.add_middleware(
 # 挂载静态文件
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 包含现有路由
-app.include_router(planning_router)
-app.include_router(chat_router)
-app.include_router(canvas_router)
+# 现有路由已移除，只保留 SSE Agent 路由
 
 # 创建全局 SSE API 实例
 sse_api = SSEGTPlanner(verbose=True)
 
 # 请求模型
-class ChatRequest(BaseModel):
-    user_input: str
-    include_metadata: bool = False
-    buffer_events: bool = False
-    heartbeat_interval: float = 30.0
-
 class AgentContextRequest(BaseModel):
     """AgentContext 请求模型（直接对应后端 AgentContext）"""
     session_id: str
@@ -62,6 +51,7 @@ class AgentContextRequest(BaseModel):
     session_metadata: Dict[str, Any] = {}
     last_updated: Optional[str] = None
     is_compressed: bool = False
+    language: Optional[str] = None  # 新增：语言选择字段，支持 'zh', 'en', 'ja', 'es', 'fr'
 
     # SSE 配置选项（不属于 AgentContext，但用于 API 配置）
     include_metadata: bool = False
@@ -85,47 +75,9 @@ async def api_status():
     """获取详细的 API 状态信息"""
     return sse_api.get_api_status()
 
-@app.get("/test", response_class=HTMLResponse)
-async def test_page():
-    """提供测试页面"""
-    return FileResponse("static/test_chat.html")
+# 测试页面端点已移除
 
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    """根路径重定向到测试页面"""
-    return FileResponse("static/test_chat.html")
-
-@app.post("/api/chat")
-async def chat_endpoint(request: ChatRequest):
-    """普通聊天 API 端点（非流式）"""
-    try:
-        if not request.user_input.strip():
-            raise HTTPException(status_code=400, detail="user_input is required")
-
-        # 收集 SSE 事件
-        sse_events = []
-
-        async def collect_sse_data(data: str):
-            sse_events.append(data)
-
-        # 处理请求
-        result = await sse_api.process_request_stream(
-            user_input=request.user_input,
-            response_writer=collect_sse_data,
-            include_metadata=request.include_metadata,
-            buffer_events=request.buffer_events,
-            heartbeat_interval=request.heartbeat_interval
-        )
-
-        return {
-            "result": result,
-            "sse_events": sse_events,
-            "timestamp": datetime.now().isoformat()
-        }
-
-    except Exception as e:
-        logger.error(f"Chat endpoint error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+# 普通聊天API已移除，只保留SSE Agent API
 
 @app.post("/api/chat/agent")
 async def chat_agent_stream(request: AgentContextRequest):
@@ -180,8 +132,11 @@ async def chat_agent_stream(request: AgentContextRequest):
                             "is_compressed": request.is_compressed
                         }
 
+                        language = request.session_metadata.get('language', 'zh')
+
                         result = await sse_api.process_request_stream(
                             agent_context=agent_context,
+                            language=language,  # 作为独立参数传递语言选择
                             response_writer=queue_sse_data,
                             include_metadata=request.include_metadata,
                             buffer_events=request.buffer_events,

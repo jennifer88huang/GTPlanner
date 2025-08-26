@@ -11,6 +11,10 @@ from typing import Dict, Any
 # 导入LLM工具
 from utils.openai_client import get_openai_client
 
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
+from agent.prompts.text_manager import get_text, build_dynamic_content
+from agent.prompts.prompt_types import CommonPromptType
 
 from pocketflow import AsyncNode
 
@@ -49,9 +53,18 @@ class ShortPlanningNode(AsyncNode):
             # 获取研究结果（如果有）
             research_findings = shared.get("research_findings", {})
 
+            # 获取语言设置
+            language = shared.get("language")
+
             # 如果没有明确的用户需求，但有推荐工具，可以基于工具进行规划
             if not user_requirements and recommended_tools:
-                user_requirements = "基于推荐的技术工具优化项目规划"
+                # 使用多语言文本片段
+                from agent.prompts.text_manager import get_text_manager
+                text_manager = get_text_manager()
+                user_requirements = text_manager.get_text(
+                    CommonPromptType.TOOL_BASED_PLANNING_PLACEHOLDER,
+                    language
+                )
 
             # 至少需要用户需求或改进点之一
             if not user_requirements and not improvement_points and not previous_planning:
@@ -63,6 +76,7 @@ class ShortPlanningNode(AsyncNode):
                 "improvement_points": improvement_points,
                 "recommended_tools": recommended_tools,
                 "research_findings": research_findings,
+                "language": language,  # 添加语言设置
                 "generation_timestamp": time.time()
             }
 
@@ -80,6 +94,7 @@ class ShortPlanningNode(AsyncNode):
             improvement_points = prep_result["improvement_points"]
             recommended_tools = prep_result["recommended_tools"]
             research_findings = prep_result["research_findings"]
+            language = prep_result["language"]  # 从prep_result获取语言设置
 
             # 使用异步LLM生成步骤化规划文档，包含推荐工具和研究结果
             short_planning = await self._generate_planning_document(
@@ -87,7 +102,8 @@ class ShortPlanningNode(AsyncNode):
                 previous_planning,
                 improvement_points,
                 recommended_tools,
-                research_findings
+                research_findings,
+                language  # 传递语言设置
             )
 
             return {
@@ -115,7 +131,8 @@ class ShortPlanningNode(AsyncNode):
                                         previous_planning: str = "",
                                         improvement_points: list = None,
                                         recommended_tools: list = None,
-                                        research_findings: dict = None) -> str:
+                                        research_findings: dict = None,
+                                        language: str = None) -> str:
         """使用异步LLM生成步骤化的规划文档（纯文本），结合推荐工具和研究结果。"""
 
         # 构建LLM提示词，包含推荐工具和研究结果
@@ -124,7 +141,8 @@ class ShortPlanningNode(AsyncNode):
             previous_planning,
             improvement_points or [],
             recommended_tools or [],
-            research_findings or {}
+            research_findings or {},
+            language
         )
 
         # 调用异步LLM，不再要求JSON格式
@@ -141,98 +159,40 @@ class ShortPlanningNode(AsyncNode):
                              previous_planning: str = "",
                              improvement_points: list = None,
                              recommended_tools: list = None,
-                             research_findings: dict = None) -> str:
+                             research_findings: dict = None,
+                             language: str = None) -> str:
         """
-        构建生成步骤化流程的LLM提示词，包含推荐工具和研究结果。
+        构建生成步骤化流程的LLM提示词，使用多语言模板系统。
         """
-        # 将所有需求、历史规划和改进点整合为一个完整的需求描述
-        req_parts = [user_requirements]
-        if previous_planning:
-            req_parts.append("\n---参考的先前规划---")
-            req_parts.append(str(previous_planning))
-        if improvement_points:
-            req_parts.append("\n---需要重点改进的方面---")
-            req_parts.append("\n".join(f"- {point}" for point in improvement_points))
-            req_parts.append("\n请综合以上所有信息，特别是改进点，生成一个全新的、更优化的流程。")
+        # 使用新的文本管理器构建动态内容
+        req_content = build_dynamic_content(
+            user_requirements=user_requirements,
+            previous_planning=previous_planning,
+            improvement_points=improvement_points,
+            language=language
+        )
 
-        # 将所有部分连接成一个字符串
-        req_content = "\n".join(req_parts)
+        # 使用文本管理器构建工具和研究内容
+        from agent.prompts.text_manager import get_text_manager
+        text_manager = get_text_manager()
 
-        # 构建推荐工具清单
-        tools_content = ""
-        if recommended_tools:
-            tools_list = []
-            for tool in recommended_tools:
-                tool_name = tool.get("name", tool.get("id", "未知工具"))
-                tool_type = tool.get("type", "")
-                tool_summary = tool.get("summary", tool.get("description", ""))
-                tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
-            tools_content = "\n".join(tools_list)
+        tools_content = text_manager.build_tools_content(
+            recommended_tools=recommended_tools,
+            language=language
+        )
 
-        # 构建研究结果摘要
-        research_content = ""
-        if research_findings:
-            if "research_summary" in research_findings:
-                research_content = f"技术调研摘要：{research_findings['research_summary']}"
-            elif "key_findings" in research_findings:
-                findings = research_findings["key_findings"]
-                if isinstance(findings, list):
-                    research_content = "关键技术发现：\n" + "\n".join(f"- {finding}" for finding in findings[:3])  # 只取前3个
+        research_content = text_manager.build_research_content(
+            research_findings=research_findings,
+            language=language
+        )
 
-        prompt = f"""# 角色
-你是一个经验丰富的系统架构师和工作流设计师。
+        # 使用新的多语言模板系统获取提示词
+        prompt = get_prompt(
+            PromptTypes.Agent.SHORT_PLANNING_GENERATION,
+            language=language,
+            req_content=req_content,
+            tools_content=tools_content,
+            research_content=research_content
+        )
 
-# 任务
-根据用户提供的【用户需求】、【推荐工具清单】和【技术调研结果】，生成一个清晰、简洁的步骤化流程，用于实现该需求。
-
-# 输入
-1. **用户需求：**
-   ```
-   {req_content}
-   ```
-
-2. **推荐工具清单：**
-   ```
-   {tools_content if tools_content else "暂无推荐工具"}
-   ```
-
-3. **技术调研结果：**
-   ```
-   {research_content if research_content else "暂无技术调研结果"}
-   ```
-
-# 输出要求
-1. **步骤化流程：**
-   * 列出清晰的、序号化的步骤。
-   * 每个步骤应描述一个核心动作/阶段。
-   * **优先使用推荐工具清单中的工具**，在步骤中指明使用哪个工具。格式如：`步骤X：[动作描述] (使用：[工具名称])`。
-   * 结合技术调研结果中的关键发现，确保技术方案的可行性。
-   * 如果无完全匹配工具，步骤应足够通用，允许用户后续集成自己的服务。
-   * 指明可选步骤（例如，使用 `(可选)` 标记）。
-   * 如果合适，可以建议并行处理的步骤。
-2. **技术选型说明：**
-   * 基于推荐工具和调研结果，说明关键技术选择的理由。
-   * 指出潜在的技术风险和解决方案。
-3. **设计考虑：**
-   * 简要说明关键的设计决策，例如数据格式转换、错误处理思路等。
-   * 考虑系统的可扩展性和维护性。
-
-# 示例（用于理解输出格式和风格）
-**用户需求示例：** YouTube视频总结器：将视频总结为Topic和QA。
-**可用工具/MCP清单示例：**
-youtube_audio_fetch: 获取YouTube视频的音频
-ASR_MCP: 将音频转换为文本
-
-**期望输出示例：**
-1. Fetch: 获取YouTube视频内容 (如果输入是视频链接，可考虑使用 youtube_audio_fetch MCP 获取音频；如果直接是音频文件，则跳过此工具)。
-2. ToText (可选): 如果上一步获取的是音频，将音频转换为文本 (可考虑使用 ASR_MCP)。如果输入已是文本，则跳过此步骤。
-3. Extract: 从文本中提取关键主题 (Topics) 和潜在问题 (Questions)。
-4. Process:
-   * 并行处理每个Topic：为每个Topic生成总结。
-   * 并行处理每个Question：为每个Question生成或定位答案的亮点。
-5. Output: 生成结构化的输出，例如JSON或可视化的HTML信息图，包含Topic总结和QA对。
----
-
-**输出：步骤化流程：**(只输出步骤化流程，不需要有多余的解释)
-"""
         return prompt

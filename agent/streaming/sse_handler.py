@@ -251,10 +251,10 @@ class SSEStreamHandler(StreamHandler):
         """处理对话结束事件"""
         # 刷新所有缓冲
         await self._flush_buffer()
-        
+
         # 发送对话结束事件
         await self._write_sse_event(event)
-        
+
         # 发送最终状态
         await self._send_status_update(
             "conversation_ended",
@@ -264,6 +264,11 @@ class SSEStreamHandler(StreamHandler):
                 "timestamp": event.timestamp
             }
         )
+
+
+        # 对话结束后自动关闭连接
+        logger.info(f"对话结束，自动关闭 SSE 连接 (会话: {event.session_id})")
+        await self.close()
 
     async def handle_error(self, error: Exception, session_id: Optional[str] = None) -> None:
         """处理错误"""
@@ -287,6 +292,10 @@ class SSEStreamHandler(StreamHandler):
             await self._write_sse_event(error_event)
         except Exception as write_error:
             logger.error(f"无法发送错误事件: {write_error}")
+
+        # 错误发生后自动关闭连接
+        logger.info(f"错误处理完成，自动关闭 SSE 连接 (会话: {session_id})")
+        await self.close()
 
     async def close(self) -> None:
         """关闭处理器"""

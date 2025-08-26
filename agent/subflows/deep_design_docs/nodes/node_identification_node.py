@@ -16,6 +16,11 @@ from agent.streaming import (
     emit_error
 )
 
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
+from agent.prompts.text_manager import get_text_manager
+from agent.prompts.prompt_types import CommonPromptType
+
 
 class NodeIdentificationNode(AsyncNode):
     """Node识别节点 - 确定Agent需要的所有Node"""
@@ -37,6 +42,9 @@ class NodeIdentificationNode(AsyncNode):
             research_findings = shared.get("research_findings", {})
             recommended_tools = shared.get("recommended_tools", [])
 
+            # 获取语言设置
+            language = shared.get("language")
+
             # 检查必需的输入
             if not analysis_markdown:
                 return {"error": "缺少Agent分析结果"}
@@ -47,6 +55,7 @@ class NodeIdentificationNode(AsyncNode):
                 "user_requirements": user_requirements,
                 "research_findings": research_findings,
                 "recommended_tools": recommended_tools,
+                "language": language,  # 添加语言设置
                 "timestamp": time.time()
             }
             
@@ -63,7 +72,7 @@ class NodeIdentificationNode(AsyncNode):
             prompt = self._build_node_identification_prompt(prep_result)
 
             # 调用LLM识别Node，直接输出markdown
-            nodes_markdown = await self._identify_nodes(prompt)
+            nodes_markdown = await self._identify_nodes(prompt, prep_result.get("language"))
 
             return {
                 "nodes_markdown": nodes_markdown,
@@ -110,66 +119,44 @@ class NodeIdentificationNode(AsyncNode):
             return "error"
     
     def _build_node_identification_prompt(self, prep_result: Dict[str, Any]) -> str:
-        """构建Node识别提示词"""
+        """构建Node识别提示词，使用多语言模板系统"""
         analysis_markdown = prep_result.get("analysis_markdown", "")
         short_planning = prep_result.get("short_planning", "")
         user_requirements = prep_result.get("user_requirements", "")
         research_findings = prep_result.get("research_findings", {})
         recommended_tools = prep_result.get("recommended_tools", [])
+        language = prep_result.get("language")
 
-        # 构建推荐工具信息
-        tools_info = ""
-        if recommended_tools:
-            tools_list = []
-            for tool in recommended_tools:
-                # 添加 None 检查，防止 tool 为 None
-                if tool and isinstance(tool, dict):
-                    # 安全获取工具名称
-                    tool_name = tool.get("name") or tool.get("id", "未知工具")
-                    tool_type = tool.get("type", "")
-                    # 安全获取工具摘要
-                    tool_summary = tool.get("summary") or tool.get("description", "")
-                    tools_list.append(f"- {tool_name} ({tool_type}): {tool_summary}")
-            tools_info = "\n".join(tools_list)
+        # 使用文本管理器构建工具和研究内容
+        text_manager = get_text_manager()
 
-        # 构建技术调研信息
-        research_info = ""
-        if research_findings and isinstance(research_findings, dict):
-            # 使用正确的字段名
-            if research_findings.get("summary"):
-                research_info += f"**调研摘要：**\n{research_findings['summary']}\n\n"
+        tools_info = text_manager.build_tools_content(
+            recommended_tools=recommended_tools,
+            language=language
+        )
 
-            # 从关键词结果中提取关键信息
-            keyword_results = research_findings.get("keyword_results", [])
-            if keyword_results:
-                successful_results = [r for r in keyword_results if r.get("success", False)]
-                if successful_results:
-                    research_info += "**关键发现：**\n"
-                    for result in successful_results[:3]:  # 只显示前3个结果
-                        keyword = result.get("keyword", "")
-                        result_data = result.get("result", {})
-                        if result_data and result_data.get("summary"):
-                            research_info += f"- {keyword}: {result_data['summary'][:100]}...\n"
-                    research_info += "\n"
+        research_info = text_manager.build_research_content(
+            research_findings=research_findings,
+            language=language
+        )
 
-        prompt = f"""基于以下Agent需求分析结果，识别完成此Agent功能所需的所有Node。
+        # 使用文本管理器获取占位符文本
+        text_manager = get_text_manager()
+        no_requirements_text = text_manager.get_text(CommonPromptType.NO_REQUIREMENTS_PLACEHOLDER, language)
+        no_planning_text = text_manager.get_text(CommonPromptType.NO_PLANNING_PLACEHOLDER, language)
+        no_research_text = text_manager.get_text(CommonPromptType.NO_RESEARCH_PLACEHOLDER, language)
+        no_tools_text = text_manager.get_text(CommonPromptType.NO_TOOLS_PLACEHOLDER, language)
 
-**Agent分析结果：**
-{analysis_markdown}
-
-**用户需求：**
-{user_requirements if user_requirements else "未提供用户需求"}
-
-**项目规划：**
-{short_planning if short_planning else "未提供项目规划"}
-
-**技术调研结果：**
-{research_info if research_info else "未提供技术调研结果"}
-
-**推荐工具：**
-{tools_info if tools_info else "无推荐工具"}
-
-请分析上述信息，识别出完整实现Agent功能所需的所有Node。"""
+        # 使用新的多语言模板系统获取提示词
+        prompt = get_prompt(
+            PromptTypes.Agent.NODE_IDENTIFICATION,
+            language=language,
+            analysis_markdown=analysis_markdown,
+            user_requirements=user_requirements if user_requirements else no_requirements_text,
+            short_planning=short_planning if short_planning else no_planning_text,
+            research_info=research_info if research_info else no_research_text,
+            tools_info=tools_info if tools_info else no_tools_text
+        )
         
         return prompt
     

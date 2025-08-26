@@ -17,6 +17,11 @@ from agent.streaming import (
     emit_error
 )
 
+# 导入多语言提示词系统
+from agent.prompts import get_prompt, PromptTypes
+from agent.prompts.text_manager import get_text_manager
+from agent.prompts.prompt_types import CommonPromptType
+
 
 class DataStructureDesignNode(AsyncNode):
     """数据结构设计节点 - 设计shared存储结构"""
@@ -40,6 +45,9 @@ class DataStructureDesignNode(AsyncNode):
             research_findings = shared.get("research_findings", {})
             recommended_tools = shared.get("recommended_tools", [])
 
+            # 获取语言设置
+            language = shared.get("language")
+
             # 检查必需的输入
             if not analysis_markdown:
                 return {"error": "缺少Agent分析结果"}
@@ -55,6 +63,7 @@ class DataStructureDesignNode(AsyncNode):
                 "user_requirements": user_requirements,
                 "research_findings": research_findings,
                 "recommended_tools": recommended_tools,
+                "language": language,  # 添加语言设置
                 "timestamp": time.time()
             }
             
@@ -71,7 +80,7 @@ class DataStructureDesignNode(AsyncNode):
             prompt = self._build_data_structure_prompt(prep_result)
 
             # 异步调用LLM设计数据结构，输出JSON
-            data_structure_json = await self._design_data_structure(prompt)
+            data_structure_json = await self._design_data_structure(prompt, prep_result.get("language"))
 
             return {
                 "data_structure_json": data_structure_json,
@@ -118,7 +127,7 @@ class DataStructureDesignNode(AsyncNode):
             return "error"
     
     def _build_data_structure_prompt(self, prep_result: Dict[str, Any]) -> str:
-        """构建数据结构设计提示词"""
+        """构建数据结构设计提示词，使用多语言模板系统"""
         analysis_markdown = prep_result.get("analysis_markdown", "")
         nodes_markdown = prep_result.get("nodes_markdown", "")
         flow_markdown = prep_result.get("flow_markdown", "")
@@ -126,6 +135,7 @@ class DataStructureDesignNode(AsyncNode):
         user_requirements = prep_result.get("user_requirements", "")
         research_findings = prep_result.get("research_findings", {})
         recommended_tools = prep_result.get("recommended_tools", [])
+        language = prep_result.get("language")
 
         # 构建推荐工具信息
         tools_info = ""
@@ -160,86 +170,35 @@ class DataStructureDesignNode(AsyncNode):
                             research_info += f"- {keyword}: {result_data['summary'][:100]}...\n"
                     research_info += "\n"
 
-        prompt = f"""基于以下设计信息，为智能Agent设计完整的shared存储数据结构。
+        # 使用文本管理器获取占位符文本
+        text_manager = get_text_manager()
+        no_requirements_text = text_manager.get_text(CommonPromptType.NO_REQUIREMENTS_PLACEHOLDER, language)
+        no_planning_text = text_manager.get_text(CommonPromptType.NO_PLANNING_PLACEHOLDER, language)
+        no_research_text = text_manager.get_text(CommonPromptType.NO_RESEARCH_PLACEHOLDER, language)
+        no_tools_text = text_manager.get_text(CommonPromptType.NO_TOOLS_PLACEHOLDER, language)
 
-**Agent分析结果：**
-{analysis_markdown}
-
-**Node识别结果：**
-{nodes_markdown}
-
-**Flow设计：**
-{flow_markdown}
-
-**用户需求：**
-{user_requirements if user_requirements else "未提供用户需求"}
-
-**项目规划：**
-{short_planning if short_planning else "未提供项目规划"}
-
-**技术调研结果：**
-{research_info if research_info else "未提供技术调研结果"}
-
-**推荐工具：**
-{tools_info if tools_info else "无推荐工具"}
-
-请分析上述信息，设计出支持整个Agent运行的shared数据结构。"""
+        # 使用新的多语言模板系统获取提示词
+        prompt = get_prompt(
+            PromptTypes.Agent.DATA_STRUCTURE_DESIGN,
+            language=language,
+            analysis_markdown=analysis_markdown,
+            nodes_markdown=nodes_markdown,
+            flow_markdown=flow_markdown,
+            user_requirements=user_requirements if user_requirements else no_requirements_text,
+            short_planning=short_planning if short_planning else no_planning_text,
+            research_info=research_info if research_info else no_research_text,
+            tools_info=tools_info if tools_info else no_tools_text
+        )
 
         return prompt
     
-    async def _design_data_structure(self, prompt: str) -> str:
-        """调用LLM设计数据结构"""
+    async def _design_data_structure(self, prompt: str, language: str = None) -> str:
+        """调用LLM设计数据结构，使用多语言模板系统"""
         try:
-            # 构建系统提示词
-            system_prompt = """你是一个专业的数据架构设计师，专门为pocketflow框架设计shared存储数据结构。
-
-请严格按照以下JSON格式输出数据结构设计：
-
-{
-    "shared_structure_description": "shared存储的整体描述",
-    "shared_fields": [
-        {
-            "field_name": "字段名称",
-            "data_type": "数据类型（如：str, dict, list等）",
-            "description": "字段描述",
-            "purpose": "字段用途",
-            "read_by_nodes": ["读取此字段的Node列表"],
-            "written_by_nodes": ["写入此字段的Node列表"],
-            "example_value": "示例值或结构",
-            "required": true/false
-        }
-    ],
-    "data_flow_patterns": [
-        {
-            "pattern_name": "数据流模式名称",
-            "description": "数据流描述",
-            "involved_fields": ["涉及的字段"],
-            "flow_sequence": ["数据流转顺序"]
-        }
-    ],
-    "shared_example": {
-        "field1": "示例值1",
-        "field2": {},
-        "field3": []
-    }
-}
-
-设计要求：
-1. 确保所有Node的数据需求都被满足
-2. 避免数据冗余和冲突
-3. 清晰的数据流转路径
-4. 考虑数据的生命周期
-5. 遵循pocketflow的shared存储最佳实践
-6. 每个字段只定义一次，不要重复
-7. 确保JSON格式正确，没有语法错误
-
-重要：直接输出纯JSON数据，不要添加代码块标记或其他文字说明。"""
-
-            # 使用系统提示词调用LLM
+            # 直接使用已经包含完整提示词的prompt
             client = get_openai_client()
             response = await client.chat_completion(
                 messages=[{"role": "user", "content": prompt}],
-                system_prompt=system_prompt,
                 ##todo 公司网关 kimi 会报错不支持json_object response_format={"type": "json_object"}
             )
             result = response.choices[0].message.content if response.choices else ""

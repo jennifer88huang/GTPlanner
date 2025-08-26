@@ -43,7 +43,8 @@ class StatelessGTPlanner:
         self,
         user_input: str,
         context: AgentContext,
-        streaming_session: StreamingSession
+        streaming_session: StreamingSession,
+        language: Optional[str] = None
     ) -> AgentResult:
         """
         处理用户请求（纯函数，统一流式架构）
@@ -52,6 +53,7 @@ class StatelessGTPlanner:
             user_input: 用户输入
             context: Agent上下文（只读，可能已压缩）
             streaming_session: 流式会话（必填）
+            language: 语言选择，支持 'zh', 'en', 'ja', 'es', 'fr'（可选）
 
         Returns:
             处理结果对象
@@ -71,7 +73,7 @@ class StatelessGTPlanner:
             )
 
             # 1. 使用工厂创建独立的pocketflow shared字典
-            shared = PocketFlowSharedFactory.create_shared_dict(user_input, context)
+            shared = PocketFlowSharedFactory.create_shared_dict(user_input, context, language=language)
 
             # 2. 注入流式回调（统一流式架构）
             shared["streaming_session"] = streaming_session
@@ -193,10 +195,12 @@ class StatelessGTPlanner:
         session: StreamingSession,
         tool_name: str,
         arguments: dict,
+        call_id: Optional[str] = None,
         **kwargs
     ) -> None:
         """工具调用开始回调（事件由ToolExecutor发送，此处仅作为占位符）"""
         # 注意：实际的tool_call_start事件由ToolExecutor发送，避免重复
+        # call_id 参数已添加以匹配新的回调签名
         pass
 
     @staticmethod

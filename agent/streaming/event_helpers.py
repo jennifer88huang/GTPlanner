@@ -44,26 +44,28 @@ async def emit_error(shared: Dict[str, Any], error_message: str, error_details: 
         await streaming_session.emit_event(event)
 
 
-async def emit_tool_start(shared: Dict[str, Any], tool_name: str, message: str, arguments: Optional[Dict[str, Any]] = None) -> None:
+async def emit_tool_start(shared: Dict[str, Any], tool_name: str, message: str, arguments: Optional[Dict[str, Any]] = None, call_id: Optional[str] = None) -> None:
     """
     发送工具开始事件
-    
+
     Args:
         shared: 共享状态字典（包含 streaming_session）
         tool_name: 工具名称
         message: 进度消息
         arguments: 工具参数（可选）
+        call_id: 工具调用ID（可选）
     """
     streaming_session = shared.get("streaming_session")
     if streaming_session:
         tool_status = ToolCallStatus(
             tool_name=tool_name,
             status="starting",
+            call_id=call_id,
             progress_message=message,
             arguments=arguments
         )
         event = StreamEventBuilder.tool_call_start(
-            streaming_session.session_id, 
+            streaming_session.session_id,
             tool_status
         )
         await streaming_session.emit_event(event)
@@ -72,7 +74,7 @@ async def emit_tool_start(shared: Dict[str, Any], tool_name: str, message: str, 
 async def emit_tool_progress(shared: Dict[str, Any], tool_name: str, message: str) -> None:
     """
     发送工具进度事件
-    
+
     Args:
         shared: 共享状态字典（包含 streaming_session）
         tool_name: 工具名称
@@ -80,13 +82,19 @@ async def emit_tool_progress(shared: Dict[str, Any], tool_name: str, message: st
     """
     streaming_session = shared.get("streaming_session")
     if streaming_session:
+        # 从shared中获取对应的call_id
+        call_id = None
+        if "tool_call_ids" in shared and tool_name in shared["tool_call_ids"]:
+            call_id = shared["tool_call_ids"][tool_name]
+
         tool_status = ToolCallStatus(
             tool_name=tool_name,
             status="running",
+            call_id=call_id,
             progress_message=message
         )
         event = StreamEventBuilder.tool_call_progress(
-            streaming_session.session_id, 
+            streaming_session.session_id,
             tool_status
         )
         await streaming_session.emit_event(event)
