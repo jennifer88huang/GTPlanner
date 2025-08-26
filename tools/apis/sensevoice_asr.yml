@@ -19,18 +19,21 @@ description: |
   - 声道：支持单声道和立体声（自动转换为单声道）
   - 时长限制：建议单个音频文件不超过 30 秒（API 模式）
 
+  环境变量配置：
+  - SENSEVOICE_ASR_BASE_URL: SenseVoice ASR 服务的基础 URL（默认: http://localhost:50000）
+
 examples:
   - title: "使用 cURL 上传音频文件进行语音识别"
     content: |
-      curl -X POST "http://192.168.1.218:50000/api/v1/asr" \ 
+      curl -X POST "${SENSEVOICE_ASR_BASE_URL}/api/v1/asr" \
         -H "Content-Type: multipart/form-data" \
         -F "files=@test.wav" \
         -F "keys=test_audio" \
         -F "lang=auto"
-## todo 改为env
   - title: "Python 示例 - 语音识别"
     content: |
       import requests
+      import os
 
       # 准备音频文件
       files = {'files': open('test.mp3', 'rb')}
@@ -40,8 +43,9 @@ examples:
       }
 
       # 发送请求
+      base_url = os.getenv('SENSEVOICE_ASR_BASE_URL', 'http://localhost:50000')
       response = requests.post(
-          'http://192.168.1.218:50000/api/v1/asr',
+          f'{base_url}/api/v1/asr',
           files=files,
           data=data
       )
@@ -53,6 +57,7 @@ examples:
   - title: "Python 示例 - 指定语言识别"
     content: |
       import requests
+      import os
 
       # 中文语音识别
       files = {'files': open('chinese_audio.wav', 'rb')}
@@ -61,8 +66,9 @@ examples:
           'lang': 'zh'  # 指定中文
       }
 
+      base_url = os.getenv('SENSEVOICE_ASR_BASE_URL', 'http://localhost:50000')
       response = requests.post(
-          'http://192.168.1.218:50000/api/v1/asr',
+          f'{base_url}/api/v1/asr',
           files=files,
           data=data
       )
@@ -70,7 +76,7 @@ examples:
       result = response.json()
       print(f"中文识别结果: {result}")
 
-base_url: "http://192.168.1.218:50000/api/v1"
+base_url: "${SENSEVOICE_ASR_BASE_URL}/api/v1"
 endpoints:
   - summary: "语音识别服务，支持多语言音频转文字。"
     method: "POST"
@@ -185,3 +191,16 @@ usage_notes: |
   4. 语言选择：如果明确知道语言类型，建议指定具体语言代码以提高准确率
   5. 热词功能：对于专业术语或特定词汇，可使用hotwords参数提高识别准确率
   6. 网络环境：确保网络连接稳定，大文件上传可能需要较长时间
+
+environment_variables:
+  SENSEVOICE_ASR_BASE_URL:
+    description: "SenseVoice ASR 服务的基础 URL"
+    default: "http://localhost:50000"
+    required: false
+    examples:
+      - "http://192.168.0.1:50000"
+      - "https://sensevoice.example.com"
+      - "http://localhost:50000"
+    notes: |
+      配置 SenseVoice ASR 服务的访问地址。如果服务部署在其他主机或端口，
+      请相应修改此环境变量。确保 URL 不包含 /api/v1 路径，因为这部分会自动添加。
