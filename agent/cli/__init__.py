@@ -6,7 +6,7 @@ GTPlanner CLI模块
 - 传统GTPlanner CLI (GTPlannerCLI) - 已弃用
 """
 
-from .modern_gtplanner_cli import ModernGTPlannerCLI
+from .gtplanner_cli import ModernGTPlannerCLI
 
 __all__ = [
     'ModernGTPlannerCLI'  # 现代化CLI，推荐使用

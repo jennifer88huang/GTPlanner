@@ -100,12 +100,12 @@ async def emit_tool_progress(shared: Dict[str, Any], tool_name: str, message: st
         await streaming_session.emit_event(event)
 
 
-async def emit_tool_end(shared: Dict[str, Any], tool_name: str, success: bool, message: str, 
+async def emit_tool_end(shared: Dict[str, Any], tool_name: str, success: bool, message: str,
                        execution_time: float = 0.0, error_message: Optional[str] = None,
-                       result: Optional[Dict[str, Any]] = None) -> None:
+                       result: Optional[Dict[str, Any]] = None, call_id: Optional[str] = None) -> None:
     """
     发送工具结束事件
-    
+
     Args:
         shared: 共享状态字典（包含 streaming_session）
         tool_name: 工具名称
@@ -114,12 +114,18 @@ async def emit_tool_end(shared: Dict[str, Any], tool_name: str, success: bool, m
         execution_time: 执行时间
         error_message: 错误消息（如果失败）
         result: 工具执行结果（可选）
+        call_id: 工具调用ID（可选）
     """
     streaming_session = shared.get("streaming_session")
     if streaming_session:
+        # 如果没有提供call_id，尝试从shared中获取
+        if call_id is None and "tool_call_ids" in shared and tool_name in shared["tool_call_ids"]:
+            call_id = shared["tool_call_ids"][tool_name]
+
         tool_status = ToolCallStatus(
             tool_name=tool_name,
             status="completed" if success else "failed",
+            call_id=call_id,
             progress_message=message,
             execution_time=execution_time,
             error_message=error_message,

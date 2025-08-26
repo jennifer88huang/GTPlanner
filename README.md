@@ -1,11 +1,11 @@
-# GTPlanner: AI-Powered PRD Generation Tool
+# GTPlanner: 基于ReAct模式的智能任务规划系统
 
 <p align="center">
   <img src="./assets/banner.png" width="800" alt="GTPlanner Banner"/>
 </p>
 
 <p align="center">
-  <strong>An intelligent Product Requirement Document (PRD) generation tool that transforms natural language descriptions into structured technical documents suitable for Vibe coding.</strong>
+  <strong>GTPlanner (Graph Task Planner) 是一个基于ReAct模式的智能任务规划系统，能够根据用户需求自动生成结构化的任务流程图和相关文档，专为现代AI辅助开发而设计。</strong>
 </p>
 
 <p align="center">

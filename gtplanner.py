@@ -21,7 +21,7 @@ def main():
     """主函数"""
     # 获取脚本所在目录
     script_dir = Path(__file__).parent
-    cli_path = script_dir / "agent" / "cli" / "modern_gtplanner_cli.py"
+    cli_path = script_dir / "agent" / "cli" / "gtplanner_cli.py"
     
     # 构建命令
     cmd = [sys.executable, str(cli_path)] + sys.argv[1:]
@@ -32,7 +32,7 @@ def main():
     except subprocess.CalledProcessError as e:
         sys.exit(e.returncode)
     except KeyboardInterrupt:
-        print("\n👋 用户中断，再见！")
+        print("\n👋 User interrupted, goodbye!")
         sys.exit(0)
 
 if __name__ == "__main__":

@@ -160,73 +160,13 @@ class NodeIdentificationNode(AsyncNode):
         
         return prompt
     
-    async def _identify_nodes(self, prompt: str) -> str:
-        """调用LLM识别Node"""
+    async def _identify_nodes(self, prompt: str, language: str = None) -> str:
+        """调用LLM识别Node，使用多语言模板系统"""
         try:
-            # 构建系统提示词
-            system_prompt = """你是一个专业的pocketflow架构师，专门识别和设计基于pocketflow框架的Node。
-
-请严格按照以下Markdown格式输出Node识别结果：
-
-# Node识别结果
-
-## 概述
-基于Agent需求分析，识别出以下Node：
-
-## 识别的Node列表
-
-### 1. [Node名称1]
-
-- **Node类型**: [Node/AsyncNode/BatchNode等]
-- **目的**: [Node的具体目的和职责]
-- **职责**: [Node负责的具体功能]
-- **输入期望**: [期望的输入数据类型]
-- **输出期望**: [期望的输出数据类型]
-- **复杂度**: [简单/中等/复杂]
-- **处理类型**: [数据预处理/核心计算/结果后处理/IO操作等]
-- **推荐重试**: [是/否]
-
-### 2. [Node名称2]
-
-- **Node类型**: [Node/AsyncNode/BatchNode等]
-- **目的**: [Node的具体目的和职责]
-- **职责**: [Node负责的具体功能]
-- **输入期望**: [期望的输入数据类型]
-- **输出期望**: [期望的输出数据类型]
-- **复杂度**: [简单/中等/复杂]
-- **处理类型**: [数据预处理/核心计算/结果后处理/IO操作等]
-- **推荐重试**: [是/否]
-
-## Node类型统计
-- **AsyncNode**: [数量]个
-- **Node**: [数量]个
-- **BatchNode**: [数量]个
-
-## 设计理由
-[为什么选择这些Node的设计理由]
-
-识别要求：
-1. 每个Node都有明确的单一职责
-2. Node之间职责不重叠
-3. 覆盖Agent的所有核心功能
-4. 考虑数据流的完整性（输入→处理→输出）
-5. 优先使用AsyncNode提高性能
-6. 考虑错误处理和重试需求
-
-常见Node模式参考：
-- InputValidationNode: 输入验证和预处理
-- DataRetrievalNode: 数据获取和检索
-- CoreProcessingNode: 核心业务逻辑处理
-- ResultFormattingNode: 结果格式化
-- OutputDeliveryNode: 结果输出和传递
-
-重要：请严格按照上述Markdown格式输出，不要输出JSON格式！直接输出完整的Markdown文档。"""
-
-            # 使用系统提示词调用LLM
+            # 直接使用已经包含完整提示词的prompt
             client = get_openai_client()
             response = await client.chat_completion(
-                messages=[{"role": "user", "content": prompt}],
-                system_prompt=system_prompt
+                messages=[{"role": "user", "content": prompt}]
             )
             result = response.choices[0].message.content if response.choices else ""
             return result

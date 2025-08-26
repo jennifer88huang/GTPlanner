@@ -31,6 +31,7 @@ from rich.prompt import Confirm, Prompt
 from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
+from rich.align import Align
 
 # 导入新的流式响应架构
 from agent.stateless_planner import StatelessGTPlanner
@@ -39,6 +40,9 @@ from agent.streaming import StreamingSession, CLIStreamHandler, streaming_manage
 
 # 导入新的SQLite会话管理
 from agent.persistence.sqlite_session_manager import SQLiteSessionManager
+
+# 导入CLI多语言文本管理器
+from agent.cli.cli_text_manager import CLITextManager
 
 
 class ModernGTPlannerCLI:
@@ -67,6 +71,21 @@ class ModernGTPlannerCLI:
         self.verbose = verbose
         self.language = language
         self.running = True
+
+        # 初始化CLI文本管理器
+        self.text_manager = CLITextManager(language)
+
+        # ASCII艺术字内容
+        self.ascii_art = [
+            " _____  _____ ______  _                                  ",
+            "|  __ \\|_   _|| ___ \\| |                                 ",
+            "| |  \\/  | |  | |_/ /| |  __ _  _ __   _ __    ___  _ __ ",
+            "| | __   | |  |  __/ | | / _` || '_ \\ | '_ \\  / _ \\| '__|",
+            "| |_\\ \\  | |  | |    | || (_| || | | || | | ||  __/| |   ",
+            " \\____/  \\_/  \\_|    |_| \\__,_||_| |_||_| |_| \\___||_|   ",
+            "                                                         ",
+            "                                                         "
+        ]
         
         # 使用新的StatelessGTPlanner
         self.planner = StatelessGTPlanner()
@@ -84,7 +103,7 @@ class ModernGTPlannerCLI:
     def _setup_signal_handlers(self):
         """设置信号处理器，优雅处理中断"""
         def signal_handler(signum, frame):
-            self.console.print("\n🛑 [yellow]接收到中断信号，正在优雅退出...[/yellow]")
+            self.console.print(self.text_manager.get_text("interrupt_signal_graceful"))
             self.running = False
             # 触发异步清理
             if self.current_streaming_session:
@@ -92,6 +111,31 @@ class ModernGTPlannerCLI:
         
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
+
+    def show_ascii_logo(self):
+        """显示ASCII艺术字logo，使用渐变色"""
+        # 创建渐变色的ASCII艺术字
+        gradient_text = Text()
+
+        # RGB(106, 137, 244) 渐变色
+        start_color = (106, 137, 244)  # 蓝色
+        end_color = (180, 190, 254)    # 浅蓝色
+
+        total_lines = len(self.ascii_art)
+
+        for i, line in enumerate(self.ascii_art):
+            # 计算当前行的颜色（渐变）
+            ratio = i / max(1, total_lines - 1)
+            r = int(start_color[0] + (end_color[0] - start_color[0]) * ratio)
+            g = int(start_color[1] + (end_color[1] - start_color[1]) * ratio)
+            b = int(start_color[2] + (end_color[2] - start_color[2]) * ratio)
+
+            # 添加带颜色的行
+            gradient_text.append(line + "\n", style=f"rgb({r},{g},{b})")
+
+        # 居中显示
+        self.console.print(Align.center(gradient_text))
+        self.console.print()  # 添加空行
     
     async def _cleanup_streaming_session(self):
         """清理流式会话资源"""
@@ -101,7 +145,7 @@ class ModernGTPlannerCLI:
                 self.current_streaming_session = None
                 self.cli_handler = None
             except Exception as e:
-                self.console.print(f"⚠️ [yellow]清理流式会话时出错: {e}[/yellow]")
+                self.console.print(self.text_manager.get_text("streaming_cleanup_error", error=e))
     
     def _create_streaming_session(self, session_id: str) -> StreamingSession:
         """创建流式会话和处理器"""
@@ -126,63 +170,134 @@ class ModernGTPlannerCLI:
     
     def show_welcome(self):
         """显示欢迎信息"""
-        welcome_text = """
-# 🚀 现代化GTPlanner CLI
+        welcome_text = self._build_welcome_text()
 
-欢迎使用基于新流式响应架构的智能规划助手！
+        self.console.print(Panel(
+            Markdown(welcome_text),
+            title=self.text_manager.get_text("welcome_title"),
+            border_style="blue"
+        ))
 
-## ✨ 新特性
+    def _build_welcome_text(self) -> str:
+        """构建多语言欢迎文本"""
+        streaming_status = self.text_manager.get_text("streaming_enabled" if self.enable_streaming else "streaming_disabled")
+        timestamps_status = self.text_manager.get_text("streaming_enabled" if self.show_timestamps else "streaming_disabled")
+        metadata_status = self.text_manager.get_text("streaming_enabled" if self.show_metadata else "streaming_disabled")
+
+        if self.language == "zh":
+            return f"""
+# {self.text_manager.get_text("welcome_title")}
+
+{self.text_manager.get_text("welcome_subtitle")}
+
+## {self.text_manager.get_text("new_features")}
 - 🌊 **真实流式响应**: 基于StreamEventType/StreamCallbackType的类型安全架构
 - 🎯 **无状态设计**: 使用StatelessGTPlanner，支持高并发和水平扩展
 - 🔧 **智能工具调用**: 实时显示工具执行状态和进度
 - 💬 **优雅交互**: Rich库美化显示，支持中断处理
 - 📊 **会话管理**: 完整的会话创建、加载、切换功能
 
-## 🎯 使用方法
-直接输入您的需求，我将通过现代化的流式响应为您提供智能规划服务。
+## {self.text_manager.get_text("usage_method")}
+{self.text_manager.get_text("usage_description")}
 
-## ⚙️ 配置选项
-- 流式响应: {'启用' if self.enable_streaming else '禁用'}
-- 时间戳显示: {'启用' if self.show_timestamps else '禁用'}
-- 元数据显示: {'启用' if self.show_metadata else '禁用'}
+## {self.text_manager.get_text("config_options")}
+- 流式响应: {streaming_status}
+- 时间戳显示: {timestamps_status}
+- 元数据显示: {metadata_status}
 
-## 📝 可用命令
-- `/help` - 显示帮助信息
-- `/sessions` - 查看会话列表
-- `/new` - 创建新会话
-- `/load <session_id>` - 加载指定会话
+## {self.text_manager.get_text("available_commands")}
+- `/help` - {self.text_manager.get_text("help_command")}
+- `/sessions` - {self.text_manager.get_text("sessions_command")}
+- `/new` - {self.text_manager.get_text("new_command")}
+- `/load <session_id>` - {self.text_manager.get_text("load_command")}
 - `/config` - 配置选项
-- `/quit` - 退出程序
-        """
-        
-        self.console.print(Panel(
-            Markdown(welcome_text),
-            title="🚀 现代化GTPlanner CLI",
-            border_style="blue"
-        ))
+- `/quit` - {self.text_manager.get_text("quit_command")}
+            """
+        elif self.language == "en":
+            return f"""
+# {self.text_manager.get_text("welcome_title")}
+
+{self.text_manager.get_text("welcome_subtitle")}
+
+## {self.text_manager.get_text("new_features")}
+- 🌊 **Real Streaming Response**: Type-safe architecture based on StreamEventType/StreamCallbackType
+- 🎯 **Stateless Design**: Using StatelessGTPlanner, supports high concurrency and horizontal scaling
+- 🔧 **Smart Tool Calls**: Real-time display of tool execution status and progress
+- 💬 **Elegant Interaction**: Rich library beautified display with interrupt handling support
+- 📊 **Session Management**: Complete session creation, loading, and switching functionality
+
+## {self.text_manager.get_text("usage_method")}
+{self.text_manager.get_text("usage_description")}
+
+## {self.text_manager.get_text("config_options")}
+- Streaming Response: {streaming_status}
+- Timestamp Display: {timestamps_status}
+- Metadata Display: {metadata_status}
+
+## {self.text_manager.get_text("available_commands")}
+- `/help` - {self.text_manager.get_text("help_command")}
+- `/sessions` - {self.text_manager.get_text("sessions_command")}
+- `/new` - {self.text_manager.get_text("new_command")}
+- `/load <session_id>` - {self.text_manager.get_text("load_command")}
+- `/config` - Configuration options
+- `/quit` - {self.text_manager.get_text("quit_command")}
+            """
+        else:
+            # 对于其他语言，使用简化版本
+            return f"""
+# {self.text_manager.get_text("welcome_title")}
+
+{self.text_manager.get_text("welcome_subtitle")}
+
+## {self.text_manager.get_text("usage_method")}
+{self.text_manager.get_text("usage_description")}
+
+## {self.text_manager.get_text("config_options")}
+- Streaming: {streaming_status}
+- Timestamps: {timestamps_status}
+- Metadata: {metadata_status}
+
+## {self.text_manager.get_text("available_commands")}
+- `/help` - {self.text_manager.get_text("help_command")}
+- `/sessions` - {self.text_manager.get_text("sessions_command")}
+- `/new` - {self.text_manager.get_text("new_command")}
+- `/load <session_id>` - {self.text_manager.get_text("load_command")}
+- `/quit` - {self.text_manager.get_text("quit_command")}
+            """
     
     def show_help(self):
         """显示帮助信息"""
-        help_text = """
-## 📖 命令帮助
+        help_text = self._build_help_text()
 
-### 基本命令
-- `/help` - 显示此帮助信息
-- `/quit` - 退出程序
+        self.console.print(Panel(
+            Markdown(help_text),
+            title=self.text_manager.get_text("help_title"),
+            border_style="green"
+        ))
 
-### 会话管理
-- `/sessions` - 查看所有会话列表
-- `/new [title]` - 创建新会话（可选标题）
-- `/load <session_id>` - 加载指定会话（支持部分ID匹配）
-- `/current` - 显示当前会话信息
+    def _build_help_text(self) -> str:
+        """构建多语言帮助文本"""
+        if self.language == "zh":
+            return f"""
+## {self.text_manager.get_text("command_help")}
 
-### 配置选项
+### {self.text_manager.get_text("basic_commands")}
+- `/help` - {self.text_manager.get_text("help_command")}
+- `/quit` - {self.text_manager.get_text("quit_command")}
+
+### {self.text_manager.get_text("session_management")}
+- `/sessions` - {self.text_manager.get_text("sessions_command")}
+- `/new [title]` - {self.text_manager.get_text("new_command")}
+- `/load <session_id>` - {self.text_manager.get_text("load_command")}
+- `/current` - {self.text_manager.get_text("current_command")}
+
+### {self.text_manager.get_text("config_options_help")}
 - `/config` - 显示当前配置
-- `/streaming on|off` - 开启/关闭流式响应
-- `/timestamps on|off` - 开启/关闭时间戳显示
-- `/metadata on|off` - 开启/关闭元数据显示
+- `/streaming on|off` - {self.text_manager.get_text("streaming_command")}
+- `/timestamps on|off` - {self.text_manager.get_text("timestamps_command")}
+- `/metadata on|off` - {self.text_manager.get_text("metadata_command")}
 
-### 使用示例
+### {self.text_manager.get_text("usage_examples")}
 ```
 我想做一个在线教育平台
 /new 教育平台项目
@@ -190,13 +305,56 @@ class ModernGTPlannerCLI:
 /load 0a73        # 部分ID匹配
 /streaming off
 ```
-        """
-        
-        self.console.print(Panel(
-            Markdown(help_text),
-            title="帮助信息",
-            border_style="green"
-        ))
+            """
+        elif self.language == "en":
+            return f"""
+## {self.text_manager.get_text("command_help")}
+
+### {self.text_manager.get_text("basic_commands")}
+- `/help` - {self.text_manager.get_text("help_command")}
+- `/quit` - {self.text_manager.get_text("quit_command")}
+
+### {self.text_manager.get_text("session_management")}
+- `/sessions` - {self.text_manager.get_text("sessions_command")}
+- `/new [title]` - {self.text_manager.get_text("new_command")}
+- `/load <session_id>` - {self.text_manager.get_text("load_command")}
+- `/current` - {self.text_manager.get_text("current_command")}
+
+### {self.text_manager.get_text("config_options_help")}
+- `/config` - Show current configuration
+- `/streaming on|off` - {self.text_manager.get_text("streaming_command")}
+- `/timestamps on|off` - {self.text_manager.get_text("timestamps_command")}
+- `/metadata on|off` - {self.text_manager.get_text("metadata_command")}
+
+### {self.text_manager.get_text("usage_examples")}
+```
+I want to build an online education platform
+/new Education Platform Project
+/load 0a73b715    # Full ID
+/load 0a73        # Partial ID matching
+/streaming off
+```
+            """
+        else:
+            # 对于其他语言，使用简化版本
+            return f"""
+## {self.text_manager.get_text("command_help")}
+
+### {self.text_manager.get_text("basic_commands")}
+- `/help` - {self.text_manager.get_text("help_command")}
+- `/quit` - {self.text_manager.get_text("quit_command")}
+
+### {self.text_manager.get_text("session_management")}
+- `/sessions` - {self.text_manager.get_text("sessions_command")}
+- `/new [title]` - {self.text_manager.get_text("new_command")}
+- `/load <session_id>` - {self.text_manager.get_text("load_command")}
+- `/current` - {self.text_manager.get_text("current_command")}
+
+### {self.text_manager.get_text("config_options_help")}
+- `/streaming on|off` - {self.text_manager.get_text("streaming_command")}
+- `/timestamps on|off` - {self.text_manager.get_text("timestamps_command")}
+- `/metadata on|off` - {self.text_manager.get_text("metadata_command")}
+            """
     
     async def process_user_input(self, user_input: str) -> bool:
         """
@@ -215,13 +373,13 @@ class ModernGTPlannerCLI:
         # 确保有当前会话
         if not self.session_manager.current_session_id:
             session_id = self.session_manager.create_new_session()
-            self.console.print(f"🆕 [green]创建新会话:[/green] {session_id}")
+            self.console.print(self.text_manager.get_text("create_new_session", session_id=session_id))
 
         try:
             # 构建AgentContext（不包含当前用户输入，避免重复保存）
             context = self._build_agent_context()
             if not context:
-                self.console.print("❌ [red]无法构建上下文[/red]")
+                self.console.print(self.text_manager.get_text("context_build_failed"))
                 return True
             
             # 创建流式会话（统一流式架构，总是创建）
@@ -243,7 +401,7 @@ class ModernGTPlannerCLI:
                 update_success = self.session_manager.update_from_agent_result(result, user_input=user_input)
 
                 if not update_success:
-                    self.console.print("⚠️ [yellow]保存结果到数据库时出现问题[/yellow]")
+                    self.console.print(self.text_manager.get_text("database_save_warning"))
                 
                 # 如果没有启用流式响应，显示结果
                 if not self.enable_streaming and result.new_messages:
@@ -291,7 +449,7 @@ class ModernGTPlannerCLI:
             self.show_help()
 
         elif cmd == "quit" or cmd == "exit":
-            self.console.print("👋 [yellow]再见！[/yellow]")
+            self.console.print(self.text_manager.get_text("goodbye"))
             return False
 
         elif cmd == "sessions":
@@ -300,27 +458,27 @@ class ModernGTPlannerCLI:
         elif cmd == "new":
             title = " ".join(args) if args else None
             session_id = self.session_manager.create_new_session(title)
-            self.console.print(f"🆕 [green]创建新会话:[/green] {session_id}")
+            self.console.print(self.text_manager.get_text("create_new_session", session_id=session_id))
 
         elif cmd == "load":
             if not args:
-                self.console.print("❌ [red]请指定会话ID[/red]")
+                self.console.print(self.text_manager.get_text("specify_session_id"))
             else:
                 partial_id = args[0]
                 success, loaded_id, matches = self.session_manager.load_session_by_partial_id(partial_id)
 
                 if success:
-                    self.console.print(f"📂 [green]已加载会话:[/green] {loaded_id}")
+                    self.console.print(self.text_manager.get_text("session_loaded", session_id=loaded_id))
                 elif matches:
                     # 找到多个匹配，显示选择界面
                     selected_session = self._show_session_selection(matches, partial_id)
                     if selected_session:
                         if self.session_manager.load_session(selected_session["session_id"]):
-                            self.console.print(f"📂 [green]已加载会话:[/green] {selected_session['session_id']}")
+                            self.console.print(self.text_manager.get_text("session_loaded", session_id=selected_session['session_id']))
                         else:
-                            self.console.print(f"❌ [red]加载会话失败:[/red] {selected_session['session_id']}")
+                            self.console.print(self.text_manager.get_text("session_load_failed", session_id=selected_session['session_id']))
                 else:
-                    self.console.print(f"❌ [red]未找到匹配的会话:[/red] {partial_id}")
+                    self.console.print(self.text_manager.get_text("no_session_found", partial_id=partial_id))
 
         elif cmd == "current":
             self._show_current_session()
@@ -504,6 +662,9 @@ class ModernGTPlannerCLI:
 
     async def run_interactive(self):
         """运行交互式CLI"""
+        # 显示ASCII logo
+        self.show_ascii_logo()
+        # 显示欢迎信息
         self.show_welcome()
 
         while self.running:
@@ -523,14 +684,14 @@ class ModernGTPlannerCLI:
                     break
 
             except KeyboardInterrupt:
-                self.console.print("\n🛑 [yellow]接收到中断信号[/yellow]")
-                if Confirm.ask("确定要退出吗？"):
+                self.console.print(self.text_manager.get_text("interrupt_signal"))
+                if Confirm.ask(self.text_manager.get_text("confirm_exit")):
                     break
             except EOFError:
-                self.console.print("\n👋 [yellow]再见！[/yellow]")
+                self.console.print(self.text_manager.get_text("goodbye"))
                 break
             except Exception as e:
-                self.console.print(f"💥 [red]CLI异常:[/red] {str(e)}")
+                self.console.print(self.text_manager.get_text("cli_exception", error=str(e)))
                 if self.verbose:
                     import traceback
                     self.console.print(traceback.format_exc())
@@ -540,11 +701,13 @@ class ModernGTPlannerCLI:
 
     async def run_single_command(self, requirement: str):
         """运行单个命令（非交互式）"""
-        self.console.print(f"🚀 [blue]处理需求:[/blue] {requirement}")
+        # 显示ASCII logo
+        self.show_ascii_logo()
+        self.console.print(self.text_manager.get_text("processing_requirement", requirement=requirement))
 
         # 创建新会话
         session_id = self.session_manager.create_new_session("单次需求")
-        self.console.print(f"🆕 [green]创建会话:[/green] {session_id}")
+        self.console.print(self.text_manager.get_text("create_new_session", session_id=session_id))
 
         # 处理需求
         await self.process_user_input(requirement)
@@ -578,9 +741,9 @@ async def main():
     # 如果指定了加载会话
     if args.load:
         if cli.session_manager.load_session(args.load):
-            cli.console.print(f"📂 [green]已加载会话:[/green] {args.load}")
+            cli.console.print(cli.text_manager.get_text("session_loaded", session_id=args.load))
         else:
-            cli.console.print(f"❌ [red]加载会话失败:[/red] {args.load}")
+            cli.console.print(cli.text_manager.get_text("session_load_failed", session_id=args.load))
             return 1
 
     try:
@@ -592,7 +755,9 @@ async def main():
             await cli.run_interactive()
     except Exception as e:
         console = Console()
-        console.print(f"❌ [bold red]CLI运行异常:[/bold red] {str(e)}")
+        # 创建临时文本管理器用于错误显示
+        temp_text_manager = CLITextManager(args.language)
+        console.print(temp_text_manager.get_text("cli_run_exception", error=str(e)))
         return 1
 
     return 0
