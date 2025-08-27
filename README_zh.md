@@ -1,11 +1,11 @@
-# GTPlanner: 智能任务规划系统
+# GTPlanner: AI驱动的PRD生成工具
 
 <p align="center">
   <img src="./assets/banner.png" width="800" alt="GTPlanner Banner"/>
 </p>
 
 <p align="center">
-  <strong>GTPlanner (Graph Task Planner) 是一个智能任务规划系统，能够根据用户需求自动生成结构化的任务流程图和相关文档，专为现代AI辅助开发而设计。</strong>
+  <strong>一款智能产品需求文档（PRD）生成工具，能将自然语言描述转化为结构化的、适用于 Vibe coding 的技术文档。</strong>
 </p>
 
 <p align="center">
@@ -36,7 +36,9 @@
 
 ## 🎯 概览
 
-GTPlanner 是一个智能任务规划系统，专为现代AI辅助开发而设计。系统采用先进的Agent架构，能够智能地分析用户需求、执行技术调研、生成架构设计，并输出结构化的技术文档。
+GTPlanner 是一款专为 "vibe coding" 设计的先进 AI 工具，旨在将高层次的想法和需求，高效转化为结构清晰、内容详尽的技术文档。我们推荐通过我们现代化的 **Web 界面**来体验 GTPlanner 的全部功能。
+
+对于希望进行深度集成和定制开发的开发者，我们同样提供了强大的后端引擎，采用异步、基于节点的架构，并支持交互式 CLI、REST API 以及 MCP 服务等多种使用方式。
 
 ### 🚀 核心特性
 
@@ -81,7 +83,7 @@ GTPlanner 生成的计划可以直接在您最喜欢的 AI 编程工具中使用
 - **🤖 智能推理**: 智能分析用户需求，提供专业的规划建议
 - **🔧 Function Calling**: 集成OpenAI Function Calling，支持智能工具调用
 - **📊 智能规划**: 短期规划、长期设计、架构设计等专业化规划能力
-- **🔍 技术调研**: 基于Jina搜索的智能技术调研和信息收集
+- **🔍 技术调研**: 基于websearch搜索的智能技术调研和信息收集
 - **🛠️ 工具推荐**: 向量化工具推荐系统，智能匹配最适合的开发工具
 
 ### 🚀 现代化架构
@@ -142,7 +144,7 @@ export LLM_API_KEY="your-api-key-here"
 
 ### 🖥️ CLI 模式
 
-GTPlanner 提供基于新流式响应架构的现代化CLI，支持实时流式显示、会话管理和多语言界面。
+对于喜欢命令行的开发者，GTPlanner 提供了功能强大的命令行界面，支持**交互模式**和**直接执行模式**。
 
 ![GTPlanner CLI](assets/cil.png)
 
@@ -425,14 +427,14 @@ python gtplanner.py "设计一个用户管理系统"
 # 显式指定语言
 response = requests.post("/api/chat/agent", json={
     "session_id": "test-session",
-    "dialogue_history": [{"role": "user", "content": "设计一个用户管理系统"}],
+    "dialogue_history": [{"role": "user", "content": "设总结微信群聊记录并为成员创建用户画像"}],
     "language": "zh"
 })
 
 # 自动检测
 response = requests.post("/api/chat/agent", json={
     "session_id": "test-session",
-    "dialogue_history": [{"role": "user", "content": "设计一个用户管理系统"}]
+    "dialogue_history": [{"role": "user", "content": "总结微信群聊记录并为成员创建用户画像"}]
 })
 ```
 
@@ -484,4 +486,4 @@ supported_languages = ["en", "zh", "es", "fr", "ja"]
 
 ---
 
-**GTPlanner** - 智能任务规划系统，用AI的力量将您的想法转换为结构化的技术文档和可执行的项目计划。
+**GTPlanner** - 用AI的力量将您的想法转换为结构化的技术文档。

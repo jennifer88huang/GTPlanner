@@ -22,11 +22,20 @@ from agent.nodes.node_tool_recommend import NodeToolRecommend
 def get_agent_function_definitions() -> List[Dict[str, Any]]:
     """
     获取所有Agent工具的Function Calling定义
-    
+
     Returns:
         OpenAI Function Calling格式的工具定义列表
     """
-    return [
+    # 检查JINA_API_KEY是否可用
+    from utils.config_manager import get_jina_api_key
+    import os
+
+    jina_api_key = get_jina_api_key() or os.getenv("JINA_API_KEY")
+    # 确保API密钥不为空且不是占位符
+    has_jina_api_key = bool(jina_api_key and jina_api_key.strip() and not jina_api_key.startswith("@format"))
+
+    # 基础工具定义
+    tools = [
         {
             "type": "function",
             "function": {
@@ -85,8 +94,12 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
                     "required": ["query"]
                 }
             }
-        },
-        {
+        }
+    ]
+
+    # 如果有JINA_API_KEY，添加research工具
+    if has_jina_api_key:
+        research_tool = {
             "type": "function",
             "function": {
                 "name": "research",
@@ -112,27 +125,32 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
                     "required": ["keywords", "focus_areas"]
                 }
             }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "design",
-                "description": "**『技术实现』阶段的终点和收尾工具**。它综合所有前期成果（已确认的范围和技术选型），生成最终的系统架构方案。调用此工具意味着整个规划流程的结束。`user_requirements`参数**必须**使用在『范围确认』阶段与用户达成共识的最终版本。",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "user_requirements": {
-                            "type": "string",
-                            "description": "用户的项目需求描述，用于指导架构设计。如果不提供，将使用之前short_planning工具的结果。"
-                        }
-                    },
-                    "required": [
-                        "user_requirements"
-                    ]
-                }
+        }
+        tools.append(research_tool)
+
+    # 添加design工具
+    design_tool = {
+        "type": "function",
+        "function": {
+            "name": "design",
+            "description": "**『技术实现』阶段的终点和收尾工具**。它综合所有前期成果（已确认的范围和技术选型），生成最终的系统架构方案。调用此工具意味着整个规划流程的结束。`user_requirements`参数**必须**使用在『范围确认』阶段与用户达成共识的最终版本。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "user_requirements": {
+                        "type": "string",
+                        "description": "用户的项目需求描述，用于指导架构设计。如果不提供，将使用之前short_planning工具的结果。"
+                    }
+                },
+                "required": [
+                    "user_requirements"
+                ]
             }
         }
-    ]
+    }
+    tools.append(design_tool)
+
+    return tools
 
 
 async def execute_agent_tool(tool_name: str, arguments: Dict[str, Any], shared: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -326,6 +344,20 @@ async def _execute_tool_recommend(arguments: Dict[str, Any], shared: Dict[str, A
 
 async def _execute_research(arguments: Dict[str, Any], shared: Dict[str, Any] = None) -> Dict[str, Any]:
     """执行技术调研 - 使用ResearchFlow"""
+    # 检查JINA_API_KEY环境变量
+    from utils.config_manager import get_jina_api_key
+    import os
+
+    jina_api_key = get_jina_api_key() or os.getenv("JINA_API_KEY")
+    # 确保API密钥不为空且不是占位符
+    if not jina_api_key or not jina_api_key.strip() or jina_api_key.startswith("@format"):
+        return {
+            "success": False,
+            "error": "❌ Research工具未启用：缺少JINA_API_KEY环境变量。请设置JINA_API_KEY后重试。",
+            "tool_name": "research",
+            "disabled_reason": "missing_jina_api_key"
+        }
+
     keywords = arguments.get("keywords", [])
     focus_areas = arguments.get("focus_areas", [])
     project_context = arguments.get("project_context", "")
@@ -438,7 +470,7 @@ async def _execute_design(arguments: Dict[str, Any], shared: Dict[str, Any] = No
         if result and agent_design_document:
             return {
                 "success": True,
-                "result": agent_design_document,
+                "message": f"✅ {design_mode}执行成功，设计文档已生成",
                 "tool_name": "design",
                 "design_mode": design_mode
             }

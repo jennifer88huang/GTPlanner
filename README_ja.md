@@ -1,11 +1,11 @@
-# GTPlanner: インテリジェントタスク計画システム
+# GTPlanner: AI搭載のPRD生成ツール
 
 <p align="center">
   <img src="./assets/banner.png" width="800" alt="GTPlanner Banner"/>
 </p>
 
 <p align="center">
-  <strong>GTPlanner (Graph Task Planner) は、ユーザーの要求に応じて構造化されたタスクフローチャートと関連ドキュメントを自動生成できるインテリジェントなタスク計画システムであり、現代のAI支援開発のために特別に設計されています。</strong>
+  <strong>自然言語の記述を、Vibeコーディングに適した構造化された技術文書に変換する、インテリジェントな製品要求仕様書（PRD）生成ツールです。</strong>
 </p>
 
 <p align="center">
@@ -36,7 +36,9 @@
 
 ## 🎯 概要
 
-GTPlannerは、現代のAI支援開発のために設計されたインテリジェントなタスク計画システムです。このシステムは先進的なエージェントアーキテクチャを採用しており、ユーザーの要求をインテリジェントに分析し、技術調査を実行し、アーキテクチャ設計を生成し、構造化された技術ドキュメントを出力することができます。
+GTPlannerは、「vibeコーディング」のために設計された先進的なAIツールで、高レベルのアイデアや要件を、構造が明確で内容が詳細な技術文書に効率的に変換することを目的としています。最新の**Webインターフェース**を通じて、GTPlannerの全機能を体験することをお勧めします。
+
+深い統合やカスタム開発を希望する開発者向けに、強力なバックエンドエンジンも提供しています。これは非同期・ノードベースのアーキテクチャを採用し、インタラクティブなCLI、REST API、MCPサービスなど、複数の利用方法をサポートしています。
 
 ### 🚀 主な機能
 
@@ -410,10 +412,10 @@ GTPlannerは包括的な多言語サポートを提供し、世界中の開発�
 #### CLI モード
 ```bash
 # 言語を指定
-python gtplanner.py --language ja "ユーザー管理システムを設計する"
+python gtplanner.py --language ja "WeChatグループチャットを要約し、メンバーのユーザープロファイルを作成する"
 
 # 自動検出（日本語で入力すると自動的に認識されます）
-python gtplanner.py "ユーザー管理システムを設計する"
+python gtplanner.py "WeChatグループチャットを要約し、メンバーのユーザープロファイルを作成する"
 ```
 
 #### API モード
@@ -421,14 +423,14 @@ python gtplanner.py "ユーザー管理システムを設計する"
 # 明示的に言語を指定
 response = requests.post("/api/chat/agent", json={
     "session_id": "test-session",
-    "dialogue_history": [{"role": "user", "content": "ユーザー管理システムを設計する"}],
+    "dialogue_history": [{"role": "user", "content": "WeChatグループチャットを要約し、メンバーのユーザープロファイルを作成する"}],
     "language": "ja"
 })
 
 # 自動検出
 response = requests.post("/api/chat/agent", json={
     "session_id": "test-session",
-    "dialogue_history": [{"role": "user", "content": "ユーザー管理システムを設計する"}]
+    "dialogue_history": [{"role": "user", "content": "WeChatグループチャットを要約し、メンバーのユーザープロファイルを作成する"}]
 })
 ```
 
@@ -474,10 +476,10 @@ GTPlannerがより多くの利用可能なソリューションを理解し、�
 
 ## 🙏 謝辞
 
-- [PocketFlow](https://github.com/The-Pocket/PocketFlow)非同期ワークフローエンジンを基に構築
-- 設定管理は[Dynaconf](https://www.dynaconf.com/)によってサポート
-- MCPプロトコルを介してAIアシスタントとシームレスに統合することを目指しています
+- [PocketFlow](https://github.com/The-Pocket/PocketFlow)非同期ワークフローエンジンをベースに構築
+- 設定管理は[Dynaconf](https://www.dynaconf.com/)によって提供
+- MCPプロトコルを介してAIアシスタントとシームレスに統合することを目指して設計
 
 ---
 
-**GTPlanner** - AIの力であなたのアイデアを構造化された技術ドキュメントと実行可能なプロジェクト計画に変換する、インテリジェントタスク計画システム。
+**GTPlanner** - AIの力で、あなたのアイデアを構造化された技術文書に変換します。

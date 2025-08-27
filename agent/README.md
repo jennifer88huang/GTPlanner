@@ -1,6 +1,6 @@
 # GTPlanner Agent 模块
 
-GTPlanner (Graph Task Planner) 是一个基于ReAct模式的智能任务规划系统，能够根据用户需求自动生成结构化的任务流程图和相关文档。
+此文档介绍GTPlanner 的Agent模块。 Agent 模块是GTPlanner的核心模块，负责整体调度。
 
 ## 项目结构
 

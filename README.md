@@ -1,11 +1,11 @@
-# GTPlanner: Intelligent Task Planning System
+# GTPlanner: AI-Powered PRD Generation Tool
 
 <p align="center">
   <img src="./assets/banner.png" width="800" alt="GTPlanner Banner"/>
 </p>
 
 <p align="center">
-  <strong>GTPlanner (Graph Task Planner) is an intelligent task planning system designed for modern AI-assisted development that automatically generates structured task flowcharts and related documentation based on user requirements.</strong>
+  <strong>An intelligent Product Requirement Document (PRD) generation tool that transforms natural language descriptions into structured technical documents suitable for Vibe coding.</strong>
 </p>
 
 <p align="center">
@@ -36,7 +36,9 @@
 
 ## 🎯 Overview
 
-GTPlanner is an intelligent task planning system designed for modern AI-assisted development. The system uses an advanced Agent architecture to intelligently analyze user requirements, conduct technical research, generate architectural designs, and output structured technical documentation.
+GTPlanner is an advanced AI tool designed for "vibe coding," aimed at efficiently transforming high-level ideas and requirements into clearly structured and detailed technical documents. We recommend experiencing the full capabilities of GTPlanner through our modern **Web Interface**.
+
+For developers looking for deep integration and custom development, we also provide a powerful backend engine. It features an asynchronous, node-based architecture and supports various usage methods, including an interactive CLI, REST API, and MCP service.
 
 ### 🚀 Core Features
 
@@ -412,10 +414,10 @@ GTPlanner offers comprehensive multilingual support, allowing developers worldwi
 #### CLI Mode
 ```bash
 # Specify the language
-python gtplanner.py --language zh "设计一个用户管理系统"
+python gtplanner.py --language zh ""Summarize the WeChat group chat and create user profiles for members"
 
 # Automatic detection (inputting Chinese will be automatically recognized)
-python gtplanner.py "设计一个用户管理系统"
+python gtplanner.py ""Summarize the WeChat group chat and create user profiles for members"
 ```
 
 #### API Mode
@@ -423,14 +425,14 @@ python gtplanner.py "设计一个用户管理系统"
 # Explicitly specify the language
 response = requests.post("/api/chat/agent", json={
     "session_id": "test-session",
-    "dialogue_history": [{"role": "user", "content": "设计一个用户管理系统"}],
+    "dialogue_history": [{"role": "user", "content": ""Summarize the WeChat group chat and create user profiles for members"}],
     "language": "zh"
 })
 
 # Automatic detection
 response = requests.post("/api/chat/agent", json={
     "session_id": "test-session",
-    "dialogue_history": [{"role": "user", "content": "设计一个用户管理系统"}]
+    "dialogue_history": [{"role": "user", "content": ""Summarize the WeChat group chat and create user profiles for members"}]
 })
 ```
 
@@ -476,10 +478,11 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE.md) fi
 
 ## 🙏 Acknowledgements
 
-- Built on the [PocketFlow](https://github.com/The-Pocket/PocketFlow) asynchronous workflow engine.
-- Configuration management is powered by [Dynaconf](https://www.dynaconf.com/).
-- Designed to seamlessly integrate with AI assistants via the MCP protocol.
+- Built on the [PocketFlow](https://github.com/The-Pocket/PocketFlow) asynchronous workflow engine
+- Configuration management powered by [Dynaconf](https://www.dynaconf.com/)
+- Designed for seamless integration with AI assistants via the MCP protocol
+
 
 ---
 
-**GTPlanner** - The intelligent task planning system that transforms your ideas into structured technical documents and executable project plans with the power of AI.
+**GTPlanner** - Use the power of AI to transform your ideas into structured technical documents.
