@@ -44,8 +44,12 @@ class NodeToolRecommend(AsyncNode):
 
         # 从配置文件加载向量服务配置
         vector_config = get_vector_service_config()
-        self.vector_service_url = vector_config.get("base_url", "http://nodeport.sensedeal.vip:32421")
+        self.vector_service_url = vector_config.get("base_url")
         self.timeout = vector_config.get("timeout", 30)
+
+        # 检查向量服务URL是否配置
+        if not self.vector_service_url:
+            raise ValueError("向量服务URL未配置，请设置VECTOR_SERVICE_BASE_URL环境变量")
 
         # 这些参数保持硬编码，不从配置文件读取
         self.index_name = "tools_index"  # 使用工具索引名，与创建节点保持一致
