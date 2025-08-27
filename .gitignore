@@ -98,3 +98,12 @@ input/*
 output/*
 doc.pdf
 *.bak
+
+# Cookbook and examples (development only)
+cookbook/
+
+# GTPlanner session data
+.gtplanner_sessions/
+.specstory
+memory-bank
+gtplanner_conversations.db

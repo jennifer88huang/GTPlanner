@@ -20,11 +20,11 @@ logger = logging.getLogger(__name__)
 
 
 class MultilingualConfig:
-    """Configuration manager for multilingual settings."""
-    
+    """Configuration manager for multilingual settings and API keys."""
+
     def __init__(self, settings_file: str = "settings.toml"):
         """Initialize the configuration manager.
-        
+
         Args:
             settings_file: Path to the settings file
         """
@@ -165,10 +165,112 @@ class MultilingualConfig:
             return user_lang.lower()
         
         return None
-    
+
+    def get_jina_api_key(self) -> Optional[str]:
+        """Get Jina API key from configuration.
+
+        Returns:
+            The Jina API key, or None if not set
+        """
+        # Try dynaconf settings first
+        if self._settings:
+            try:
+                api_key = self._settings.get("jina.api_key")
+                if api_key:
+                    return api_key
+            except Exception as e:
+                logger.warning(f"Error reading Jina API key from settings: {e}")
+
+        # Try environment variable
+        api_key = os.getenv("JINA_API_KEY")
+        if api_key:
+            return api_key
+
+        # Try GTPLANNER prefixed environment variable
+        api_key = os.getenv("GTPLANNER_JINA_API_KEY")
+        if api_key:
+            return api_key
+
+        return None
+
+    def get_llm_config(self) -> Dict[str, Any]:
+        """Get LLM configuration.
+
+        Returns:
+            Dictionary containing LLM configuration
+        """
+        config = {}
+
+        # Try dynaconf settings first
+        if self._settings:
+            try:
+                config.update({
+                    "api_key": self._settings.get("llm.api_key"),
+                    "base_url": self._settings.get("llm.base_url"),
+                    "model": self._settings.get("llm.model")
+                })
+            except Exception as e:
+                logger.warning(f"Error reading LLM config from settings: {e}")
+
+        # Try environment variables
+        config.update({
+            "api_key": config.get("api_key") or os.getenv("LLM_API_KEY"),
+            "base_url": config.get("base_url") or os.getenv("LLM_BASE_URL"),
+            "model": config.get("model") or os.getenv("LLM_MODEL")
+        })
+
+        return {k: v for k, v in config.items() if v is not None}
+
+    def get_vector_service_config(self) -> Dict[str, Any]:
+        """Get vector service configuration.
+
+        Returns:
+            Dictionary containing vector service configuration
+        """
+        config = {}
+
+        # Try dynaconf settings first
+        if self._settings:
+            try:
+                config.update({
+                    "base_url": self._settings.get("vector_service.base_url"),
+                    "timeout": self._settings.get("vector_service.timeout", 30),
+                    "index_name": self._settings.get("vector_service.index_name", "default"),
+                    "vector_field": self._settings.get("vector_service.vector_field", "combined_text")
+                })
+            except Exception as e:
+                logger.warning(f"Error reading vector service config from settings: {e}")
+
+        # Try environment variables with fallbacks
+        config.update({
+            "base_url": config.get("base_url") or os.getenv("VECTOR_SERVICE_BASE_URL") or os.getenv("GTPLANNER_VECTOR_SERVICE_BASE_URL"),
+            "timeout": config.get("timeout") or int(os.getenv("VECTOR_SERVICE_TIMEOUT", "30")),
+            "index_name": config.get("index_name") or os.getenv("VECTOR_SERVICE_INDEX_NAME", "default"),
+            "vector_field": config.get("vector_field") or os.getenv("VECTOR_SERVICE_VECTOR_FIELD", "combined_text")
+        })
+
+        return {k: v for k, v in config.items() if v is not None}
+
+    def is_deep_design_docs_enabled(self) -> bool:
+        """Check if deep design docs feature is enabled.
+
+        Returns:
+            True if deep design docs is enabled, False otherwise
+        """
+        # Try dynaconf settings first
+        if self._settings:
+            try:
+                return self._settings.get("deep_design_docs.enable_deep_design_docs", True)
+            except Exception as e:
+                logger.warning(f"Error reading deep_design_docs setting: {e}")
+
+        # Try environment variable
+        env_deep_design = os.getenv("GTPLANNER_ENABLE_DEEP_DESIGN_DOCS", "true").lower()
+        return env_deep_design in ("true", "1", "yes", "on")
+
     def get_all_config(self) -> Dict[str, Any]:
-        """Get all multilingual configuration as a dictionary.
-        
+        """Get all configuration as a dictionary.
+
         Returns:
             Dictionary containing all configuration values
         """
@@ -177,7 +279,11 @@ class MultilingualConfig:
             "auto_detect_enabled": self.is_auto_detect_enabled(),
             "fallback_enabled": self.is_fallback_enabled(),
             "supported_languages": self.get_supported_languages_config(),
-            "all_available_languages": get_supported_languages()
+            "all_available_languages": get_supported_languages(),
+            "jina_api_key": self.get_jina_api_key(),
+            "llm_config": self.get_llm_config(),
+            "vector_service_config": self.get_vector_service_config(),
+            "deep_design_docs_enabled": self.is_deep_design_docs_enabled()
         }
     
     def validate_config(self) -> List[str]:
@@ -249,11 +355,56 @@ def get_supported_languages_config() -> List[str]:
 
 def get_language_preference(user_id: Optional[str] = None) -> Optional[str]:
     """Convenience function to get user's language preference.
-    
+
     Args:
         user_id: Optional user identifier
-        
+
     Returns:
         The user's preferred language code, or None if not set
     """
     return multilingual_config.get_language_preference(user_id)
+
+
+def get_jina_api_key() -> Optional[str]:
+    """Convenience function to get Jina API key.
+
+    Returns:
+        The Jina API key, or None if not set
+    """
+    return multilingual_config.get_jina_api_key()
+
+
+def get_llm_config() -> Dict[str, Any]:
+    """Convenience function to get LLM configuration.
+
+    Returns:
+        Dictionary containing LLM configuration
+    """
+    return multilingual_config.get_llm_config()
+
+
+def get_vector_service_config() -> Dict[str, Any]:
+    """Convenience function to get vector service configuration.
+
+    Returns:
+        Dictionary containing vector service configuration
+    """
+    return multilingual_config.get_vector_service_config()
+
+
+def get_all_config() -> Dict[str, Any]:
+    """Convenience function to get all configuration.
+
+    Returns:
+        Dictionary containing all configuration values
+    """
+    return multilingual_config.get_all_config()
+
+
+def is_deep_design_docs_enabled() -> bool:
+    """Convenience function to check if deep design docs feature is enabled.
+
+    Returns:
+        True if deep design docs is enabled
+    """
+    return multilingual_config.is_deep_design_docs_enabled()
