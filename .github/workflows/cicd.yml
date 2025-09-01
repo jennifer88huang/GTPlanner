@@ -73,23 +73,23 @@ jobs:
         # 运行基本功能测试
         echo "运行基本功能测试..."
         python -c "
-import sys
-try:
-    import gtplanner
-    print('✅ gtplanner 模块导入成功')
-except Exception as e:
-    print(f'❌ gtplanner 模块导入失败: {e}')
-    sys.exit(1)
+        import sys
+        try:
+            import gtplanner
+            print('✅ gtplanner 模块导入成功')
+        except Exception as e:
+            print(f'❌ gtplanner 模块导入失败: {e}')
+            sys.exit(1)
 
-try:
-    import fastapi_main
-    print('✅ fastapi_main 模块导入成功')
-except Exception as e:
-    print(f'❌ fastapi_main 模块导入失败: {e}')
-    sys.exit(1)
+        try:
+            import fastapi_main
+            print('✅ fastapi_main 模块导入成功')
+        except Exception as e:
+            print(f'❌ fastapi_main 模块导入失败: {e}')
+            sys.exit(1)
 
-print('✅ 所有基本功能测试通过')
-"
+        print('✅ 所有基本功能测试通过')
+        "
 
 
   docker-build-push:
