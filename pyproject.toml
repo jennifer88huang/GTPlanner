@@ -29,7 +29,7 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 include = ["agent*", "utils*"]
-exclude = ["mcp*", "static*", "assets*", "tests*", "docs*", "logs*", "output*", "memory-bank*", "cookbook*", "tools*"]
+exclude = ["mcp*", "static*", "assets*"]
 
 [[tool.uv.index]]
 url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
