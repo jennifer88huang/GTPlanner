@@ -15,6 +15,9 @@ from pydantic import BaseModel
 # 导入 SSE GTPlanner API
 from agent.api.agent_api import SSEGTPlanner
 
+# 导入索引管理器
+from agent.utils.startup_init import initialize_application
+
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,6 +27,33 @@ app = FastAPI(
     description="智能规划助手 API，支持流式响应和实时工具调用",
     version="1.0.0"
 )
+
+# 应用启动事件 - 预加载工具索引
+@app.on_event("startup")
+async def startup_event():
+    """应用启动时预加载工具索引"""
+    logger.info("🚀 GTPlanner API 启动中...")
+
+    try:
+        # 初始化应用，包括预加载工具索引
+        result = await initialize_application(
+            tools_dir="tools",
+            preload_index=True
+        )
+
+        if result["success"]:
+            logger.info("✅ 应用初始化成功")
+            if "tool_index" in result["components"]:
+                index_info = result["components"]["tool_index"]
+                logger.info(f"📋 工具索引已就绪: {index_info.get('index_name', 'N/A')}")
+        else:
+            logger.error("❌ 应用初始化失败")
+            for error in result["errors"]:
+                logger.error(f"  - {error}")
+
+    except Exception as e:
+        logger.error(f"❌ 启动时初始化失败: {str(e)}")
+        # 不阻止应用启动，但记录错误
 
 # CORS 配置
 app.add_middleware(

@@ -10,6 +10,7 @@ build/
 out/
 *.pyc
 __pycache__/
+*.egg-info/
 
 # Environment files
 .env

@@ -44,6 +44,9 @@ from agent.persistence.sqlite_session_manager import SQLiteSessionManager
 # 导入CLI多语言文本管理器
 from agent.cli.cli_text_manager import CLITextManager
 
+# 导入索引管理器
+from agent.utils.startup_init import initialize_application
+
 
 class ModernGTPlannerCLI:
     """基于新流式响应架构的现代化GTPlanner CLI"""
@@ -660,12 +663,45 @@ I want to build an online education platform
             border_style="green"
         ))
 
+    async def _preload_tool_index(self):
+        """预加载工具索引"""
+        try:
+            self.console.print("[yellow]🔄 正在初始化工具索引...[/yellow]")
+
+            # 初始化应用，包括预加载工具索引
+            result = await initialize_application(
+                tools_dir="tools",
+                preload_index=True
+            )
+
+            if result["success"]:
+                self.console.print("[green]✅ 工具索引初始化完成[/green]")
+                if "tool_index" in result["components"]:
+                    index_info = result["components"]["tool_index"]
+                    index_name = index_info.get('index_name', 'N/A')
+                    if self.verbose:
+                        self.console.print(f"[dim]📋 索引名称: {index_name}[/dim]")
+            else:
+                self.console.print("[red]⚠️ 工具索引初始化失败，但不影响基本功能[/red]")
+                if self.verbose:
+                    for error in result["errors"]:
+                        self.console.print(f"[dim red]  - {error}[/dim red]")
+
+        except Exception as e:
+            self.console.print(f"[red]⚠️ 索引预加载出错: {str(e)}[/red]")
+            if self.verbose:
+                import traceback
+                self.console.print(f"[dim red]{traceback.format_exc()}[/dim red]")
+
     async def run_interactive(self):
         """运行交互式CLI"""
         # 显示ASCII logo
         self.show_ascii_logo()
         # 显示欢迎信息
         self.show_welcome()
+
+        # 预加载工具索引
+        await self._preload_tool_index()
 
         while self.running:
             try:
@@ -704,6 +740,9 @@ I want to build an online education platform
         # 显示ASCII logo
         self.show_ascii_logo()
         self.console.print(self.text_manager.get_text("processing_requirement", requirement=requirement))
+
+        # 预加载工具索引
+        await self._preload_tool_index()
 
         # 创建新会话
         session_id = self.session_manager.create_new_session("单次需求")
