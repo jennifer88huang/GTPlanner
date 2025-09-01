@@ -131,9 +131,11 @@ class ToolIndexManager:
             
             # 获取目录及其子目录中所有文件的最新修改时间
             latest_mtime = 0
-            for file_path in tools_path.rglob("*.yaml"):
-                file_mtime = file_path.stat().st_mtime
-                latest_mtime = max(latest_mtime, file_mtime)
+            # 支持.yaml和.yml两种扩展名
+            for pattern in ["*.yaml", "*.yml"]:
+                for file_path in tools_path.rglob(pattern):
+                    file_mtime = file_path.stat().st_mtime
+                    latest_mtime = max(latest_mtime, file_mtime)
             
             # 如果没有记录的修改时间，说明是首次检查，需要重建
             if self._last_tools_dir_mtime is None:

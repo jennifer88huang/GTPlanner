@@ -124,7 +124,7 @@ async def cmd_info():
     tools_dir = "tools"
     if os.path.exists(tools_dir):
         print(f"\n📁 工具目录信息 ({tools_dir}):")
-        yaml_files = list(Path(tools_dir).rglob("*.yaml"))
+        yaml_files = list(Path(tools_dir).rglob("*.yaml")) + list(Path(tools_dir).rglob("*.yml"))
         print(f"  YAML文件数量: {len(yaml_files)}")
         
         if yaml_files:

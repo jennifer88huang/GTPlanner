@@ -241,12 +241,12 @@ class MultilingualConfig:
             except Exception as e:
                 logger.warning(f"Error reading vector service config from settings: {e}")
 
-        # Try environment variables with fallbacks
+        # Environment variables have higher priority than settings.toml
         config.update({
-            "base_url": config.get("base_url") or os.getenv("VECTOR_SERVICE_BASE_URL") or os.getenv("GTPLANNER_VECTOR_SERVICE_BASE_URL"),
-            "timeout": config.get("timeout") or int(os.getenv("VECTOR_SERVICE_TIMEOUT", "30")),
-            "tools_index_name": config.get("tools_index_name") or os.getenv("VECTOR_SERVICE_TOOLS_INDEX_NAME", "tools_index"),
-            "vector_field": config.get("vector_field") or os.getenv("VECTOR_SERVICE_VECTOR_FIELD", "combined_text")
+            "base_url": os.getenv("VECTOR_SERVICE_BASE_URL") or os.getenv("GTPLANNER_VECTOR_SERVICE_BASE_URL") or config.get("base_url"),
+            "timeout": int(os.getenv("VECTOR_SERVICE_TIMEOUT") or config.get("timeout", 30)),
+            "tools_index_name": os.getenv("VECTOR_SERVICE_INDEX_NAME") or config.get("tools_index_name", "tools_index"),
+            "vector_field": os.getenv("VECTOR_SERVICE_VECTOR_FIELD") or config.get("vector_field", "combined_text")
         })
 
         return {k: v for k, v in config.items() if v is not None}

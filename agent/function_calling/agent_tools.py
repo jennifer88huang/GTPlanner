@@ -274,7 +274,7 @@ async def _execute_short_planning(arguments: Dict[str, Any], shared: Dict[str, A
 
 
 async def _execute_tool_recommend(arguments: Dict[str, Any], shared: Dict[str, Any] = None) -> Dict[str, Any]:
-    """执行工具推荐 - 每次都先创建索引，然后进行推荐"""
+    """执行工具推荐 - 使用智能索引管理器确保索引可用"""
     query = arguments.get("query", "")
     top_k = arguments.get("top_k", 5)
     tool_types = arguments.get("tool_types", [])
@@ -288,32 +288,17 @@ async def _execute_tool_recommend(arguments: Dict[str, Any], shared: Dict[str, A
         }
 
     try:
-        # 1. 先创建索引
-        from agent.nodes.node_tool_index import NodeToolIndex
-        index_node = NodeToolIndex()
+        # 1. 使用智能索引管理器确保索引存在
+        from agent.utils.tool_index_manager import ensure_tool_index
 
-        index_shared = {
-            "tools_dir": "tools",
-            "index_name": "tools_index",
-            "force_reindex": True
-        }
+        # 确保索引存在（智能检测，只在必要时重建）
+        index_name = await ensure_tool_index(
+            tools_dir="tools",
+            force_reindex=False,  # 不强制重建，让管理器智能判断
+            shared=shared
+        )
 
-        # 创建索引（异步）
-        index_prep_result = await index_node.prep_async(index_shared)
-        if "error" in index_prep_result:
-            return {
-                "success": False,
-                "error": f"Failed to prepare index: {index_prep_result['error']}"
-            }
-
-        index_exec_result = await index_node.exec_async(index_prep_result)
-        created_index_name = index_exec_result.get("index_name", "tools_index")
-
-        print(f"✅ 成功创建索引: {created_index_name}")
-
-        # 等待索引刷新
-        import time
-        time.sleep(2)
+        print(f"✅ 索引已就绪: {index_name}")
 
         # 2. 执行工具推荐
         from agent.nodes.node_tool_recommend import NodeToolRecommend
@@ -326,7 +311,7 @@ async def _execute_tool_recommend(arguments: Dict[str, Any], shared: Dict[str, A
         # 添加工具参数到shared字典
         shared["query"] = query
         shared["top_k"] = top_k
-        shared["index_name"] = created_index_name  # 使用刚创建的索引名
+        shared["index_name"] = index_name  # 使用索引管理器返回的索引名
         shared["tool_types"] = tool_types
         shared["min_score"] = 0.1
         shared["use_llm_filter"] = use_llm_filter
@@ -351,7 +336,7 @@ async def _execute_tool_recommend(arguments: Dict[str, Any], shared: Dict[str, A
                 "total_found": exec_result["total_found"],
                 "search_time_ms": exec_result["search_time"],
                 "query_used": exec_result["query_used"],
-                "index_name": created_index_name
+                "index_name": index_name
             },
             "tool_name": "tool_recommend"
         }

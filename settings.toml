@@ -38,11 +38,12 @@ supported_languages = ["en", "zh", "es", "fr", "ja"]
 
 [default.vector_service]
 # Vector service configuration for tool recommendation
-base_url = "@format {env[VECTOR_SERVICE_BASE_URL]}"
-timeout = 30
-# Index name for tools
+# These values will be overridden by environment variables if set
+base_url = "http://localhost:8080"  # Default fallback, override with VECTOR_SERVICE_BASE_URL
+timeout = 30  # Override with VECTOR_SERVICE_TIMEOUT
+# Index name for tools - override with VECTOR_SERVICE_INDEX_NAME
 tools_index_name = "tools_index"
-# Vector field name for document embedding
+# Vector field name for document embedding - override with VECTOR_SERVICE_VECTOR_FIELD
 vector_field = "combined_text"
 
 [default.deep_design_docs]
