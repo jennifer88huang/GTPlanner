@@ -49,9 +49,9 @@ class NodeToolIndex(AsyncNode):
         if not self.vector_service_url:
             raise ValueError("向量服务URL未配置，请设置VECTOR_SERVICE_BASE_URL环境变量")
 
-        # 这些参数保持硬编码，不从配置文件读取
-        self.index_name = "tools_index"
-        self.vector_field = "combined_text"
+        # 从配置文件读取索引相关参数（保留你同事的改进）
+        self.index_name = vector_config.get("tools_index_name", "tools_index")
+        self.vector_field = vector_config.get("vector_field", "combined_text")
         
         # 工具目录配置
         self.tools_dir = "tools"
@@ -146,16 +146,22 @@ class NodeToolIndex(AsyncNode):
         
         parsed_tools = prep_res["parsed_tools"]
         index_name = prep_res["index_name"]
-        
+        force_reindex = prep_res.get("force_reindex", False)
+
         if not parsed_tools:
             raise ValueError("No tools to index")
-        
+
         if not self.vector_service_available:
             raise RuntimeError("Vector service is not available")
-        
+
         try:
             start_time = time.time()
-            
+
+            # 如果需要强制重建索引，先清除现有索引数据
+            if force_reindex:
+                shared_for_events = {"streaming_session": prep_res.get("streaming_session")}
+                await self._clear_index(index_name, shared_for_events)
+
             # 构建文档列表
             documents = []
             for tool in parsed_tools:
@@ -175,7 +181,8 @@ class NodeToolIndex(AsyncNode):
                 "index_time": round(index_time * 1000),  # 转换为毫秒
                 "documents": documents,
                 "failed_tools": prep_res.get("failed_files", []),
-                "total_processed": prep_res["tools_count"]
+                "total_processed": prep_res["tools_count"],
+                "force_reindex": force_reindex
             }
             
         except Exception as e:
@@ -371,6 +378,34 @@ class NodeToolIndex(AsyncNode):
         doc[self.vector_field] = combined_text
 
         return doc
+
+    async def _clear_index(self, index_name: str, shared: Dict[str, Any]) -> None:
+        """清除指定索引的所有数据"""
+        try:
+            await emit_processing_status(shared, f"🗑️ 清除索引数据: {index_name}")
+
+            # 调用向量服务清除索引
+            response = requests.delete(
+                f"{self.vector_service_url}/index/{index_name}/clear",
+                timeout=self.timeout,
+                headers={"accept": "application/json"}
+            )
+
+            if response.status_code == 200:
+                await emit_processing_status(shared, f"✅ 成功清除索引 {index_name} 的数据")
+            else:
+                # 如果索引不存在，通常返回404，这是正常的
+                if response.status_code == 404:
+                    await emit_processing_status(shared, f"ℹ️ 索引 {index_name} 不存在或已为空")
+                else:
+                    error_msg = f"清除索引失败: {response.status_code}, {response.text}"
+                    await emit_error(shared, f"⚠️ {error_msg}")
+                    # 不抛出异常，因为清除失败不应该阻止后续的索引操作
+
+        except requests.exceptions.RequestException as e:
+            error_msg = f"调用清除索引API失败: {str(e)}"
+            await emit_error(shared, f"⚠️ {error_msg}")
+            # 不抛出异常，因为清除失败不应该阻止后续的索引操作
 
     async def _index_documents(self, documents: List[Dict[str, Any]], index_name: str, shared: Dict[str, Any]) -> Dict[str, Any]:
         """调用向量服务进行文档索引"""

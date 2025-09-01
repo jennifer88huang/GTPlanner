@@ -51,9 +51,9 @@ class NodeToolRecommend(AsyncNode):
         if not self.vector_service_url:
             raise ValueError("向量服务URL未配置，请设置VECTOR_SERVICE_BASE_URL环境变量")
 
-        # 这些参数保持硬编码，不从配置文件读取
-        self.index_name = "tools_index"  # 使用工具索引名，与创建节点保持一致
-        self.vector_field = "combined_text"
+        # 从配置文件读取索引相关参数
+        self.index_name = vector_config.get("tools_index_name", "tools_index")
+        self.vector_field = vector_config.get("vector_field", "combined_text")
 
         # 推荐配置
         self.default_top_k = 5
@@ -561,7 +561,7 @@ if __name__ == '__main__':
     shared_with_llm = {
         "query": "我想解析视频字幕",
         "top_k": 10,
-        "index_name": exec_init_result.get("index_name", "default"),  # 使用之前创建的索引
+        "index_name": exec_init_result.get("index_name", recommend_node.index_name),  # 使用配置的索引名称
         "use_llm_filter": True
     }
     prep_result = recommend_node.prep(shared=shared_with_llm)

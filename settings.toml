@@ -40,6 +40,10 @@ supported_languages = ["en", "zh", "es", "fr", "ja"]
 # Vector service configuration for tool recommendation
 base_url = "@format {env[VECTOR_SERVICE_BASE_URL]}"
 timeout = 30
+# Index name for tools
+tools_index_name = "tools_index"
+# Vector field name for document embedding
+vector_field = "combined_text"
 
 [default.deep_design_docs]
 # Deep design documents configuration
