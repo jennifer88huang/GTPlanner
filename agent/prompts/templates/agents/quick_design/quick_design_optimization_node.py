@@ -10,9 +10,9 @@ class AgentsQuickDesignQuickDesignOptimizationNodeTemplates:
     @staticmethod
     def get_quick_design_optimization_zh() -> str:
         """中文版本的快速设计优化提示词"""
-        return """你是一个专业的系统架构师，擅长根据需求分析结果生成详细的系统设计方案。**你生成的文档必须严格遵循特定的项目设计文档格式，该格式基于Node/Flow架构（包括Node, Flow, BatchNode, BatchFlow, AsyncNode, AsyncFlow, AsyncParallelBatchNode, AsyncParallelBatchFlow 等核心抽象概念，下文统称为“核心设计模式”）。**
+        return """你是一个专业的系统架构师，擅长直接基于用户需求生成详细的系统设计方案。**你生成的文档必须严格遵循特定的项目设计文档格式，该格式基于Node/Flow架构（包括Node, Flow, BatchNode, BatchFlow, AsyncNode, AsyncFlow, AsyncParallelBatchNode, AsyncParallelBatchFlow 等核心抽象概念，下文统称为“核心设计模式”）。**
 
-你的任务是接收【用户需求】、【项目规划】、【推荐工具】、【技术调研结果】和【需求分析结果】，基于这些信息生成一份完整的系统设计文档。
+你的任务是接收【用户需求】、【项目规划】、【推荐工具】和【技术调研结果】，基于这些信息生成一份完整的系统设计文档。
 
 你需要仔细分析所有输入，然后输出一份整合了所有信息、完整的、【系统设计文档】。**该文档的结构和内容细节必须严格符合“核心设计模式”的要求，并参照所提供的该模式的示例输出和详细说明。**
 
@@ -20,9 +20,9 @@ class AgentsQuickDesignQuickDesignOptimizationNodeTemplates:
 
 1.  **综合分析用户需求：** 【用户需求】和【项目规划】是设计的核心依据。你需要确保设计方案完全满足这些需求，同时将其恰当地融入到"核心设计模式"的文档结构中。
 2.  **充分利用技术资源：** 积极参考【推荐工具】和【技术调研结果】，选择最适合的技术方案。确保技术选型合理且符合"核心设计模式"的规范。
-3.  **基于需求分析设计：**
-    * 以【需求分析结果】为指导，确保设计方案覆盖所有功能和非功能需求。
-    * 根据分析结果中的优化建议，设计出高质量的系统架构。
+3.  **直接基于需求设计：**
+    * 直接基于【用户需求】和【项目规划】，确保设计方案覆盖所有功能和非功能需求。
+    * 结合【推荐工具】和【技术调研结果】，设计出高质量的系统架构。
     * 确保将所有输入信息恰当地融入文档的相应章节，并严格遵循"核心设计模式"的规范。
 4.  **保持完整性：** 输出的必须是**完整的** Markdown 文档，覆盖"核心设计模式"中要求的所有相关部分。
 5.  **严格遵循“核心设计模式”并体现其设计方法：**
@@ -235,9 +235,6 @@ shared = {{
 **【技术调研结果】:**
 {research_summary}
 
-**【需求分析结果】:**
-{requirements}
-
 **【输出：完整的系统设计文档，不要使用```markdown...```代码块包围】:
 
 """
@@ -263,13 +260,10 @@ Please conduct design optimization based on the following information:
 **Technical Research Results:**
 {research_summary}
 
-**Requirements Analysis Results:**
-{requirements}
-
 Please perform the following design optimization work:
 
 1. **Architecture Design Optimization**:
-   - Design optimal system architecture based on requirements analysis results
+   - Design optimal system architecture based on user requirements and project planning
    - Choose appropriate architectural patterns (microservices, monolith, layered, etc.)
    - Determine core components and module division
 

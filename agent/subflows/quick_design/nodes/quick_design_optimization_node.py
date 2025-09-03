@@ -3,6 +3,10 @@ Quick Design Optimization Node
 
 复制 nodes.py 中 AsyncDesignOptimizationNode 的完整实现，
 移除多语言支持功能，保持相同的数据处理逻辑和提示词模板。
+
+当前版本修改：
+- 临时移除对需求分析结果的依赖，直接基于用户需求进行设计
+- 相关代码已注释保留，未来版本可能重新启用需求分析集成
 """
 
 from typing import Dict, Any
@@ -47,21 +51,23 @@ class QuickDesignOptimizationNode(AsyncNode):
             language=language
         )
 
-        # 获取需求分析结果
-        requirements = shared["requirements"]
+        # TODO: 临时移除需求分析结果依赖，未来版本可能重新启用
+        # requirements = shared["requirements"]
 
         return {
             "user_requirements": user_requirements,
             "short_planning": short_planning,
             "tools_info": tools_info,
             "research_summary": research_summary,
-            "requirements": requirements,
+            # TODO: 临时移除需求分析结果，未来版本可能重新启用
+            # "requirements": requirements,
             "language": language,
         }
 
     async def exec_async(self, input_data):
         """使用LLM生成优化建议"""
         # 使用多语言模板系统构建设计优化提示词
+        # TODO: 临时移除需求分析结果参数，未来版本可能重新启用
         prompt = get_prompt(
             PromptTypes.Agent.QUICK_DESIGN_OPTIMIZATION,
             language=input_data.get("language"),
@@ -69,7 +75,8 @@ class QuickDesignOptimizationNode(AsyncNode):
             short_planning=input_data["short_planning"],
             tools_info=input_data["tools_info"],
             research_summary=input_data["research_summary"],
-            requirements=input_data["requirements"]
+            # TODO: 临时移除需求分析结果参数，未来版本可能重新启用
+            requirements=""  # 临时传入空字符串替代需求分析结果
         )
 
         # 调用LLM生成优化建议

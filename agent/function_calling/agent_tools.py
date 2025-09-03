@@ -13,11 +13,6 @@ from agent.subflows.short_planning.flows.short_planning_flow import ShortPlannin
 from agent.subflows.deep_design_docs.flows.deep_design_docs_flow import ArchitectureFlow
 from agent.subflows.research.flows.research_flow import ResearchFlow
 
-# 导入新的工具节点
-from agent.nodes.node_tool_index import NodeToolIndex
-from agent.nodes.node_tool_recommend import NodeToolRecommend
-
-
 
 def get_agent_function_definitions() -> List[Dict[str, Any]]:
     """
@@ -138,17 +133,23 @@ def get_agent_function_definitions() -> List[Dict[str, Any]]:
         "type": "function",
         "function": {
             "name": "design",
-            "description": "**『技术实现』阶段的终点和收尾工具**。它综合所有前期成果（已确认的范围和技术选型），生成最终的系统架构方案。调用此工具意味着整个规划流程的结束。`user_requirements`参数**必须**使用在『范围确认』阶段与用户达成共识的最终版本。",
+            "description": "**『技术实现』阶段的终点和收尾工具**。它综合所有前期成果（已确认的范围和技术选型），生成最终的系统架构方案。调用此工具意味着整个规划流程的结束。`user_requirements`参数**必须**使用在『范围确认』阶段与用户达成共识的最终版本。\n\n**设计模式选择**：\n- **quick**（快速设计）：适合简单项目，流程简化，直接生成设计文档，耗时约2-3分钟\n- **deep**（深度设计）：适合复杂项目，包含完整的需求分析和架构设计流程，耗时约15分钟，请耐心等待",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "user_requirements": {
                         "type": "string",
                         "description": "用户的项目需求描述，用于指导架构设计。如果不提供，将使用之前short_planning工具的结果。"
+                    },
+                    "design_mode": {
+                        "type": "string",
+                        "enum": ["quick", "deep"],
+                        "description": "设计模式选择：'quick'=快速设计（适合简单项目，2-3分钟），'deep'=深度设计（适合复杂项目，约15分钟）"
                     }
                 },
                 "required": [
-                    "user_requirements"
+                    "user_requirements",
+                    "design_mode"
                 ]
             }
         }
@@ -450,15 +451,23 @@ async def _execute_design(arguments: Dict[str, Any], shared: Dict[str, Any] = No
     if user_requirements:
         shared["user_requirements"] = user_requirements
 
-    try:
-        # 根据配置选择设计模式
-        from utils.config_manager import is_deep_design_docs_enabled
+    # 获取设计模式参数
+    design_mode_param = arguments.get("design_mode")
 
-        if is_deep_design_docs_enabled():
+    # 验证设计模式参数
+    if design_mode_param not in ["quick", "deep"]:
+        return {
+            "success": False,
+            "error": "design_mode must be either 'quick' or 'deep'"
+        }
+
+    try:
+        # 根据用户选择的设计模式选择流程
+        if design_mode_param == "deep":
             # 使用深度设计模式（原architecture模块的循序渐进逻辑）
             flow = ArchitectureFlow()
             design_mode = "深度设计"
-        else:
+        else:  # quick
             # 使用快速设计模式（复用planning.py的简单逻辑）
             from agent.subflows.quick_design.flows.quick_design_flow import QuickDesignFlow
             flow = QuickDesignFlow()
@@ -592,9 +601,14 @@ async def call_tool_recommend(
     return await execute_agent_tool("tool_recommend", arguments)
 
 
-async def call_design(user_requirements: str = None) -> Dict[str, Any]:
-    """便捷的架构设计调用 - 支持传入用户需求或自动使用项目状态中的数据"""
-    arguments = {}
+async def call_design(user_requirements: str = None, design_mode: str = "quick") -> Dict[str, Any]:
+    """便捷的架构设计调用 - 支持传入用户需求和设计模式选择
+
+    Args:
+        user_requirements: 用户需求描述
+        design_mode: 设计模式，'quick'（快速设计，2-3分钟）或 'deep'（深度设计，约15分钟）
+    """
+    arguments = {"design_mode": design_mode}
     if user_requirements:
         arguments["user_requirements"] = user_requirements
     return await execute_agent_tool("design", arguments)
