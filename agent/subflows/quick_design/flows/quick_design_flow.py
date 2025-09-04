@@ -1,19 +1,23 @@
 """
 Quick Design Flow
 
-快速设计文档生成流程，完整复制 api/v1/planning.py 中 long_planning 的逻辑：
-- 使用 QuickRequirementsAnalysisNode 进行需求分析
-- 使用 QuickDesignOptimizationNode 进行设计优化
-- 实现与 long_planning 相同的节点连接模式
+快速设计文档生成流程，当前版本临时简化移除需求分析步骤：
+- 直接使用 QuickDesignOptimizationNode 进行设计优化
+- 跳过需求分析环节，直接基于用户输入生成设计文档
 
 流程架构：
-1. 需求分析 → 分析用户需求和项目规划
-2. 设计优化 → 基于需求分析生成完整设计文档
+1. 设计优化 → 直接基于用户需求和项目规划生成完整设计文档
+
+注意：
+- 当前版本临时移除需求分析节点以简化流程
+- 需求分析相关代码已注释保留，未来版本可能重新启用
+- 这是"软移除"策略，便于后续快速恢复功能
 """
 
 from pocketflow import AsyncFlow
 from pocketflow_tracing import trace_flow
-from ..nodes.quick_requirements_analysis_node import QuickRequirementsAnalysisNode
+# TODO: 临时移除需求分析节点导入，未来版本可能重新启用
+# from ..nodes.quick_requirements_analysis_node import QuickRequirementsAnalysisNode
 from ..nodes.quick_design_optimization_node import QuickDesignOptimizationNode
 from agent.streaming import (
     emit_processing_status,
@@ -58,24 +62,24 @@ class TracedQuickDesignFlow(AsyncFlow):
 
 def create_quick_design_flow():
     """
-    创建完整的快速设计流程。
+    创建简化的快速设计流程。
 
     流程设计：
-    1. 需求分析 -> 2. 设计优化
+    1. 设计优化（直接开始，跳过需求分析）
 
     Returns:
-        Flow: 完整的快速设计流程
+        Flow: 简化的快速设计流程
     """
-    # 创建节点实例
-    requirements_analysis = QuickRequirementsAnalysisNode()
+    # TODO: 临时移除需求分析节点创建，未来版本可能重新启用
+    # requirements_analysis = QuickRequirementsAnalysisNode()
     design_optimization = QuickDesignOptimizationNode()
 
-    # 连接节点：需求分析 >> 设计优化
-    requirements_analysis - "default" >> design_optimization
+    # TODO: 临时移除需求分析节点连接，未来版本可能重新启用
+    # requirements_analysis - "default" >> design_optimization
 
-    # 创建并返回带tracing的AsyncFlow，从需求分析开始
+    # 创建并返回带tracing的AsyncFlow，直接从设计优化开始
     flow = TracedQuickDesignFlow()
-    flow.start_node = requirements_analysis
+    flow.start_node = design_optimization
     return flow
 
 
