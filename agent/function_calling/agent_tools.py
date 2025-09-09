@@ -216,12 +216,13 @@ async def _execute_short_planning(arguments: Dict[str, Any], shared: Dict[str, A
         if isinstance(previous_planning_data, str):
             previous_planning = previous_planning_data
 
-    # 如果是技术规划阶段，验证是否已有工具推荐结果
-    if planning_stage == "technical" and shared and not shared.get("recommended_tools"):
-        return {
-            "success": False,
-            "error": "技术规划阶段需要先调用 tool_recommend 工具获取技术栈推荐"
-        }
+    # 如果是技术规划阶段，检查是否已有工具推荐结果（可选）
+    # 注意：tool_recommend 可能返回空结果（没有合适的工具），这是正常情况
+    has_tool_recommendations = shared and shared.get("recommended_tools")
+    if planning_stage == "technical" and shared:
+        # 记录工具推荐状态，但不强制要求
+        tool_recommend_status = "已获取工具推荐" if has_tool_recommendations else "未找到合适工具或未调用工具推荐"
+        shared["tool_recommend_status"] = tool_recommend_status
 
     # 如果没有用户需求且没有改进点，但有shared上下文，则可以继续执行
     if not user_requirements and not improvement_points and not shared:

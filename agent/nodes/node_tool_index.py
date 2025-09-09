@@ -143,7 +143,7 @@ class NodeToolIndex(AsyncNode):
         """
         if "error" in prep_res:
             raise ValueError(prep_res["error"])
-        
+
         parsed_tools = prep_res["parsed_tools"]
         index_name = prep_res["index_name"]
         force_reindex = prep_res.get("force_reindex", False)
@@ -157,34 +157,31 @@ class NodeToolIndex(AsyncNode):
         try:
             start_time = time.time()
 
-            # 如果需要强制重建索引，先清除现有索引数据
-            if force_reindex:
-                shared_for_events = {"streaming_session": prep_res.get("streaming_session")}
-                await self._clear_index(index_name, shared_for_events)
+            # 每次启动都清除现有索引数据，确保使用最新的工具信息
+            shared_for_events = {"streaming_session": prep_res.get("streaming_session")}
+            await self._clear_index(index_name, shared_for_events)
 
             # 构建文档列表
             documents = []
             for tool in parsed_tools:
                 doc = self._build_document(tool)
                 documents.append(doc)
-            
-            # 调用向量服务进行批量索引
-            # 从 prep_res 中获取 streaming_session 用于事件发送
-            shared_for_events = {"streaming_session": prep_res.get("streaming_session")}
+
+            # 调用向量服务进行批量索引，使用固定的索引名
             index_result = await self._index_documents(documents, index_name, shared_for_events)
-            
+
             index_time = time.time() - start_time
-            
+
             return {
                 "indexed_count": index_result.get("count", len(documents)),
-                "index_name": index_result.get("index", index_name),
+                "index_name": index_result.get("index", index_name),  # 返回实际使用的索引名
                 "index_time": round(index_time * 1000),  # 转换为毫秒
                 "documents": documents,
                 "failed_tools": prep_res.get("failed_files", []),
                 "total_processed": prep_res["tools_count"],
                 "force_reindex": force_reindex
             }
-            
+
         except Exception as e:
             raise RuntimeError(f"Tool indexing execution failed: {str(e)}")
     
@@ -410,17 +407,15 @@ class NodeToolIndex(AsyncNode):
     async def _index_documents(self, documents: List[Dict[str, Any]], index_name: str, shared: Dict[str, Any]) -> Dict[str, Any]:
         """调用向量服务进行文档索引"""
         try:
-            # 构建请求数据
+            # 先尝试使用指定的索引名
             request_data = {
                 "documents": documents,
-                "vector_field": self.vector_field
+                "vector_field": self.vector_field,
+                "index": index_name
             }
 
-            # 尝试使用指定的索引名
-            if index_name:
-                request_data["index"] = index_name
+            await emit_processing_status(shared, f"📝 尝试使用索引 {index_name} 进行索引...")
 
-            # 调用向量服务
             response = requests.post(
                 f"{self.vector_service_url}/documents",
                 json=request_data,
@@ -428,21 +423,40 @@ class NodeToolIndex(AsyncNode):
                 headers={"Content-Type": "application/json"}
             )
 
-            # 如果指定索引不存在，尝试不指定索引名让服务自动创建
-            if (response.status_code in [400, 404]) and "不存在" in response.text and index_name:
-                await emit_processing_status(shared, f"⚠️ 索引 {index_name} 不存在，尝试自动创建索引...")
-                request_data.pop("index", None)  # 移除索引名
+            if response.status_code == 200:
+                result = response.json()
+                await emit_processing_status(shared, f"✅ 成功索引 {result.get('count', 0)} 个工具到索引 {index_name}")
+                result["index"] = index_name
+                return result
+            elif response.status_code == 404 and "不存在" in response.text:
+                # 索引不存在，让服务自动创建一个新索引
+                await emit_processing_status(shared, f"📝 索引 {index_name} 不存在，让服务自动创建新索引...")
+
+                # 不指定索引名，让服务自动创建
+                auto_request_data = {
+                    "documents": documents,
+                    "vector_field": self.vector_field
+                    # 不指定 index
+                }
+
                 response = requests.post(
                     f"{self.vector_service_url}/documents",
-                    json=request_data,
+                    json=auto_request_data,
                     timeout=self.timeout,
                     headers={"Content-Type": "application/json"}
                 )
 
-            if response.status_code == 200:
-                result = response.json()
-                await emit_processing_status(shared, f"✅ 成功索引 {result.get('count', 0)} 个工具到 {result.get('index', index_name)}")
-                return result
+                if response.status_code == 200:
+                    result = response.json()
+                    actual_index_name = result.get("index")
+                    await emit_processing_status(shared, f"✅ 成功创建新索引 {actual_index_name}，索引了 {result.get('count', 0)} 个工具")
+
+                    # 返回实际创建的索引名，这将成为新的固定索引名
+                    return result
+                else:
+                    error_msg = f"自动创建索引失败: {response.status_code}, {response.text}"
+                    await emit_error(shared, f"❌ {error_msg}")
+                    raise RuntimeError(error_msg)
             else:
                 error_msg = f"向量服务返回错误: {response.status_code}, {response.text}"
                 await emit_error(shared, f"❌ {error_msg}")

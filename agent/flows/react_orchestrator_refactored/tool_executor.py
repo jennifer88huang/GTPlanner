@@ -110,6 +110,17 @@ class ToolExecutor:
                 StreamEventBuilder.tool_call_start(streaming_session.session_id, tool_status)
             )
 
+            # 立即发送进度事件，将状态更新为 running
+            tool_status_running = ToolCallStatus(
+                tool_name=tool_name,
+                status="running",
+                call_id=call_id,
+                progress_message=f"正在执行{tool_name}工具..."
+            )
+            await streaming_session.emit_event(
+                StreamEventBuilder.tool_call_progress(streaming_session.session_id, tool_status_running)
+            )
+
             start_time = time.time()
             tool_result = await execute_agent_tool(tool_name, arguments, shared)
             execution_time = time.time() - start_time

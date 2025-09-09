@@ -42,7 +42,8 @@ supported_languages = ["en", "zh", "es", "fr", "ja"]
 base_url = "http://localhost:8080"  # Default fallback, override with VECTOR_SERVICE_BASE_URL
 timeout = 30  # Override with VECTOR_SERVICE_TIMEOUT
 # Index name for tools - override with VECTOR_SERVICE_INDEX_NAME
-tools_index_name = "tools_index"
+# Note: Index name must start with 'document_' prefix as required by vector service
+tools_index_name = "document_gtplanner_tools"
 # Vector field name for document embedding - override with VECTOR_SERVICE_VECTOR_FIELD
 vector_field = "combined_text"
 

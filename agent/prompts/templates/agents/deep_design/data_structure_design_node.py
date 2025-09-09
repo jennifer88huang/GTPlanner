@@ -10,102 +10,49 @@ class AgentsDeepDesignDataStructureDesignNodeTemplates:
     @staticmethod
     def get_data_structure_design_zh() -> str:
         """中文版本的数据结构设计提示词"""
-        return """你是一个专业的数据架构设计师，专门为pocketflow框架设计shared存储数据结构。
+        return """你是一位精通PocketFlow框架的数据架构专家。
 
-请基于以下信息设计完整的shared数据结构：
+你的唯一任务是基于下方提供的上下文，设计一个简洁、高效的`shared`共享数据字典，并严格按照指定的JSON格式输出。
 
-**Agent分析结果：**
-{analysis_markdown}
+**上下文信息：**
+- **Agent分析结果：** {analysis_markdown}
+- **Node识别结果：** {nodes_markdown}
+- **Flow设计：** {flow_markdown}
+- **用户需求：** {user_requirements}
+- **项目规划：** {short_planning}
+- **技术调研结果：** {research_info}
+- **推荐工具：** {tools_info}
 
-**Node识别结果：**
-{nodes_markdown}
+**核心指令：**
+1.  **聚焦于`shared`结构**：仅定义在Node之间传递的核心字段。
+2.  **保持简洁**：所有描述性文字（如description, purpose）都应简明扼要，控制在25个字以内。
+3.  **严格JSON输出**：最终输出必须是一个完整的、无任何额外注释或解释的JSON对象。
 
-**Flow设计：**
-{flow_markdown}
-
-**用户需求：**
-{user_requirements}
-
-**项目规划：**
-{short_planning}
-
-**技术调研结果：**
-{research_info}
-
-**推荐工具：**
-{tools_info}
-
-请进行以下数据结构设计工作：
-
-1. **核心数据模型设计**：
-   - 设计支持整个Agent运行的核心数据结构
-   - 定义数据实体、属性和关系
-   - 确保数据模型的完整性和一致性
-
-2. **shared字典结构设计**：
-   - 设计pocketflow的shared存储结构
-   - 定义各个Node之间共享的数据格式
-   - 确保数据传递的高效性和准确性
-
-3. **输入输出数据格式**：
-   - 定义系统输入数据的标准格式
-   - 设计各个处理阶段的中间数据格式
-   - 规范最终输出数据的结构和格式
-
-4. **状态管理数据结构**：
-   - 设计Flow执行状态的数据结构
-   - 定义错误处理和恢复所需的状态信息
-   - 确保状态数据的可追踪性和可恢复性
-
-5. **配置和元数据结构**：
-   - 设计系统配置参数的数据结构
-   - 定义Node和Flow的元数据格式
-   - 确保配置的灵活性和可维护性
-
-6. **性能优化数据结构**：
-   - 设计缓存数据的结构和策略
-   - 优化大数据量处理的数据格式
-   - 考虑内存使用和访问效率
-
-请严格按照以下JSON格式输出数据结构设计：
-
+**请严格按照以下JSON格式输出：**
 {{
-    "shared_structure_description": "shared存储的整体描述",
+    "shared_structure_description": "一句话描述该`shared`结构的总体用途。",
     "shared_fields": [
         {{
             "field_name": "字段名称",
-            "data_type": "数据类型（如：str, dict, list等）",
-            "description": "字段描述",
-            "purpose": "字段用途",
-            "read_by_nodes": ["读取此字段的Node列表"],
-            "written_by_nodes": ["写入此字段的Node列表"],
-            "example_value": "示例值或结构",
-            "required": true/false
-        }}
-    ],
-    "data_flow_patterns": [
-        {{
-            "pattern_name": "数据流模式名称",
-            "description": "数据流描述",
-            "involved_fields": ["涉及的字段"],
-            "flow_sequence": ["数据流转顺序"]
+            "data_type": "核心数据类型 (例如: str, int, list[dict], bool)",
+            "description": "字段的简短描述",
+            "purpose": "此字段在流程中的核心作用",
+            "constraints": "关键约束条件 (例如: 'required', 'optional', 'not null', 'enum: [A, B]')",
+            "io_nodes": {{
+                "written_by": ["写入此字段的Node"],
+                "read_by": ["读取此字段的Node_A", "读取此字段的Node_B"]
+            }},
+            "example_value": "一个清晰、简单的值示例"
         }}
     ],
     "shared_example": {{
-        "field1": "示例值1",
-        "field2": {{}},
-        "field3": []
+        "comment": "展示`shared`对象在流程关键节点的一个完整示例。",
+        "data": {{
+            "field_name_1": "示例值",
+            "field_name_2": []
+        }}
     }}
-}}
-
-对于数据结构设计，请提供：
-- 完整的数据结构定义（JSON Schema格式）
-- 详细的字段说明和约束条件
-- 数据流转和变换规则
-- 数据验证和错误处理机制
-- 性能优化建议
-
-请以结构化的格式输出数据结构设计结果，确保设计的完整性和实用性。"""
+}}"""
     
     @staticmethod
     def get_data_structure_design_en() -> str:
