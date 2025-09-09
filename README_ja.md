@@ -12,6 +12,7 @@
   <a href="#-概要">概要</a> •
   <a href="#-web-ui-推奨">Web UI</a> •
   <a href="#mcp統合">MCP統合</a> •
+  <a href="#-クイックスタート">クイックスタート</a> •
   <a href="#-機能">機能</a> •
   <a href="#-環境要件-バックエンドとcli">環境要件</a> •
   <a href="#-インストール-バックエンドとcli">インストール</a> •
@@ -74,6 +75,248 @@ GTPlannerが生成した計画は、お気に入りのAIプログラミングツ
 
 
 ---
+
+## ⚡ クイックスタート
+以下は**最もスムーズ**で**すぐに使える** GTPlanner 体験パス — ゼロから最初のPRDを生成するまで、数個のコマンドで完了します。
+
+
+### 1) オンライン体験（インストール不要）
+
+* Web UI オンラインデモを開く：the-agent-builder.com
+  👉 「まず効果を感じたい」方に最適 — 見たままの計画と文書生成体験。
+
+### 2) ローカル実行（5分で開始）
+
+#### 環境準備
+
+* **Python ≥ 3.10**（3.11+ 推奨）
+* パッケージマネージャー：**uv**（推奨）または **pip**
+* OpenAI 互換の LLM API Key を準備（例：`OpenAI` / `Anthropic` / `Azure OpenAI` / セルフホストエンドポイント）
+
+#### クローンとインストール
+
+```bash
+git clone https://github.com/OpenSQZ/GTPlanner.git
+cd GTPlanner
+
+# 推奨：uv ワンクリックインストール
+uv sync
+
+# または pip を使用
+pip install -e .
+```
+
+#### API Key の設定
+
+GTPlanner は複数の設定方法をサポートしています。**必要な環境変数**には以下が含まれます：
+
+```bash
+# コア設定（必須）
+export LLM_API_KEY="your-api-key-here"        # API キー
+export LLM_BASE_URL="https://api.openai.com/v1"  # API ベース URL
+export LLM_MODEL="gpt-4"                       # モデル名
+
+# Windows PowerShell ユーザー：
+# $env:LLM_API_KEY="your-api-key-here"
+# $env:LLM_BASE_URL="https://api.openai.com/v1"
+# $env:LLM_MODEL="gpt-4"
+
+# オプション設定
+export JINA_API_KEY="your-jina-key"           # Jina AI 検索サービスキー（ウェブ検索用）
+
+# Langfuse 設定（オプション、PocketFlow Tracing 用）
+export LANGFUSE_SECRET_KEY="your-secret-key"  # Langfuse シークレットキー
+export LANGFUSE_PUBLIC_KEY="your-public-key"  # Langfuse パブリックキー  
+export LANGFUSE_HOST="https://cloud.langfuse.com"  # Langfuse ホスト
+```
+
+##### 一般的なプロバイダー設定例
+
+**OpenAI 公式：**
+```bash
+export LLM_API_KEY="sk-your-openai-key"
+export LLM_BASE_URL="https://api.openai.com/v1"
+export LLM_MODEL="gpt-4"
+```
+
+**Azure OpenAI：**
+```bash
+export LLM_API_KEY="your-azure-key"
+export LLM_BASE_URL="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+export LLM_MODEL="gpt-4"
+```
+
+**プロキシサービス：**
+```bash
+export LLM_API_KEY="your-proxy-key"
+export LLM_BASE_URL="https://api.chatanywhere.com.cn/v1"
+export LLM_MODEL="gpt-4"
+```
+
+**ローカルデプロイメント：**
+```bash
+export LLM_API_KEY="local-key"
+export LLM_BASE_URL="http://localhost:8000/v1"
+export LLM_MODEL="your-local-model"
+```
+
+##### Langfuse Tracing 設定（オプションですが推奨）
+
+GTPlanner は実行追跡のために PocketFlow Tracing を統合しています。有効にするには：
+
+**方法 1：設定スクリプトを使用（推奨）**
+```bash
+# 設定ウィザードを実行
+bash configure_langfuse.sh
+```
+
+**方法 2：手動設定**
+1. [Langfuse Cloud](https://cloud.langfuse.com) にアクセスしてアカウントを登録
+2. 新しいプロジェクトを作成し、API キーを取得
+3. 環境変数を設定：
+   ```bash
+   export LANGFUSE_SECRET_KEY="sk-lf-..."
+   export LANGFUSE_PUBLIC_KEY="pk-lf-..."
+   export LANGFUSE_HOST="https://cloud.langfuse.com"
+   ```
+
+**方法 3：一時的にトレーシングを無効化**
+一時的にトレーシング機能が不要な場合は、Langfuse 設定を無視できます。システムは自動的にトレーシングをスキップします。
+
+> `settings.toml` でその他のパラメータをさらに設定できます。デフォルト言語は英語、中国語、日本語、スペイン語、フランス語をサポート。
+
+---
+
+### 3) 方法 A：CLI ワンクリックで最初の PRD を生成（推奨）
+
+#### インタラクティブモード
+
+```bash
+python gtplanner.py
+# または
+python agent/cli/gtplanner_cli.py
+```
+
+入力後、直接要件を入力します。例：
+
+```
+オンラインコースプラットフォームの PRD を生成：ユーザー登録/ログイン、コース検索、プレビュー、購入、学習進度と課題評価。
+```
+
+> CLI にはセッション管理（/sessions、/load）、ストリーミング出力、多言語インターフェースが組み込まれています。
+
+#### 直接実行（非インタラクティブ）
+
+```bash
+python gtplanner.py "SaaS課金とチーム協業をサポートするプロジェクト管理プラットフォームを設計し、PRDを出力"
+```
+
+---
+
+### 4) 方法 B：REST API の開始（独自のフロントエンド/自動化との統合用）
+
+#### サービスの開始
+
+```bash
+uv run fastapi_main.py
+# デフォルト：http://0.0.0.0:11211
+# ドキュメント：http://0.0.0.0:11211/docs
+```
+
+#### 1つの curl コマンドで開始（SSE/ストリーミング Agent API）
+
+```bash
+curl -X POST "http://127.0.0.1:11211/api/chat/agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "quickstart-demo",
+    "dialogue_history": [
+      {"role":"user","content":"ECプラットフォームのPRDを生成：SKU、ショッピングカート、クーポン、在庫、決済とリスク管理"}
+    ],
+    "language": "ja"
+  }'
+```
+
+> このエンドポイントは **SSE ストリーミング**レスポンスを返し、`StatelessGTPlanner` バックエンドを使用し、ツール実行ステータスの更新を含みます。
+
+
+### 5) 方法 C：MCP 統合（AI IDE / アシスタントとの接続）
+
+#### 環境設定
+
+MCP サービスはメインサービスと同じ環境変数が必要です。以下を設定していることを確認してください：
+
+```bash
+# 必要な環境変数（メインサービスと同じ）
+export LLM_API_KEY="your-api-key-here"
+export LLM_BASE_URL="https://api.openai.com/v1"
+export LLM_MODEL="gpt-4"
+
+# オプション設定
+export JINA_API_KEY="your-jina-key"  # ウェブ検索機能用
+```
+
+#### サービスの開始
+
+1. MCP サービスを開始
+
+   ```bash
+   cd mcp
+   uv sync
+   uv run python mcp_service.py
+   ```
+
+   > **注意**：MCP サービスは独立した環境で実行されますが、メインプロジェクトの設定を継承します。開始前に環境変数が正しく設定されていることを確認してください。
+
+2. MCP クライアントで設定：
+
+   ```json
+   {
+     "mcpServers": {
+       "GT-planner": { 
+         "command": "uv",
+         "args": ["run", "python", "mcp_service.py"],
+         "cwd": "/path/to/GTPlanner/mcp"
+       }
+     }
+   }
+   ```
+
+   または実行中のサービスに直接接続：
+
+   ```json
+   {
+     "mcpServers": {
+       "GT-planner": { "url": "http://127.0.0.1:8001/mcp" }
+     }
+   }
+   ```
+
+3. 利用可能なツール：
+   - `generate_flow`（要件から計画フローを生成）
+   - `generate_design_doc`（詳細な PRD を生成）
+   
+   複数言語をサポート：`en`、`zh`、`ja`、`es`、`fr`
+
+### 6) 成功検証（表示されるべき内容）
+
+* **CLI**：ターミナルで「分析 → 計画 → 研究/アーキテクチャ → 文書出力」のリアルタイムストリーミング、構造化された PRD フラグメント。
+* **API**：Swagger の `/docs` を開く、または `curl` を使用してストリーミング/セグメント化されたレスポンスを取得；レスポンス本体には最終文書内容とステップバイステッププロセスが含まれます。
+* **MCP**：MCP 対応エディター（Cursor / Cherry Studio など）で対応するツールを直接呼び出して計画/PRD を生成。
+
+
+### 7) よくある問題
+
+* **ネットワーク/依存関係の問題**：`uv sync` の使用を優先し、環境の落とし穴を大幅に削減。
+* **モデルとコスト**：OpenAI 互換サーバーであれば何でも動作；最小コンテキストと短い入力でパイプラインをテストし、その後要件を拡張。
+* **環境変数**：`LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` の3つのコア変数が正しく設定されていることを確認。
+* **MCP サービス設定**：MCP サービスはメインサービスと同じ環境変数が必要、開始前に環境設定を確認。
+* **トレーシング設定**：Langfuse は実行追跡のオプション。`bash configure_langfuse.sh` でクイックセットアップ、または一時的に無視。
+* **言語**：`language` は `zh | en | ja | es | fr` に設定可能、またはシステムの自動検出。
+* **互換性**：OpenAI、Azure OpenAI、Anthropic Claude（プロキシ経由）、主要な国内モデルサービスプロバイダーをサポート。
+
+---
+
 
 ## ✨ 機能
 
