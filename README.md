@@ -149,7 +149,7 @@ export LLM_MODEL="gpt-4"
 **Proxy Services:**
 ```bash
 export LLM_API_KEY="your-proxy-key"
-export LLM_BASE_URL="https://api.chatanywhere.com.cn/v1"
+export LLM_BASE_URL="https://your-proxy-provider.com/v1"
 export LLM_MODEL="gpt-4"
 ```
 
