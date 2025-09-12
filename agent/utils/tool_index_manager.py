@@ -46,7 +46,7 @@ class ToolIndexManager:
 
         # 索引状态
         self._index_created = False
-        self._index_name = vector_config.get("tools_index_name", "tools_index")  # 从配置读取索引名称
+        self._index_name = vector_config.get("tools_index_name", "tools_index")
         self._current_index_name = None
         self._last_index_time = None
         self._last_tools_dir_mtime = None
@@ -89,82 +89,29 @@ class ToolIndexManager:
             return self._current_index_name or self._index_name
     
     async def _should_rebuild_index(
-        self, 
-        tools_dir: str, 
+        self,
+        tools_dir: str,
         force_reindex: bool,
         shared: Dict[str, Any] = None
     ) -> bool:
-        """检查是否需要重建索引"""
-        
+        """检查是否需要重建索引 - 简化版：总是在首次调用时创建新索引"""
+
         # 强制重建
         if force_reindex:
             if shared:
                 await emit_processing_status(shared, "🔄 强制重建工具索引...")
             return True
-        
-        # 首次创建
+
+        # 首次创建或索引未创建时，总是创建新索引
         if not self._index_created:
             if shared:
-                await emit_processing_status(shared, "🆕 首次创建工具索引...")
+                await emit_processing_status(shared, "🆕 创建新的工具索引...")
             return True
-        
-        # 检查工具目录是否有变化
-        if await self._tools_directory_changed(tools_dir):
-            if shared:
-                await emit_processing_status(shared, "📁 检测到工具目录变化，更新索引...")
-            return True
-        
-        # 检查索引是否在向量服务中存在
-        if not await self._index_exists_in_service():
-            if shared:
-                await emit_processing_status(shared, "❓ 索引在向量服务中不存在，重新创建...")
-            return True
-        
+
+        # 已经创建过索引，不再重建
         return False
     
-    async def _tools_directory_changed(self, tools_dir: str) -> bool:
-        """检查工具目录是否有变化"""
-        try:
-            tools_path = Path(tools_dir)
-            if not tools_path.exists():
-                return True
-            
-            # 获取目录及其子目录中所有文件的最新修改时间
-            latest_mtime = 0
-            # 支持.yaml和.yml两种扩展名
-            for pattern in ["*.yaml", "*.yml"]:
-                for file_path in tools_path.rglob(pattern):
-                    file_mtime = file_path.stat().st_mtime
-                    latest_mtime = max(latest_mtime, file_mtime)
-            
-            # 如果没有记录的修改时间，说明是首次检查，需要重建
-            if self._last_tools_dir_mtime is None:
-                self._last_tools_dir_mtime = latest_mtime
-                return True
-
-            # 如果有文件更新，需要重建
-            if latest_mtime > self._last_tools_dir_mtime:
-                self._last_tools_dir_mtime = latest_mtime
-                return True
-
-            return False
-            
-        except Exception:
-            # 出错时保守地认为需要重建
-            return True
-    
-    async def _index_exists_in_service(self) -> bool:
-        """检查索引是否在向量服务中存在"""
-        if not self._vector_service_url or not self._current_index_name:
-            return False
-            
-        try:
-            import requests
-            # 这里可以添加向量服务的索引检查API调用
-            # 暂时返回True，假设索引存在
-            return True
-        except Exception:
-            return False
+    # 简化版本：移除复杂的变化检测逻辑，每次启动时创建新索引
     
     async def _create_index(self, tools_dir: str, shared: Dict[str, Any] = None):
         """创建或重建工具索引"""
@@ -193,13 +140,10 @@ class ToolIndexManager:
             
             exec_result = await self._index_node.exec_async(prep_result)
             self._current_index_name = exec_result.get("index_name", self._index_name)
-            
+
             # 更新状态
             self._index_created = True
             self._last_index_time = datetime.now()
-
-            # 更新工具目录修改时间，避免下次误判为需要重建
-            await self._tools_directory_changed(tools_dir)
             
             index_time = time.time() - start_time
             

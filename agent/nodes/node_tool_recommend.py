@@ -457,9 +457,19 @@ class NodeToolRecommend(AsyncNode):
             # 解析JSON响应
             response_content = response.choices[0].message.content
             try:
-                response_json = json.loads(response_content)
-            except json.JSONDecodeError:
-                await emit_error(shared, f"❌ 大模型返回的不是有效JSON: {response_content}")
+                # 清理响应内容，移除可能的markdown代码块标记
+                cleaned_content = response_content.strip()
+                if cleaned_content.startswith("```json"):
+                    cleaned_content = cleaned_content[7:]  # 移除 ```json
+                if cleaned_content.startswith("```"):
+                    cleaned_content = cleaned_content[3:]   # 移除 ```
+                if cleaned_content.endswith("```"):
+                    cleaned_content = cleaned_content[:-3]  # 移除结尾的 ```
+                cleaned_content = cleaned_content.strip()
+
+                response_json = json.loads(cleaned_content)
+            except json.JSONDecodeError as e:
+                await emit_error(shared, f"❌ 大模型返回的不是有效JSON: {response_content[:500]}... 错误: {str(e)}")
                 return []  # JSON解析失败时返回空列表
 
             # 解析大模型响应
