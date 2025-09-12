@@ -5,7 +5,7 @@ on:
   push:
     branches: [ main ]
     tags:
-      - 'v*'  
+      - 'v*'
   pull_request:
     branches: [ main ]
 
@@ -147,7 +147,60 @@ jobs:
           ${{ steps.image-info.outputs.latest-image-name }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        
+
+
+  docker-build-push-test:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      image-tag: ${{ steps.image-info.outputs.image-tag }}
+      full-image-name: ${{ steps.image-info.outputs.full-image-name }}
+
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+
+    - name: 设置Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: 登录GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 生成测试镜像标签和元数据
+      id: image-info
+      run: |
+        # 使用分支名和commit SHA作为测试镜像标签
+        BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+        BRANCH_NAME=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9._-]/-/g')
+        SHORT_SHA=${GITHUB_SHA::7}
+        IMAGE_TAG="test-${BRANCH_NAME}-${SHORT_SHA}"
+
+        # 使用仓库owner作为组织名，转换为小写（Docker要求）
+        REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+        FULL_IMAGE_NAME="${{ env.REGISTRY }}/${REPO_OWNER}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}"
+
+        echo "image-tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+        echo "full-image-name=${FULL_IMAGE_NAME}" >> $GITHUB_OUTPUT
+
+    - name: 构建并推送测试Docker镜像
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: true
+        tags: ${{ steps.image-info.outputs.full-image-name }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
 
   deploy-to-kubernetes:
@@ -219,4 +272,66 @@ jobs:
         echo "标签: $TAG_NAME"
         echo "镜像: ${{ needs.docker-build-push.outputs.full-image-name }}"
         echo "命名空间: ${{ env.NAMESPACE }}"
-        echo "Deployment: ${{ env.DEPLOYMENT_NAME }}" 
+        echo "Deployment: ${{ env.DEPLOYMENT_NAME }}"
+
+
+  deploy-to-test-kubernetes:
+    needs: docker-build-push-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout代码
+      uses: actions/checkout@v4
+
+    - name: Deploy to Test Kubernetes
+      env:
+        K8S_TEST_TOKEN: ${{ secrets.K8S_TEST_TOKEN }}
+        VERSION: ${{ github.sha }}
+      run: |
+        # 使用测试环境的镜像
+        IMAGE_TAG="${{ needs.docker-build-push-test.outputs.full-image-name }}"
+
+        echo "Deploying test image: $IMAGE_TAG"
+        echo "Branch: ${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+        echo "Commit: ${GITHUB_SHA::7}"
+
+        # 使用您提供的测试环境K8s部署脚本
+        curl -X PATCH \
+          -H "content-type: application/strategic-merge-patch+json" \
+          -H "Authorization:Bearer $K8S_TEST_TOKEN" \
+          -d "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"gt-planner-backend-test\",\"image\":\"$IMAGE_TAG\"}]}}}}" \
+          "http://kuboard.sensedeal.wiki/k8s-api/apis/apps/v1/namespaces/agent-build/deployments/gt-planner-backend-test"
+
+        echo "Test deployment updated successfully"
+
+    - name: Verify test deployment
+      env:
+        K8S_TEST_TOKEN: ${{ secrets.K8S_TEST_TOKEN }}
+      run: |
+        # 等待测试部署完成
+        echo "Waiting for test deployment to complete..."
+
+        # 检查部署状态
+        for i in {1..30}; do
+          STATUS=$(curl -s -H "Authorization: Bearer $K8S_TEST_TOKEN" \
+            "http://kuboard.sensedeal.wiki/k8s-api/apis/apps/v1/namespaces/agent-build/deployments/gt-planner-backend-test" | \
+            jq -r '.status.conditions[] | select(.type=="Progressing") | .status' 2>/dev/null || echo "Unknown")
+
+          if [ "$STATUS" = "True" ]; then
+            echo "Test deployment completed successfully"
+            break
+          fi
+
+          echo "Waiting for test deployment... ($i/30)"
+          sleep 10
+        done
+
+    - name: 测试部署成功通知
+      run: |
+        BRANCH_NAME=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
+        echo "🧪 测试环境部署成功!"
+        echo "分支: $BRANCH_NAME"
+        echo "镜像: ${{ needs.docker-build-push-test.outputs.full-image-name }}"
+        echo "命名空间: agent-build"
+        echo "Deployment: gt-planner-backend-test"
