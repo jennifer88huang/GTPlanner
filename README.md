@@ -705,8 +705,9 @@ Improve planning quality and system performance through evaluation-driven develo
 Share your use cases, tutorials, and best practices to help the community unlock the full potential of GTPlanner.
 
 ### 📖 Detailed Guide
+2 types of contributions are accepted: tool spec or core code.
 For complete contribution methods, technical specifications, and submission processes, please see:
-**[Contribution Guide](CONTRIBUTING.md)** - Includes detailed contribution flows, templates, and examples.
+**[Contribution Guide](contribute.md)** - Includes detailed contribution flows, templates, and examples.
 
 ## 📄 License
 
