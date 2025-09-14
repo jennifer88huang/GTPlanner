@@ -235,7 +235,7 @@ curl -X POST "http://127.0.0.1:11211/api/chat/agent" \
   -d '{
     "session_id": "quickstart-demo",
     "dialogue_history": [
-      {"role":"user","content":"为一个电商平台生成PRD：SKU、购物车、优惠券、库存、支付与风控"}
+      {"role":"user","content":"電子商取引プラットフォーム向けの自動化エージェントのPRDを作成します：自動支払い管理とリスクモニタリング。"}
     ],
     "language": "zh"
   }'

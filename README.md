@@ -227,7 +227,7 @@ curl -X POST "http://127.0.0.1:11211/api/chat/agent" \
   -d '{
     "session_id": "quickstart-demo",
     "dialogue_history": [
-      {"role":"user","content":"Generate PRD for an e-commerce platform: SKU, shopping cart, coupons, inventory, payment and risk control"}
+      {"role":"user","content":"Generate PRD for an e-commerce agent: auto payment and risk control"}
     ],
     "language": "en"
   }'

@@ -233,7 +233,7 @@ curl -X POST "http://127.0.0.1:11211/api/chat/agent" \
   -d '{
     "session_id": "quickstart-demo",
     "dialogue_history": [
-      {"role":"user","content":"ECプラットフォームのPRDを生成：SKU、ショッピングカート、クーポン、在庫、決済とリスク管理"}
+      {"role":"user","content":"ECプラットフォームのPRDを生成：決済とリスク管理"}
     ],
     "language": "ja"
   }'
