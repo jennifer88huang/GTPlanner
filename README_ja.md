@@ -108,13 +108,15 @@ pip install -e .
 
 #### API Key の設定
 
-GTPlanner は複数の設定方法をサポートしています。**必要な環境変数**には以下が含まれます：
+GTPlanner は複数の設定方法をサポートしています。
+MCP サービスは、メインサービスと同じ**環境変数**を必要とします。
+.env.example を .env に名前変更し、.env ファイルに以下が設定されていることを確認してください。
 
 ```bash
 # コア設定（必須）
-export LLM_API_KEY="your-api-key-here"        # API キー
-export LLM_BASE_URL="https://api.openai.com/v1"  # API ベース URL
-export LLM_MODEL="gpt-4"                       # モデル名
+LLM_API_KEY="your-api-key-here"        # API キー
+LLM_BASE_URL="https://api.openai.com/v1"  # API ベース URL
+LLM_MODEL="gpt-4"                       # モデル名
 
 # Windows PowerShell ユーザー：
 # $env:LLM_API_KEY="your-api-key-here"
@@ -122,42 +124,42 @@ export LLM_MODEL="gpt-4"                       # モデル名
 # $env:LLM_MODEL="gpt-4"
 
 # オプション設定
-export JINA_API_KEY="your-jina-key"           # Jina AI 検索サービスキー（ウェブ検索用）
+JINA_API_KEY="your-jina-key"           # Jina AI 検索サービスキー（ウェブ検索用）
 
 # Langfuse 設定（オプション、PocketFlow Tracing 用）
-export LANGFUSE_SECRET_KEY="your-secret-key"  # Langfuse シークレットキー
-export LANGFUSE_PUBLIC_KEY="your-public-key"  # Langfuse パブリックキー  
-export LANGFUSE_HOST="https://cloud.langfuse.com"  # Langfuse ホスト
+LANGFUSE_SECRET_KEY="your-secret-key"  # Langfuse シークレットキー
+LANGFUSE_PUBLIC_KEY="your-public-key"  # Langfuse パブリックキー  
+LANGFUSE_HOST="https://cloud.langfuse.com"  # Langfuse ホスト
 ```
 
 ##### 一般的なプロバイダー設定例
 
 **OpenAI 公式：**
 ```bash
-export LLM_API_KEY="sk-your-openai-key"
-export LLM_BASE_URL="https://api.openai.com/v1"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="sk-your-openai-key"
+LLM_BASE_URL="https://api.openai.com/v1"
+LLM_MODEL="gpt-4"
 ```
 
 **Azure OpenAI：**
 ```bash
-export LLM_API_KEY="your-azure-key"
-export LLM_BASE_URL="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="your-azure-key"
+LLM_BASE_URL="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+LLM_MODEL="gpt-4"
 ```
 
 **プロキシサービス：**
 ```bash
-export LLM_API_KEY="your-proxy-key"
-export LLM_BASE_URL="https://your-proxy-provider.com/v1"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="your-proxy-key"
+LLM_BASE_URL="https://your-proxy-provider.com/v1"
+LLM_MODEL="gpt-4"
 ```
 
 **ローカルデプロイメント：**
 ```bash
-export LLM_API_KEY="local-key"
-export LLM_BASE_URL="http://localhost:8000/v1"
-export LLM_MODEL="your-local-model"
+LLM_API_KEY="local-key"
+LLM_BASE_URL="http://localhost:8000/v1"
+LLM_MODEL="your-local-model"
 ```
 
 ##### Langfuse Tracing 設定（オプションですが推奨）
@@ -175,9 +177,9 @@ bash configure_langfuse.sh
 2. 新しいプロジェクトを作成し、API キーを取得
 3. 環境変数を設定：
    ```bash
-   export LANGFUSE_SECRET_KEY="sk-lf-..."
-   export LANGFUSE_PUBLIC_KEY="pk-lf-..."
-   export LANGFUSE_HOST="https://cloud.langfuse.com"
+   LANGFUSE_SECRET_KEY="sk-lf-..."
+   LANGFUSE_PUBLIC_KEY="pk-lf-..."
+   LANGFUSE_HOST="https://cloud.langfuse.com"
    ```
 
 **方法 3：一時的にトレーシングを無効化**
@@ -248,12 +250,12 @@ MCP サービスはメインサービスと同じ環境変数が必要です。�
 
 ```bash
 # 必要な環境変数（メインサービスと同じ）
-export LLM_API_KEY="your-api-key-here"
-export LLM_BASE_URL="https://api.openai.com/v1"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="your-api-key-here"
+LLM_BASE_URL="https://api.openai.com/v1"
+LLM_MODEL="gpt-4"
 
 # オプション設定
-export JINA_API_KEY="your-jina-key"  # ウェブ検索機能用
+JINA_API_KEY="your-jina-key"  # ウェブ検索機能用
 ```
 
 #### サービスの開始
@@ -378,7 +380,7 @@ pip install -r requirements.txt
 GTPlannerは、OpenAI互換のAPIをサポートしています。`settings.toml` ファイルでLLM、APIキー、環境変数、言語を設定できます。デフォルト言語は英語です。
 
 ```bash
-export LLM_API_KEY="your-api-key-here"
+LLM_API_KEY="your-api-key-here"
 ```
 
 ## 🛠️ 使用方法

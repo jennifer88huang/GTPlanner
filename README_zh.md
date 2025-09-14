@@ -112,13 +112,15 @@ pip install -e .
 
 #### 配置 API Key
 
-GTPlanner 支持多种配置方式，**必需的环境变量**包括：
+GTPlanner 支持多种配置方式，
+MCP 服务需要与主服务相同的**环境变量**。
+将 .env.example 重命名为 .env，并确保您已在 .env 文件中设置：
 
 ```bash
 # 核心配置（必需）
-export LLM_API_KEY="your-api-key-here"        # API 密钥
-export LLM_BASE_URL="https://api.openai.com/v1"  # API 基础 URL
-export LLM_MODEL="gpt-4"                       # 使用的模型名称
+LLM_API_KEY="your-api-key-here"        # API 密钥
+LLM_BASE_URL="https://api.openai.com/v1"  # API 基础 URL
+LLM_MODEL="gpt-4"                       # 使用的模型名称
 
 # Windows PowerShell 用户：
 # $env:LLM_API_KEY="your-api-key-here"
@@ -126,42 +128,42 @@ export LLM_MODEL="gpt-4"                       # 使用的模型名称
 # $env:LLM_MODEL="gpt-4"
 
 # 可选配置
-export JINA_API_KEY="your-jina-key"           # Jina AI 搜索服务密钥（用于网络搜索功能）
+JINA_API_KEY="your-jina-key"           # Jina AI 搜索服务密钥（用于网络搜索功能）
 
 # Langfuse 配置（可选，用于 PocketFlow Tracing）
-export LANGFUSE_SECRET_KEY="your-secret-key"  # Langfuse 密钥
-export LANGFUSE_PUBLIC_KEY="your-public-key"  # Langfuse 公钥  
-export LANGFUSE_HOST="https://cloud.langfuse.com"  # Langfuse 服务地址
+LANGFUSE_SECRET_KEY="your-secret-key"  # Langfuse 密钥
+LANGFUSE_PUBLIC_KEY="your-public-key"  # Langfuse 公钥  
+LANGFUSE_HOST="https://cloud.langfuse.com"  # Langfuse 服务地址
 ```
 
 ##### 常见供应商配置示例
 
 **OpenAI 官方：**
 ```bash
-export LLM_API_KEY="sk-your-openai-key"
-export LLM_BASE_URL="https://api.openai.com/v1"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="sk-your-openai-key"
+LLM_BASE_URL="https://api.openai.com/v1"
+LLM_MODEL="gpt-4"
 ```
 
 **Azure OpenAI：**
 ```bash
-export LLM_API_KEY="your-azure-key"
-export LLM_BASE_URL="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="your-azure-key"
+LLM_BASE_URL="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+LLM_MODEL="gpt-4"
 ```
 
 **国内代理服务：**
 ```bash
-export LLM_API_KEY="your-proxy-key"
-export LLM_BASE_URL="https://your-proxy-provider.com/v1"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="your-proxy-key"
+LLM_BASE_URL="https://your-proxy-provider.com/v1"
+LLM_MODEL="gpt-4"
 ```
 
 **本地部署服务：**
 ```bash
-export LLM_API_KEY="local-key"
-export LLM_BASE_URL="http://localhost:8000/v1"
-export LLM_MODEL="your-local-model"
+LLM_API_KEY="local-key"
+LLM_BASE_URL="http://localhost:8000/v1"
+LLM_MODEL="your-local-model"
 ```
 
 ##### Langfuse Tracing 配置（可选但推荐）
@@ -179,9 +181,9 @@ bash configure_langfuse.sh
 2. 创建新项目，获取 API 密钥
 3. 设置环境变量：
    ```bash
-   export LANGFUSE_SECRET_KEY="sk-lf-..."
-   export LANGFUSE_PUBLIC_KEY="pk-lf-..."
-   export LANGFUSE_HOST="https://cloud.langfuse.com"
+   LANGFUSE_SECRET_KEY="sk-lf-..."
+   LANGFUSE_PUBLIC_KEY="pk-lf-..."
+   LANGFUSE_HOST="https://cloud.langfuse.com"
    ```
 
 **方式 3：临时禁用 Tracing**
@@ -250,12 +252,12 @@ MCP 服务需要与主服务相同的环境变量配置，请确保已设置：
 
 ```bash
 # 必需的环境变量（与主服务相同）
-export LLM_API_KEY="your-api-key-here"
-export LLM_BASE_URL="https://api.openai.com/v1"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="your-api-key-here"
+LLM_BASE_URL="https://api.openai.com/v1"
+LLM_MODEL="gpt-4"
 
 # 可选配置
-export JINA_API_KEY="your-jina-key"  # 用于网络搜索功能
+JINA_API_KEY="your-jina-key"  # 用于网络搜索功能
 ```
 
 #### 启动服务
@@ -379,7 +381,7 @@ pip install -r requirements.txt
 GTPlanner 支持任何兼容 OpenAI 的 API。您可以在 `settings.toml` 文件中配置您的 LLM、API 密钥、环境变量和语言。默认语言是英语。
 
 ```bash
-export LLM_API_KEY="your-api-key-here"
+LLM_API_KEY="your-api-key-here"
 ```
 
 ## 🛠️ 使用方法

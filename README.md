@@ -112,9 +112,9 @@ GTPlanner supports multiple configuration methods. **Required environment variab
 
 ```bash
 # Core Configuration (Required)
-export LLM_API_KEY="your-api-key-here"        # API Key
-export LLM_BASE_URL="https://api.openai.com/v1"  # API Base URL
-export LLM_MODEL="gpt-4"                       # Model Name
+LLM_API_KEY="your-api-key-here"        # API Key
+LLM_BASE_URL="https://api.openai.com/v1"  # API Base URL
+LLM_MODEL="gpt-4"                       # Model Name
 
 # Windows PowerShell users:
 # $env:LLM_API_KEY="your-api-key-here"
@@ -122,42 +122,42 @@ export LLM_MODEL="gpt-4"                       # Model Name
 # $env:LLM_MODEL="gpt-4"
 
 # Optional Configuration
-export JINA_API_KEY="your-jina-key"           # Jina AI search service key (for web search)
+JINA_API_KEY="your-jina-key"           # Jina AI search service key (for web search)
 
 # Langfuse Configuration (Optional, for PocketFlow Tracing)
-export LANGFUSE_SECRET_KEY="your-secret-key"  # Langfuse Secret Key
-export LANGFUSE_PUBLIC_KEY="your-public-key"  # Langfuse Public Key  
-export LANGFUSE_HOST="https://cloud.langfuse.com"  # Langfuse Host
+LANGFUSE_SECRET_KEY="your-secret-key"  # Langfuse Secret Key
+LANGFUSE_PUBLIC_KEY="your-public-key"  # Langfuse Public Key  
+LANGFUSE_HOST="https://cloud.langfuse.com"  # Langfuse Host
 ```
 
 ##### Common Provider Configuration Examples
 
 **OpenAI Official:**
 ```bash
-export LLM_API_KEY="sk-your-openai-key"
-export LLM_BASE_URL="https://api.openai.com/v1"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="sk-your-openai-key"
+LLM_BASE_URL="https://api.openai.com/v1"
+LLM_MODEL="gpt-4"
 ```
 
 **Azure OpenAI:**
 ```bash
-export LLM_API_KEY="your-azure-key"
-export LLM_BASE_URL="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="your-azure-key"
+LLM_BASE_URL="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+LLM_MODEL="gpt-4"
 ```
 
 **Proxy Services:**
 ```bash
-export LLM_API_KEY="your-proxy-key"
-export LLM_BASE_URL="https://your-proxy-provider.com/v1"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="your-proxy-key"
+LLM_BASE_URL="https://your-proxy-provider.com/v1"
+LLM_MODEL="gpt-4"
 ```
 
 **Local Deployment:**
 ```bash
-export LLM_API_KEY="local-key"
-export LLM_BASE_URL="http://localhost:8000/v1"
-export LLM_MODEL="your-local-model"
+LLM_API_KEY="local-key"
+LLM_BASE_URL="http://localhost:8000/v1"
+LLM_MODEL="your-local-model"
 ```
 
 ##### Langfuse Tracing Configuration (Optional but Recommended)
@@ -175,9 +175,9 @@ bash configure_langfuse.sh
 2. Create a new project and get API keys
 3. Set environment variables:
    ```bash
-   export LANGFUSE_SECRET_KEY="sk-lf-..."
-   export LANGFUSE_PUBLIC_KEY="pk-lf-..."
-   export LANGFUSE_HOST="https://cloud.langfuse.com"
+   LANGFUSE_SECRET_KEY="sk-lf-..."
+   LANGFUSE_PUBLIC_KEY="pk-lf-..."
+   LANGFUSE_HOST="https://cloud.langfuse.com"
    ```
 
 **Method 3: Temporarily Disable Tracing**
@@ -239,16 +239,17 @@ curl -X POST "http://127.0.0.1:11211/api/chat/agent" \
 
 #### Environment Configuration
 
-MCP service requires the same environment variables as the main service. Please ensure you have set:
+MCP service requires the same environment variables as the main service. 
+Rename .env.example -> .env and ensure you have set in .env file:
 
 ```bash
 # Required environment variables (same as main service)
-export LLM_API_KEY="your-api-key-here"
-export LLM_BASE_URL="https://api.openai.com/v1"
-export LLM_MODEL="gpt-4"
+LLM_API_KEY="your-api-key-here"
+LLM_BASE_URL="https://api.openai.com/v1"
+LLM_MODEL="gpt-4"
 
 # Optional configuration
-export JINA_API_KEY="your-jina-key"  # For web search functionality
+JINA_API_KEY="your-jina-key"  # For web search functionality
 ```
 
 #### Start Service
@@ -371,7 +372,7 @@ pip install -r requirements.txt
 GTPlanner supports any OpenAI-compatible API. You can configure your LLM, API key, environment variables, and language in the `settings.toml` file. The default language is English.
 
 ```bash
-export LLM_API_KEY="your-api-key-here"
+LLM_API_KEY="your-api-key-here"
 ```
 
 ## 🛠️ Usage
