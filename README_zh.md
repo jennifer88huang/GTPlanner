@@ -12,6 +12,7 @@
   <a href="#-概览">概览</a> •
   <a href="#-web-ui-推荐">Web UI</a> •
   <a href="#mcp集成">MCP集成</a> •
+  <a href="#-快速开始">快速开始</a> •
   <a href="#-功能特性">功能特性</a> •
   <a href="#-环境要求-后端和cli">环境要求</a> •
   <a href="#-安装-后端和cli">安装</a> •
@@ -77,6 +78,249 @@ GTPlanner 生成的计划可以直接在您最喜欢的 AI 编程工具中使用
 
 ---
 
+## ⚡ 快速开始
+
+下面是一条**最顺滑**、**开箱即用**的 GTPlanner 体验路径——从 0 到生成你的第一份 PRD，只需几条命令即可完成。
+
+
+### 1) 在线极速体验（无需安装）
+
+* 打开 Web UI 在线 Demo：[🚀 立刻体验 Live Demo!](https://the-agent-builder.com/)
+  👉 适合"先感受下效果"的同学，所见即所得的规划与文档生成体验。
+
+
+### 2) 本地运行（5 分钟上手）
+
+#### 环境准备
+
+* **Python ≥ 3.10**（推荐 3.11+）
+* 包管理器用 **uv**（推荐）或 **pip**
+* 准备一个兼容 OpenAI 的 LLM API Key（如 `OpenAI` / `Anthropic` / `Azure OpenAI` / 自建兼容端点）
+
+#### 克隆与安装
+
+```bash
+git clone https://github.com/OpenSQZ/GTPlanner.git
+cd GTPlanner
+
+# 推荐：uv 一键安装
+uv sync
+
+# 或使用 pip
+pip install -e .
+```
+
+#### 配置 API Key
+
+GTPlanner 支持多种配置方式，
+MCP 服务需要与主服务相同的**环境变量**。
+将 .env.example 重命名为 .env，并确保您已在 .env 文件中设置：
+
+```bash
+# 核心配置（必需）
+LLM_API_KEY="your-api-key-here"        # API 密钥
+LLM_BASE_URL="https://api.openai.com/v1"  # API 基础 URL
+LLM_MODEL="gpt-4"                       # 使用的模型名称
+
+# Windows PowerShell 用户：
+# $env:LLM_API_KEY="your-api-key-here"
+# $env:LLM_BASE_URL="https://api.openai.com/v1"
+# $env:LLM_MODEL="gpt-4"
+
+# 可选配置
+JINA_API_KEY="your-jina-key"           # Jina AI 搜索服务密钥（用于网络搜索功能）
+
+# Langfuse 配置（可选，用于 PocketFlow Tracing）
+LANGFUSE_SECRET_KEY="your-secret-key"  # Langfuse 密钥
+LANGFUSE_PUBLIC_KEY="your-public-key"  # Langfuse 公钥  
+LANGFUSE_HOST="https://cloud.langfuse.com"  # Langfuse 服务地址
+```
+
+##### 常见供应商配置示例
+
+**OpenAI 官方：**
+```bash
+LLM_API_KEY="sk-your-openai-key"
+LLM_BASE_URL="https://api.openai.com/v1"
+LLM_MODEL="gpt-4"
+```
+
+**Azure OpenAI：**
+```bash
+LLM_API_KEY="your-azure-key"
+LLM_BASE_URL="https://your-resource.openai.azure.com/openai/deployments/your-deployment"
+LLM_MODEL="gpt-4"
+```
+
+**国内代理服务：**
+```bash
+LLM_API_KEY="your-proxy-key"
+LLM_BASE_URL="https://your-proxy-provider.com/v1"
+LLM_MODEL="gpt-4"
+```
+
+**本地部署服务：**
+```bash
+LLM_API_KEY="local-key"
+LLM_BASE_URL="http://localhost:8000/v1"
+LLM_MODEL="your-local-model"
+```
+
+##### Langfuse Tracing 配置（可选但推荐）
+
+GTPlanner 集成了 PocketFlow Tracing，可以追踪执行过程。如需启用：
+
+**方式 1：使用配置脚本（推荐）**
+```bash
+# 运行配置向导
+bash configure_langfuse.sh
+```
+
+**方式 2：手动配置**
+1. 访问 [Langfuse Cloud](https://cloud.langfuse.com) 注册账号
+2. 创建新项目，获取 API 密钥
+3. 设置环境变量：
+   ```bash
+   LANGFUSE_SECRET_KEY="sk-lf-..."
+   LANGFUSE_PUBLIC_KEY="pk-lf-..."
+   LANGFUSE_HOST="https://cloud.langfuse.com"
+   ```
+
+**方式 3：临时禁用 Tracing**
+如果暂时不需要追踪功能，可以忽略 Langfuse 配置。系统会自动跳过 tracing。
+
+> 可在 `settings.toml` 中进一步配置其他参数。默认语言为英文，支持中文、日文、西班牙文、法文。
+
+
+### 3) 方式 A：CLI 一键生成你的第一份 PRD（推荐）
+
+#### 交互式对话
+
+```bash
+python gtplanner.py
+# 或
+python agent/cli/gtplanner_cli.py
+```
+
+进入后直接输入你的需求，例如：
+
+```
+为一个在线课程平台生成 PRD：用户注册登录、课程检索、试看、购买、学习进度与作业批改。
+```
+
+> CLI 自带会话管理（/sessions、/load）、流式输出与多语言界面。
+
+#### 直接执行（免交互）
+
+```bash
+python gtplanner.py "设计一个支持SaaS计费和团队协作的项目管理平台，并输出PRD"
+```
+
+
+### 4) 方式 B：启动 REST API（适合接入你自己的前端/自动化）
+
+#### 启动服务
+
+```bash
+uv run fastapi_main.py
+# 默认: http://0.0.0.0:11211
+# 文档: http://0.0.0.0:11211/docs
+```
+
+#### 一条 curl 就能跑通（SSE/流式 Agent 接口）
+
+```bash
+curl -X POST "http://127.0.0.1:11211/api/chat/agent" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "quickstart-demo",
+    "dialogue_history": [
+      {"role":"user","content":"请生成一个自动读取支付记录和库存并生成财务和风控报告的agent"}
+    ],
+    "language": "zh"
+  }'
+```
+
+> 该端点基于 **SSE 流式**返回，后端使用 `StatelessGTPlanner`，并带有工具调用状态更新。
+
+
+### 5) 方式 C：MCP 集成（接入你的 AI IDE / 助手）
+
+#### 环境配置
+
+MCP 服务需要与主服务相同的环境变量配置，请确保已设置：
+
+```bash
+# 必需的环境变量（与主服务相同）
+LLM_API_KEY="your-api-key-here"
+LLM_BASE_URL="https://api.openai.com/v1"
+LLM_MODEL="gpt-4"
+
+# 可选配置
+JINA_API_KEY="your-jina-key"  # 用于网络搜索功能
+```
+
+#### 启动服务
+
+1. 启动 MCP 服务
+
+   ```bash
+   cd mcp
+   uv sync
+   uv run python mcp_service.py
+   ```
+
+   > **注意**：MCP 服务运行在独立的环境中，但会继承主项目的配置。确保环境变量在启动前已正确设置。
+
+2. 在 MCP 客户端中配置：
+
+   ```json
+   {
+     "mcpServers": {
+       "GT-planner": { 
+         "command": "uv",
+         "args": ["run", "python", "mcp_service.py"],
+         "cwd": "/path/to/GTPlanner/mcp"
+       }
+     }
+   }
+   ```
+
+   或直接连接到运行中的服务：
+
+   ```json
+   {
+     "mcpServers": {
+       "GT-planner": { "url": "http://127.0.0.1:8001/mcp" }
+     }
+   }
+   ```
+
+3. 可用工具：
+   - `generate_flow`（从需求生成规划流程）
+   - `generate_design_doc`（生成详细 PRD）
+   
+   支持多语言：`en`、`zh`、`ja`、`es`、`fr`
+
+
+### 6) 成功校验（你应该能看到什么）
+
+* **CLI**：在终端中实时流出"分析 → 规划 → 调研/架构 → 文档输出"的流式内容，并给出结构化的 PRD 片段。
+* **API**：`/docs` 打开 Swagger，或用 `curl` 拿到流式/分段响应；返回体中包含最终文档内容与步骤化过程。
+* **MCP**：在支持 MCP 的编辑器（如 Cursor / Cherry Studio）内直接调用对应工具生成规划/PRD。
+
+### 7) 常见问题
+
+* **网络/依赖问题**：优先使用 `uv sync`，能显著减少环境坑位。
+* **模型与费用**：任何兼容 OpenAI 的服务端都可用；先用最小上下文与短输入试跑，验证链路后再扩写需求。
+* **环境变量**：确保 `LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` 三个核心变量都已正确设置。
+* **MCP 服务配置**：MCP 服务需要与主服务相同的环境变量，启动前请确认环境配置正确。
+* **Tracing 配置**：Langfuse 为可选配置，用于执行追踪。可运行 `bash configure_langfuse.sh` 快速配置，或暂时忽略。
+* **语言**：`language` 可设 `zh | en | ja | es | fr`，或直接让系统自动检测。
+* **兼容性**：支持 OpenAI、Azure OpenAI、Anthropic Claude（通过代理）、国内各大模型服务商。
+
+---
+
 ## ✨ 功能特性
 
 ### 🧠 智能Agent能力
@@ -137,7 +381,7 @@ pip install -r requirements.txt
 GTPlanner 支持任何兼容 OpenAI 的 API。您可以在 `settings.toml` 文件中配置您的 LLM、API 密钥、环境变量和语言。默认语言是英语。
 
 ```bash
-export LLM_API_KEY="your-api-key-here"
+LLM_API_KEY="your-api-key-here"
 ```
 
 ## 🛠️ 使用方法
@@ -471,6 +715,7 @@ supported_languages = ["en", "zh", "es", "fr", "ja"]
 分享您的使用案例、教程和最佳实践，帮助社区发掘 GTPlanner 的全部潜力。
 
 ### 📖 详细指南
+中文: 接受两种类型的贡献：工具规范或核心代码。
 完整的贡献方式、技术规范和提交流程，请查看：
 **[贡献指南](contribute_zh.md)** - 包含详细的贡献流程、模板和示例
 
