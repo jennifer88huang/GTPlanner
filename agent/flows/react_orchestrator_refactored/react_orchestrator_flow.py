@@ -16,6 +16,14 @@ from .react_orchestrator_node import ReActOrchestratorNode
 class TracedReActOrchestratorFlow(AsyncFlow):
     """带有tracing的ReAct主控制器流程"""
 
+    async def _traced_run_async_fallback(self, shared):
+        """
+        异步运行的回退方法，当异步上下文创建失败时使用
+        这是 pocketflow_tracing 要求的回退机制
+        """
+        # 直接调用父类的 run_async 方法，不使用异步上下文
+        return await super().run_async(shared)
+
     async def prep_async(self, shared):
         """流程级准备"""
         # 确保使用正确的事件循环来获取时间
